@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { format } from "date-fns";
-import { CalendarIcon, Plane, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
+import { CalendarIcon, Plane, CheckCircle2, XCircle, AlertTriangle, Search, Loader2, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,6 +29,19 @@ interface FeasibilityResult {
   feasible: boolean;
   issues: string[];
   notes: string[];
+}
+
+interface CbpResult {
+  success: boolean;
+  found: boolean;
+  icao: string;
+  airportName: string | null;
+  customsAvailable: boolean;
+  detailUrl: string | null;
+  pdfUrl: string | null;
+  message: string;
+  details: { content?: string; serviceHours?: string } | null;
+  error?: string;
 }
 
 function evaluateFeasibility(data: FeasibilityData): FeasibilityResult {
@@ -94,6 +108,31 @@ export default function FeasibilityForm() {
   });
 
   const [result, setResult] = useState<FeasibilityResult | null>(null);
+  const [cbpResult, setCbpResult] = useState<CbpResult | null>(null);
+  const [cbpLoading, setCbpLoading] = useState(false);
+
+  const handleCbpLookup = useCallback(async () => {
+    if (data.airportIcao.length !== 4) return;
+    setCbpLoading(true);
+    setCbpResult(null);
+    try {
+      const { data: res, error } = await supabase.functions.invoke('cbp-lookup', {
+        body: { icao: data.airportIcao },
+      });
+      if (error) {
+        setCbpResult({ success: false, found: false, icao: data.airportIcao, airportName: null, customsAvailable: false, detailUrl: null, pdfUrl: null, message: '', details: null, error: error.message });
+      } else {
+        setCbpResult(res as CbpResult);
+        if (res?.found !== undefined) {
+          setData(prev => ({ ...prev, customsAvailable: res.customsAvailable }));
+        }
+      }
+    } catch (e) {
+      setCbpResult({ success: false, found: false, icao: data.airportIcao, airportName: null, customsAvailable: false, detailUrl: null, pdfUrl: null, message: '', details: null, error: 'Failed to connect' });
+    } finally {
+      setCbpLoading(false);
+    }
+  }, [data.airportIcao]);
 
   const handleCheck = () => {
     setResult(evaluateFeasibility(data));
@@ -161,16 +200,62 @@ export default function FeasibilityForm() {
             {/* Airport ICAO */}
             <div className="space-y-2">
               <Label htmlFor="icao">Airport ICAO Code</Label>
-              <Input
-                id="icao"
-                placeholder="e.g. EGLL"
-                maxLength={4}
-                value={data.airportIcao}
-                onChange={(e) =>
-                  setData({ ...data, airportIcao: e.target.value.toUpperCase().replace(/[^A-Z]/g, "") })
-                }
-                className="font-mono uppercase tracking-widest"
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="icao"
+                  placeholder="e.g. KJFK"
+                  maxLength={4}
+                  value={data.airportIcao}
+                  onChange={(e) => {
+                    setData({ ...data, airportIcao: e.target.value.toUpperCase().replace(/[^A-Z]/g, "") });
+                    setCbpResult(null);
+                  }}
+                  className="font-mono uppercase tracking-widest"
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={handleCbpLookup}
+                  disabled={data.airportIcao.length !== 4 || cbpLoading}
+                  className="shrink-0"
+                >
+                  {cbpLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                  <span className="ml-1.5">CBP Lookup</span>
+                </Button>
+              </div>
+
+              {/* CBP Result */}
+              {cbpResult && (
+                <div className={cn(
+                  "rounded-md border p-3 text-sm space-y-1.5",
+                  cbpResult.found ? "border-success/30 bg-success/5" : "border-muted bg-muted/50"
+                )}>
+                  <div className="flex items-center gap-1.5 font-medium">
+                    {cbpResult.found ? (
+                      <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+                    ) : (
+                      <AlertTriangle className="h-3.5 w-3.5 text-warning" />
+                    )}
+                    {cbpResult.airportName
+                      ? `${cbpResult.airportName} (${cbpResult.icao})`
+                      : cbpResult.icao}
+                  </div>
+                  <p className="text-muted-foreground text-xs">{cbpResult.message}</p>
+                  {cbpResult.detailUrl && (
+                    <a
+                      href={cbpResult.detailUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                    >
+                      View CBP Fact Sheet <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
+                  {cbpResult.error && (
+                    <p className="text-xs text-destructive">{cbpResult.error}</p>
+                  )}
+                </div>
+              )}
             </div>
 
             <Separator />
