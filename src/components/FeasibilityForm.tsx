@@ -92,6 +92,22 @@ interface PermitResult {
   error?: string;
 }
 
+interface CiqResult {
+  success: boolean;
+  icao: string;
+  country?: string;
+  airportName?: string;
+  ciqAvailable?: 'yes' | 'no' | 'limited';
+  isPortOfEntry?: boolean;
+  operatingHours?: string;
+  advanceNotice?: string;
+  fees?: string;
+  alternateAirports?: string;
+  notes?: string;
+  confidence?: 'high' | 'medium' | 'low';
+  error?: string;
+}
+
 // Aircraft data imported from @/data/aircraftData
 
 // ── Helpers ────────────────────────────────────────────────
@@ -208,6 +224,8 @@ export default function FeasibilityForm() {
   const [runwayLoading, setRunwayLoading] = useState(false);
   const [permitResult, setPermitResult] = useState<PermitResult | null>(null);
   const [permitLoading, setPermitLoading] = useState(false);
+  const [ciqResult, setCiqResult] = useState<CiqResult | null>(null);
+  const [ciqLoading, setCiqLoading] = useState(false);
 
   const handleCbpLookup = useCallback(async () => {
     if (data.airportIcao.length !== 4) return;
@@ -277,12 +295,45 @@ export default function FeasibilityForm() {
     }
   }, [data.airportIcao]);
 
+  const handleCiqLookup = useCallback(async () => {
+    if (data.airportIcao.length !== 4) return;
+    setCiqLoading(true);
+    setCiqResult(null);
+    try {
+      const { data: res, error } = await supabase.functions.invoke('ciq-lookup', {
+        body: { icao: data.airportIcao },
+      });
+      if (error) {
+        setCiqResult({ success: false, icao: data.airportIcao, error: error.message });
+      } else {
+        setCiqResult(res as CiqResult);
+        if (res?.ciqAvailable === 'yes') {
+          setData(prev => ({ ...prev, customsAvailable: true }));
+        } else if (res?.ciqAvailable === 'no') {
+          setData(prev => ({ ...prev, customsAvailable: false }));
+        }
+      }
+    } catch {
+      setCiqResult({ success: false, icao: data.airportIcao, error: 'Failed to connect' });
+    } finally {
+      setCiqLoading(false);
+    }
+  }, [data.airportIcao]);
+
+  const isUsAirport = (icao: string) => icao.startsWith('K') || icao.startsWith('PA') || icao.startsWith('PH') || icao.startsWith('PG') || icao.startsWith('TJ');
+
   const handleLookupAll = useCallback(async () => {
     if (data.airportIcao.length !== 4) return;
-    handleCbpLookup();
+    // US airports use CBP lookup, non-US use AI CIQ lookup
+    if (isUsAirport(data.airportIcao)) {
+      handleCbpLookup();
+    } else {
+      setCbpResult(null);
+      handleCiqLookup();
+    }
     handleRunwayLookup();
     handlePermitLookup();
-  }, [data.airportIcao, handleCbpLookup, handleRunwayLookup, handlePermitLookup]);
+  }, [data.airportIcao, handleCbpLookup, handleCiqLookup, handleRunwayLookup, handlePermitLookup]);
 
   const effectiveRunwayFt: number | null =
     data.runwayOverrideFt && parseInt(data.runwayOverrideFt, 10) > 0
@@ -310,6 +361,7 @@ export default function FeasibilityForm() {
     setCbpResult(null);
     setRunwayResult(null);
     setPermitResult(null);
+    setCiqResult(null);
   };
 
   return (
@@ -380,6 +432,7 @@ export default function FeasibilityForm() {
                     setCbpResult(null);
                     setRunwayResult(null);
                     setPermitResult(null);
+                    setCiqResult(null);
                   }}
                   className="font-mono uppercase tracking-widest"
                 />
@@ -387,15 +440,15 @@ export default function FeasibilityForm() {
                   type="button"
                   variant="secondary"
                   onClick={handleLookupAll}
-                  disabled={data.airportIcao.length !== 4 || cbpLoading || runwayLoading || permitLoading}
+                  disabled={data.airportIcao.length !== 4 || cbpLoading || runwayLoading || permitLoading || ciqLoading}
                   className="shrink-0"
                 >
-                  {(cbpLoading || runwayLoading || permitLoading) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                  {(cbpLoading || runwayLoading || permitLoading || ciqLoading) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                   <span className="ml-1.5">Lookup</span>
                 </Button>
               </div>
 
-              {/* CBP Result */}
+              {/* CBP Result (US airports) */}
               {cbpResult && (
                 <div className={cn(
                   "rounded-md border p-3 text-sm space-y-1.5",
@@ -411,18 +464,83 @@ export default function FeasibilityForm() {
                       ? `${cbpResult.airportName} (${cbpResult.icao})`
                       : cbpResult.icao}
                   </div>
-                   <p className="text-muted-foreground text-xs">{cbpResult.message}</p>
-                   {cbpResult.operatingHours && (
-                     <div className="rounded bg-background/50 px-2 py-1.5 text-xs space-y-0.5">
-                       <p className="font-medium">CBP Operating Hours:</p>
-                       <p>{cbpResult.operatingHours.open}–{cbpResult.operatingHours.close} ({cbpResult.operatingHours.days})</p>
-                       {cbpResult.operatingHours.notes && (
-                         <p className="text-muted-foreground italic">{cbpResult.operatingHours.notes}</p>
-                       )}
-                       {cbpResult.operatingHours.raw && (
-                         <p className="text-muted-foreground">Source: "{cbpResult.operatingHours.raw}"</p>
-                       )}
-                     </div>
+                  <p className="text-muted-foreground text-xs">{cbpResult.message}</p>
+                  {cbpResult.operatingHours && (
+                    <div className="rounded bg-background/50 px-2 py-1.5 text-xs space-y-0.5">
+                      <p className="font-medium">CBP Operating Hours:</p>
+                      <p>{cbpResult.operatingHours.open}–{cbpResult.operatingHours.close} ({cbpResult.operatingHours.days})</p>
+                      {cbpResult.operatingHours.notes && (
+                        <p className="text-muted-foreground italic">{cbpResult.operatingHours.notes}</p>
+                      )}
+                      {cbpResult.operatingHours.raw && (
+                        <p className="text-muted-foreground">Source: "{cbpResult.operatingHours.raw}"</p>
+                      )}
+                    </div>
+                  )}
+                  {cbpResult.detailUrl && (
+                    <a
+                      href={cbpResult.detailUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                    >
+                      View CBP Fact Sheet <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
+                  {cbpResult.error && (
+                    <p className="text-xs text-destructive">{cbpResult.error}</p>
+                  )}
+                </div>
+              )}
+
+              {/* CIQ Result (non-US airports) */}
+              {ciqLoading && (
+                <div className="rounded-md border p-3 text-sm flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Looking up CIQ availability…
+                </div>
+              )}
+              {ciqResult && !ciqLoading && (
+                <div className={cn(
+                  "rounded-md border p-3 text-sm space-y-1.5",
+                  ciqResult.ciqAvailable === 'yes'
+                    ? "border-success/30 bg-success/5"
+                    : ciqResult.ciqAvailable === 'no'
+                      ? "border-destructive/30 bg-destructive/5"
+                      : "border-warning/30 bg-warning/5"
+                )}>
+                  <div className="flex items-center gap-1.5 font-medium">
+                    {ciqResult.ciqAvailable === 'yes' ? (
+                      <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+                    ) : ciqResult.ciqAvailable === 'no' ? (
+                      <XCircle className="h-3.5 w-3.5 text-destructive" />
+                    ) : (
+                      <AlertTriangle className="h-3.5 w-3.5 text-warning" />
+                    )}
+                    CIQ — {ciqResult.airportName || ciqResult.country || ciqResult.icao}
+                  </div>
+                  <p className="text-xs font-medium">
+                    {ciqResult.ciqAvailable === 'yes' && '✅ CIQ services available'}
+                    {ciqResult.ciqAvailable === 'no' && '❌ CIQ services not available'}
+                    {ciqResult.ciqAvailable === 'limited' && '⚠️ Limited CIQ services'}
+                  </p>
+                  <div className="rounded bg-background/50 px-2 py-1.5 text-xs space-y-0.5">
+                    {ciqResult.isPortOfEntry !== undefined && (
+                      <p><span className="font-medium">Port of entry:</span> {ciqResult.isPortOfEntry ? 'Yes' : 'No'}</p>
+                    )}
+                    {ciqResult.operatingHours && <p><span className="font-medium">Hours:</span> {ciqResult.operatingHours}</p>}
+                    {ciqResult.advanceNotice && <p><span className="font-medium">Advance notice:</span> {ciqResult.advanceNotice}</p>}
+                    {ciqResult.fees && <p><span className="font-medium">Fees:</span> {ciqResult.fees}</p>}
+                    {ciqResult.alternateAirports && <p><span className="font-medium">Alternatives:</span> {ciqResult.alternateAirports}</p>}
+                    {ciqResult.notes && <p className="text-muted-foreground italic">{ciqResult.notes}</p>}
+                  </div>
+                  {ciqResult.confidence && (
+                    <p className="text-xs text-muted-foreground">Confidence: {ciqResult.confidence}</p>
+                  )}
+                  {ciqResult.error && (
+                    <p className="text-xs text-destructive">{ciqResult.error}</p>
+                  )}
+                </div>
               )}
 
               {/* Permit Result */}
@@ -466,21 +584,6 @@ export default function FeasibilityForm() {
                   {permitResult.error && (
                     <p className="text-xs text-destructive">{permitResult.error}</p>
                   )}
-                </div>
-              )}
-                   {cbpResult.detailUrl && (
-                     <a
-                       href={cbpResult.detailUrl}
-                       target="_blank"
-                       rel="noopener noreferrer"
-                       className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                     >
-                       View CBP Fact Sheet <ExternalLink className="h-3 w-3" />
-                     </a>
-                   )}
-                   {cbpResult.error && (
-                     <p className="text-xs text-destructive">{cbpResult.error}</p>
-                   )}
                 </div>
               )}
 
