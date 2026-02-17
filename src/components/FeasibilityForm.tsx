@@ -112,6 +112,7 @@ export default function FeasibilityForm() {
     ...legs.map(l => l.cbpResult),
     ...legs.map(l => l.runwayResult),
     ...legs.map(l => l.ciqResult),
+    ...legs.map(l => l.airportHoursResult),
     aircraftType,
   ]);
 

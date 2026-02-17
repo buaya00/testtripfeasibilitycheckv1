@@ -18,6 +18,7 @@ import { Separator } from "@/components/ui/separator";
 import type {
   LegData, CbpResult, RunwayResult, PermitResult, CiqResult,
   ChargesResult, PprResult, FeasibilityResult, OperatingHours,
+  AirportHoursResult,
 } from "./tripTypes";
 
 // ── Constants ──────────────────────────────────────────────
@@ -135,6 +136,40 @@ export function evaluateLegFeasibility(
     notes.push("Allow additional lead time for permit/PPR processing");
   }
 
+  // Airport operating hours check
+  const hrs = leg.airportHoursResult;
+  if (hrs?.success) {
+    if (hrs.arrivalOutsideHours) {
+      issues.push(`Arrival time is outside airport operating hours${hrs.operatingHoursOpen && hrs.operatingHoursClose ? ` (${hrs.operatingHoursOpen}–${hrs.operatingHoursClose} UTC)` : ''}`);
+    }
+    if (hrs.departureOutsideHours) {
+      issues.push(`Departure time is outside airport operating hours${hrs.operatingHoursOpen && hrs.operatingHoursClose ? ` (${hrs.operatingHoursOpen}–${hrs.operatingHoursClose} UTC)` : ''}`);
+    }
+    if (hrs.arrivalDuringCurfew) {
+      issues.push(`Arrival falls during airport curfew${hrs.curfewStart && hrs.curfewEnd ? ` (${hrs.curfewStart}–${hrs.curfewEnd} UTC)` : ''}${hrs.curfewNotes ? ': ' + hrs.curfewNotes : ''}`);
+    }
+    if (hrs.departureDuringCurfew) {
+      issues.push(`Departure falls during airport curfew${hrs.curfewStart && hrs.curfewEnd ? ` (${hrs.curfewStart}–${hrs.curfewEnd} UTC)` : ''}${hrs.curfewNotes ? ': ' + hrs.curfewNotes : ''}`);
+    }
+    // Flag NOTAMs that affect operations
+    const affectingNotams = hrs.activeNotams?.filter(n => n.affectsOperations) || [];
+    for (const notam of affectingNotams) {
+      if (notam.type === 'closure') {
+        issues.push(`NOTAM: Airport closure — ${notam.summary}`);
+      } else {
+        notes.push(`NOTAM (${notam.type}): ${notam.summary}`);
+      }
+    }
+    if (hrs.seasonalRestrictions) {
+      notes.push(`Seasonal restriction: ${hrs.seasonalRestrictions}`);
+    }
+    if (hrs.is24Hours) {
+      notes.push('Airport operates 24 hours');
+    } else if (hrs.operatingHoursOpen && hrs.operatingHoursClose) {
+      notes.push(`Airport hours: ${hrs.operatingHoursOpen}–${hrs.operatingHoursClose} UTC (${hrs.operatingDays || 'Daily'})`);
+    }
+  }
+
   return { feasible: issues.length === 0, issues, notes };
 }
 
@@ -159,8 +194,9 @@ export default function TripLegCard({
   const [ciqLoading, setCiqLoading] = useState(false);
   const [chargesLoading, setChargesLoading] = useState(false);
   const [pprLoading, setPprLoading] = useState(false);
+  const [hoursLoading, setHoursLoading] = useState(false);
 
-  const anyLoading = cbpLoading || runwayLoading || permitLoading || ciqLoading || chargesLoading || pprLoading;
+  const anyLoading = cbpLoading || runwayLoading || permitLoading || ciqLoading || chargesLoading || pprLoading || hoursLoading;
 
   const update = (updates: Partial<LegData>) => onUpdateLeg(legIndex, updates);
 
@@ -251,6 +287,28 @@ export default function TripLegCard({
     finally { setPprLoading(false); }
   }, [leg.airportIcao, flightType, aircraftType]);
 
+  const handleAirportHoursLookup = useCallback(async () => {
+    if (leg.airportIcao.length !== 4) return;
+    setHoursLoading(true);
+    update({ airportHoursResult: null });
+    try {
+      const { data: res, error } = await supabase.functions.invoke('airport-hours-notam', {
+        body: {
+          icao: leg.airportIcao,
+          arrivalDate: leg.arrivalDate?.toISOString(),
+          arrivalTime: leg.arrivalTime || undefined,
+          departureDate: leg.departureDate?.toISOString(),
+          departureTime: leg.departureTime || undefined,
+          aircraftType: aircraftType || undefined,
+          flightType: flightType || undefined,
+        },
+      });
+      if (error) { update({ airportHoursResult: { success: false, icao: leg.airportIcao, error: error.message } }); }
+      else { update({ airportHoursResult: res as AirportHoursResult }); }
+    } catch { update({ airportHoursResult: { success: false, icao: leg.airportIcao, error: 'Failed to connect' } }); }
+    finally { setHoursLoading(false); }
+  }, [leg.airportIcao, leg.arrivalDate, leg.arrivalTime, leg.departureDate, leg.departureTime, aircraftType, flightType]);
+
   const handleLookupAll = useCallback(() => {
     if (leg.airportIcao.length !== 4) return;
     if (isUsAirport(leg.airportIcao)) { handleCbpLookup(); } else { update({ cbpResult: null }); handleCiqLookup(); }
@@ -258,7 +316,8 @@ export default function TripLegCard({
     handlePermitLookup();
     handleChargesLookup();
     handlePprLookup();
-  }, [leg.airportIcao, handleCbpLookup, handleCiqLookup, handleRunwayLookup, handlePermitLookup, handleChargesLookup, handlePprLookup]);
+    handleAirportHoursLookup();
+  }, [leg.airportIcao, handleCbpLookup, handleCiqLookup, handleRunwayLookup, handlePermitLookup, handleChargesLookup, handlePprLookup, handleAirportHoursLookup]);
 
   // Register lookup function with parent
   useEffect(() => {
@@ -553,6 +612,83 @@ export default function TripLegCard({
                   </div>
                 )}
                 {leg.chargesResult.error && <p className="text-xs text-destructive">{leg.chargesResult.error}</p>}
+              </div>
+            )}
+
+            {/* Airport Hours & NOTAMs */}
+            {hoursLoading && <div className="rounded-md border p-3 text-sm flex items-center gap-2 text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Checking airport hours & NOTAMs…</div>}
+            {leg.airportHoursResult && !hoursLoading && (
+              <div className={cn("rounded-md border p-3 text-sm space-y-1.5",
+                leg.airportHoursResult.success
+                  ? (leg.airportHoursResult.arrivalOutsideHours || leg.airportHoursResult.departureOutsideHours || leg.airportHoursResult.arrivalDuringCurfew || leg.airportHoursResult.departureDuringCurfew)
+                    ? "border-destructive/30 bg-destructive/5"
+                    : "border-success/30 bg-success/5"
+                  : "border-muted bg-muted/50"
+              )}>
+                <div className="flex items-center gap-1.5 font-medium">
+                  <Clock className="h-3.5 w-3.5 text-primary" />
+                  Airport Hours — {leg.airportHoursResult.airportName || leg.airportHoursResult.icao}
+                  {leg.airportHoursResult.hasLiveNotamData && (
+                    <span className="text-[10px] font-normal bg-primary/10 text-primary px-1.5 py-0.5 rounded">Live NOTAMs</span>
+                  )}
+                </div>
+
+                {leg.airportHoursResult.success && (
+                  <div className="rounded bg-background/50 px-2 py-1.5 text-xs space-y-1">
+                    {leg.airportHoursResult.is24Hours ? (
+                      <p className="text-success font-medium">✅ 24-hour operations</p>
+                    ) : leg.airportHoursResult.operatingHoursOpen && leg.airportHoursResult.operatingHoursClose ? (
+                      <p><span className="font-medium">Hours:</span> {leg.airportHoursResult.operatingHoursOpen}–{leg.airportHoursResult.operatingHoursClose} UTC ({leg.airportHoursResult.operatingDays})</p>
+                    ) : null}
+
+                    {leg.airportHoursResult.curfewStart && leg.airportHoursResult.curfewEnd && (
+                      <p className="text-warning"><span className="font-medium">⚠️ Curfew:</span> {leg.airportHoursResult.curfewStart}–{leg.airportHoursResult.curfewEnd} UTC{leg.airportHoursResult.curfewNotes ? ` — ${leg.airportHoursResult.curfewNotes}` : ''}</p>
+                    )}
+
+                    {leg.airportHoursResult.arrivalOutsideHours && (
+                      <p className="text-destructive font-medium">❌ Arrival is outside operating hours</p>
+                    )}
+                    {leg.airportHoursResult.departureOutsideHours && (
+                      <p className="text-destructive font-medium">❌ Departure is outside operating hours</p>
+                    )}
+                    {leg.airportHoursResult.arrivalDuringCurfew && (
+                      <p className="text-destructive font-medium">❌ Arrival falls during curfew</p>
+                    )}
+                    {leg.airportHoursResult.departureDuringCurfew && (
+                      <p className="text-destructive font-medium">❌ Departure falls during curfew</p>
+                    )}
+
+                    {/* Active NOTAMs */}
+                    {leg.airportHoursResult.activeNotams && leg.airportHoursResult.activeNotams.length > 0 && (
+                      <div className="space-y-1 pt-1 border-t mt-1">
+                        <p className="font-medium">Active NOTAMs ({leg.airportHoursResult.activeNotams.length}):</p>
+                        {leg.airportHoursResult.activeNotams.map((notam, ni) => (
+                          <div key={ni} className={cn("rounded px-2 py-1",
+                            notam.affectsOperations ? "bg-warning/10 border-l-2 border-l-warning" : "bg-muted/30 border-l-2 border-l-muted-foreground/30"
+                          )}>
+                            <p className="font-medium">
+                              {notam.type === 'closure' ? '🔴' : notam.type === 'restriction' ? '🟡' : notam.type === 'runway_closure' ? '🟠' : 'ℹ️'} {notam.summary}
+                            </p>
+                            {(notam.effectiveFrom || notam.effectiveTo) && (
+                              <p className="text-muted-foreground">{notam.effectiveFrom || '?'} → {notam.effectiveTo || 'UFN'}</p>
+                            )}
+                            {notam.id && <p className="text-muted-foreground text-[10px]">ID: {notam.id}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {leg.airportHoursResult.seasonalRestrictions && (
+                      <p className="text-warning"><span className="font-medium">Seasonal:</span> {leg.airportHoursResult.seasonalRestrictions}</p>
+                    )}
+                    {leg.airportHoursResult.notes && <p className="text-muted-foreground italic">{leg.airportHoursResult.notes}</p>}
+                  </div>
+                )}
+
+                {leg.airportHoursResult.confidence && (
+                  <p className="text-[10px] text-muted-foreground">Confidence: {leg.airportHoursResult.confidence}</p>
+                )}
+                {leg.airportHoursResult.error && <p className="text-xs text-destructive">{leg.airportHoursResult.error}</p>}
               </div>
             )}
           </div>

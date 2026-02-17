@@ -139,6 +139,31 @@ export function generatePrintableHtml({
       </div>`;
     }
 
+    // Airport Hours & NOTAMs
+    if (leg.airportHoursResult?.success) {
+      const hrs = leg.airportHoursResult;
+      detailsHtml += `<div class="result-box">
+        <p class="result-title">Airport Hours & NOTAMs — ${esc(hrs.airportName || hrs.icao)}${hrs.hasLiveNotamData ? ' <span style="font-size:9px;background:#e3f2fd;padding:1px 6px;border-radius:8px;">Live NOTAMs</span>' : ''}</p>
+        ${hrs.is24Hours ? '<p style="color:#2e7d32;font-weight:600;">✅ 24-hour operations</p>' : hrs.operatingHoursOpen && hrs.operatingHoursClose ? `<p>Hours: ${esc(hrs.operatingHoursOpen)}–${esc(hrs.operatingHoursClose)} UTC (${esc(hrs.operatingDays || 'Daily')})</p>` : ''}
+        ${hrs.curfewStart && hrs.curfewEnd ? `<p style="color:#e65100;">⚠️ Curfew: ${esc(hrs.curfewStart)}–${esc(hrs.curfewEnd)} UTC${hrs.curfewNotes ? ' — ' + esc(hrs.curfewNotes) : ''}</p>` : ''}
+        ${hrs.arrivalOutsideHours ? '<p style="color:#c62828;font-weight:600;">❌ Arrival is outside operating hours</p>' : ''}
+        ${hrs.departureOutsideHours ? '<p style="color:#c62828;font-weight:600;">❌ Departure is outside operating hours</p>' : ''}
+        ${hrs.arrivalDuringCurfew ? '<p style="color:#c62828;font-weight:600;">❌ Arrival falls during curfew</p>' : ''}
+        ${hrs.departureDuringCurfew ? '<p style="color:#c62828;font-weight:600;">❌ Departure falls during curfew</p>' : ''}
+        ${hrs.activeNotams && hrs.activeNotams.length > 0 ? `
+          <p style="font-weight:600;margin-top:6px;">Active NOTAMs (${hrs.activeNotams.length}):</p>
+          ${hrs.activeNotams.map(n => `
+            <div class="country-row ${n.affectsOperations ? 'country-warn' : 'country-ok'}">
+              <p><strong>${n.type === 'closure' ? '🔴' : n.type === 'restriction' ? '🟡' : 'ℹ️'}</strong> ${esc(n.summary)}</p>
+              ${n.effectiveFrom || n.effectiveTo ? `<p style="font-size:10px;color:#6b7b8d;">${esc(n.effectiveFrom || '?')} → ${esc(n.effectiveTo || 'UFN')}</p>` : ''}
+            </div>
+          `).join('')}
+        ` : ''}
+        ${hrs.seasonalRestrictions ? `<p class="note">Seasonal: ${esc(hrs.seasonalRestrictions)}</p>` : ''}
+        ${hrs.notes ? `<p class="note">${esc(hrs.notes)}</p>` : ''}
+      </div>`;
+    }
+
     // Feasibility issues & notes
     let feasHtml = "";
     if (feas) {

@@ -113,6 +113,39 @@ export interface PprResult {
   error?: string;
 }
 
+export interface NotamItem {
+  id?: string;
+  type: 'closure' | 'restriction' | 'runway_closure' | 'equipment' | 'hazard' | 'info';
+  summary: string;
+  effectiveFrom?: string;
+  effectiveTo?: string;
+  affectsOperations: boolean;
+}
+
+export interface AirportHoursResult {
+  success: boolean;
+  icao: string;
+  airportName?: string | null;
+  country?: string | null;
+  is24Hours?: boolean;
+  operatingHoursOpen?: string | null;
+  operatingHoursClose?: string | null;
+  operatingDays?: string;
+  curfewStart?: string | null;
+  curfewEnd?: string | null;
+  curfewNotes?: string | null;
+  activeNotams?: NotamItem[];
+  arrivalOutsideHours?: boolean;
+  departureOutsideHours?: boolean;
+  arrivalDuringCurfew?: boolean;
+  departureDuringCurfew?: boolean;
+  seasonalRestrictions?: string | null;
+  notes?: string | null;
+  hasLiveNotamData?: boolean;
+  confidence?: 'high' | 'medium' | 'low';
+  error?: string;
+}
+
 export interface FeasibilityResult {
   feasible: boolean;
   issues: string[];
@@ -219,6 +252,7 @@ export interface LegData {
   ciqResult: CiqResult | null;
   chargesResult: ChargesResult | null;
   pprResult: PprResult | null;
+  airportHoursResult: AirportHoursResult | null;
   feasibilityResult: FeasibilityResult | null;
 }
 
@@ -240,6 +274,7 @@ export function createEmptyLeg(): LegData {
     ciqResult: null,
     chargesResult: null,
     pprResult: null,
+    airportHoursResult: null,
     feasibilityResult: null,
   };
 }
