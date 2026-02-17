@@ -171,6 +171,36 @@ export interface VisaCheckResult {
   error?: string;
 }
 
+export interface PetRequirementResult {
+  petType: string;
+  importAllowed: 'yes' | 'no' | 'conditional';
+  healthCertificate?: string;
+  vaccinations?: string;
+  microchipRequired?: boolean;
+  quarantine?: string;
+  quarantineDays?: number;
+  bloodTests?: string;
+  importPermit?: string;
+  leadTimeDays?: number;
+  breedRestrictions?: string;
+  documentsRequired?: string;
+  advanceNotification?: string;
+  privateAviationNotes?: string;
+  estimatedFeesUsd?: number;
+  preparationTimeline?: string;
+  notes?: string;
+}
+
+export interface PetCheckResult {
+  success: boolean;
+  destinationCountry?: string;
+  destinationIcao?: string;
+  results?: PetRequirementResult[];
+  generalNotes?: string;
+  confidence?: 'high' | 'medium' | 'low';
+  error?: string;
+}
+
 export interface LegData {
   id: string;
   airportIcao: string;

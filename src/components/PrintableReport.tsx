@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import type { LegData, OverflightResult, VisaCheckResult } from "./tripTypes";
+import type { LegData, OverflightResult, VisaCheckResult, PetCheckResult } from "./tripTypes";
 
 interface PrintableReportProps {
   aircraftType: string;
@@ -10,6 +10,8 @@ interface PrintableReportProps {
   visaResults: Record<string, VisaCheckResult | null>;
   totalCharges: number;
   totalOverflightCharges: number;
+  petTypes: string[];
+  petResults: Record<string, PetCheckResult | null>;
 }
 
 export function generatePrintableHtml({
@@ -21,6 +23,8 @@ export function generatePrintableHtml({
   visaResults,
   totalCharges,
   totalOverflightCharges,
+  petTypes,
+  petResults,
 }: PrintableReportProps): string {
   const now = format(new Date(), "dd MMM yyyy HH:mm");
   const allFeasible = legs.every(l => l.feasibilityResult?.feasible !== false);
@@ -220,6 +224,38 @@ export function generatePrintableHtml({
     </div>`;
   }
 
+  // Pet travel section
+  let petHtml = "";
+  const petEntries = Object.entries(petResults).filter(([, v]) => v?.success);
+  if (petEntries.length > 0 && petTypes.length > 0) {
+    petHtml = `<h2>🐾 Pet Travel Requirements</h2>`;
+    petHtml += `<p class="detail">Pet types: ${petTypes.join(", ")}</p>`;
+    for (const [icao, pr] of petEntries) {
+      petHtml += `<div class="result-box">
+        <p class="result-title">${esc(icao)} — ${esc(pr!.destinationCountry || "Unknown")}</p>
+        ${pr!.results?.map(r => `
+          <div class="country-row ${r.importAllowed === "no" ? "country-warn" : "country-ok"}">
+            <p><strong>${r.importAllowed === "no" ? "❌" : r.importAllowed === "yes" ? "✅" : "⚠️"} ${esc(r.petType)}</strong> — ${r.importAllowed === "no" ? "Import not allowed" : r.importAllowed === "yes" ? "Import allowed" : "Conditional"}</p>
+            ${r.healthCertificate ? `<p>Health Certificate: ${esc(r.healthCertificate)}</p>` : ""}
+            ${r.vaccinations ? `<p>Vaccinations: ${esc(r.vaccinations)}</p>` : ""}
+            ${r.microchipRequired != null ? `<p>Microchip: ${r.microchipRequired ? "Required" : "Not required"}</p>` : ""}
+            ${r.quarantine ? `<p>Quarantine: ${esc(r.quarantine)}</p>` : ""}
+            ${r.bloodTests ? `<p>Blood Tests: ${esc(r.bloodTests)}</p>` : ""}
+            ${r.importPermit ? `<p>Import Permit: ${esc(r.importPermit)}</p>` : ""}
+            ${r.leadTimeDays != null ? `<p>Lead Time: ${r.leadTimeDays} days</p>` : ""}
+            ${r.breedRestrictions ? `<p>Breed Restrictions: ${esc(r.breedRestrictions)}</p>` : ""}
+            ${r.documentsRequired ? `<p>Documents: ${esc(r.documentsRequired)}</p>` : ""}
+            ${r.privateAviationNotes ? `<p><strong>Private Aviation:</strong> ${esc(r.privateAviationNotes)}</p>` : ""}
+            ${r.estimatedFeesUsd != null ? `<p>Estimated Fees: ~$${r.estimatedFeesUsd.toLocaleString()} USD</p>` : ""}
+            ${r.preparationTimeline ? `<p>Timeline: ${esc(r.preparationTimeline)}</p>` : ""}
+            ${r.notes ? `<p class="note">${esc(r.notes)}</p>` : ""}
+          </div>
+        `).join("") || ""}
+        ${pr!.generalNotes ? `<p class="note">${esc(pr!.generalNotes)}</p>` : ""}
+      </div>`;
+    }
+  }
+
   // Overall status
   let statusBanner = "";
   if (anyChecked) {
@@ -400,6 +436,8 @@ export function generatePrintableHtml({
   ${overflightHtml ? `<h2>Overflight Permits</h2>${overflightHtml}` : ""}
 
   ${visaHtml}
+
+  ${petHtml}
 
   ${costHtml}
 
