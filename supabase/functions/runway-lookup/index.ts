@@ -13,6 +13,36 @@ interface RunwayInfo {
   ident: string;
 }
 
+function parseCSVLine(line: string): string[] {
+  const result: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"' && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else if (ch === '"') {
+        inQuotes = false;
+      } else {
+        current += ch;
+      }
+    } else {
+      if (ch === '"') {
+        inQuotes = true;
+      } else if (ch === ',') {
+        result.push(current);
+        current = '';
+      } else {
+        current += ch;
+      }
+    }
+  }
+  result.push(current);
+  return result;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -28,56 +58,107 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Fetch from GitHub-based airports-db (free, no API key)
-    const url = `https://raw.githubusercontent.com/epranka/airports-db/master/icao/${icao}.json`;
+    // Fetch from OurAirports runways.csv (free, updated daily, no API key)
+    const url = 'https://davidmegginson.github.io/ourairports-data/runways.csv';
     console.log('Fetching runway data for:', icao);
 
     const response = await fetch(url, {
-      headers: { 'Accept': 'application/json' },
+      headers: { 'Accept': 'text/csv' },
     });
 
     if (!response.ok) {
       return new Response(
         JSON.stringify({
-          success: true,
+          success: false,
           found: false,
           icao,
           airportName: null,
           runways: [],
           longestRunwayFt: null,
-          message: `No runway data found for ${icao}`,
+          message: `Failed to fetch runway database (status ${response.status})`,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const data = await response.json();
-    const runways: RunwayInfo[] = (data.runways || [])
-      .map((rwy: Record<string, unknown>) => ({
-        id: rwy.id || '',
-        lengthFt: parseInt(String(rwy.length_ft || '0'), 10),
-        widthFt: parseInt(String(rwy.width_ft || '0'), 10),
-        surface: String(rwy.surface || 'Unknown'),
-        lighted: rwy.lighted === '1' || rwy.lighted === 1 || rwy.lighted === true,
-        closed: rwy.closed === '1' || rwy.closed === 1 || rwy.closed === true,
-        ident: `${rwy.le_ident || ''}/${rwy.he_ident || ''}`,
-      }))
-      .filter((rwy: RunwayInfo) => !rwy.closed && rwy.lengthFt > 0);
+    const csv = await response.text();
+    const lines = csv.split('\n');
+    const header = parseCSVLine(lines[0]);
+
+    // Find column indices
+    const col = (name: string) => header.indexOf(name);
+    const iIdent = col('airport_ident');
+    const iLength = col('length_ft');
+    const iWidth = col('width_ft');
+    const iSurface = col('surface');
+    const iLighted = col('lighted');
+    const iClosed = col('closed');
+    const iLeIdent = col('le_ident');
+    const iHeIdent = col('he_ident');
+    const iId = col('id');
+
+    const runways: RunwayInfo[] = [];
+
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      const fields = parseCSVLine(line);
+      if (fields[iIdent] !== icao) continue;
+
+      const closed = fields[iClosed] === '1';
+      const lengthFt = parseInt(fields[iLength] || '0', 10);
+      if (closed || lengthFt <= 0) continue;
+
+      runways.push({
+        id: fields[iId] || '',
+        lengthFt,
+        widthFt: parseInt(fields[iWidth] || '0', 10),
+        surface: fields[iSurface] || 'Unknown',
+        lighted: fields[iLighted] === '1',
+        closed: false,
+        ident: `${fields[iLeIdent] || ''}/${fields[iHeIdent] || ''}`,
+      });
+    }
 
     const longestRunwayFt = runways.length > 0
-      ? Math.max(...runways.map((r: RunwayInfo) => r.lengthFt))
+      ? Math.max(...runways.map(r => r.lengthFt))
       : null;
+
+    // Also fetch airport name from airports.csv
+    let airportName: string | null = null;
+    try {
+      const airportsRes = await fetch('https://davidmegginson.github.io/ourairports-data/airports.csv');
+      if (airportsRes.ok) {
+        const airportsCsv = await airportsRes.text();
+        const airportLines = airportsCsv.split('\n');
+        const airportHeader = parseCSVLine(airportLines[0]);
+        const iAIdent = airportHeader.indexOf('ident');
+        const iAName = airportHeader.indexOf('name');
+        for (let i = 1; i < airportLines.length; i++) {
+          const line = airportLines[i].trim();
+          if (!line) continue;
+          if (!line.includes(icao)) continue; // quick pre-filter
+          const fields = parseCSVLine(line);
+          if (fields[iAIdent] === icao) {
+            airportName = fields[iAName] || null;
+            break;
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Error fetching airport name:', e);
+    }
 
     return new Response(
       JSON.stringify({
         success: true,
         found: runways.length > 0,
         icao,
-        airportName: data.name || null,
+        airportName,
         runways,
         longestRunwayFt,
         message: runways.length > 0
-          ? `Found ${runways.length} active runway(s) at ${data.name || icao}. Longest: ${longestRunwayFt} ft`
+          ? `Found ${runways.length} active runway(s) at ${airportName || icao}. Longest: ${longestRunwayFt?.toLocaleString()} ft`
           : `No active runways found for ${icao}`,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
