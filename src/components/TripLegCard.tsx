@@ -355,14 +355,28 @@ export default function TripLegCard({
   // Filter line items to only show the applicable MTOW category (+ non-categorized items)
   const filterLineItemsByMtow = (items: GroundHandlingQuote['line_items']): GroundHandlingQuote['line_items'] => {
     if (!mtowCat) return items; // No aircraft selected, show all
-    const catPattern = /Cat ([A-I]) \(MTOW/;
+    const mtowKg = mtowCat.mtowTonnes * 1000;
+
+    // Parse MTOW range from description, supports formats like:
+    //   "Cat A (MTOW 1-2t)"  or  "Cat A: MTOW 0-4t"  or  "Cat I (MTOW 51t+)"
+    const parseMtowRange = (desc: string): { min: number; max: number } | null => {
+      // Match "MTOW X-Yt" or "MTOW X.X-Y.Yt"
+      const rangeMatch = desc.match(/MTOW\s+([\d.]+)\s*-\s*([\d.]+)\s*t/i);
+      if (rangeMatch) return { min: parseFloat(rangeMatch[1]) * 1000, max: parseFloat(rangeMatch[2]) * 1000 };
+      // Match "MTOW Xt+" (open-ended upper)
+      const plusMatch = desc.match(/MTOW\s+([\d.]+)\s*t\+/i);
+      if (plusMatch) return { min: parseFloat(plusMatch[1]) * 1000, max: Infinity };
+      return null;
+    };
+
     return items.filter(item => {
-      const match = item.description.match(catPattern);
-      if (!match) return true; // Non-categorized item, always show
-      return match[1] === mtowCat.category; // Only show matching category
+      const range = parseMtowRange(item.description);
+      if (!range) return true; // Non-categorized item, always show
+      return mtowKg >= range.min && mtowKg <= range.max;
     }).map(item => {
-      // For Cat I (per-ton rate), calculate actual cost
-      if (mtowCat.category === 'I' && item.description.includes('Cat I')) {
+      // For per-ton rates (open-ended category), calculate actual cost
+      const range = parseMtowRange(item.description);
+      if (range && range.max === Infinity) {
         const actualPrice = item.unit_price * mtowCat.mtowTonnes;
         return { ...item, subtotal: actualPrice };
       }
