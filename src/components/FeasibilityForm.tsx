@@ -1,619 +1,155 @@
 import { useState, useCallback } from "react";
 import { format } from "date-fns";
-import { CalendarIcon, Plane, CheckCircle2, XCircle, AlertTriangle, Search, Loader2, ExternalLink, Ruler, Shield, DollarSign, Clock, Navigation, Globe, Plus, X } from "lucide-react";
+import {
+  Plane, Loader2, Navigation, Globe, Plus, X, DollarSign,
+  CheckCircle2, XCircle, AlertTriangle,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
-import { AIRCRAFT_RUNWAY_REQ, AIRCRAFT_CATEGORIES } from "@/data/aircraftData";
+import { AIRCRAFT_CATEGORIES } from "@/data/aircraftData";
 import { COUNTRIES } from "@/data/countries";
 import { SelectGroup, SelectLabel } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-
-// ── Types ──────────────────────────────────────────────────
-
-interface FeasibilityData {
-  aircraftType: string;
-  airportIcao: string;
-  flightType: string;
-  arrivalDate: Date | undefined;
-  arrivalTime: string;
-  departureDate: Date | undefined;
-  departureTime: string;
-  permitRequired: boolean;
-  pprRequired: boolean;
-  customsAvailable: boolean;
-  runwayOverrideFt: string; // manual override
-}
-
-interface FeasibilityResult {
-  feasible: boolean;
-  issues: string[];
-  notes: string[];
-}
-
-interface OperatingHours {
-  open: string;
-  close: string;
-  days: string;
-  notes: string;
-  raw: string;
-}
-
-interface CbpResult {
-  success: boolean;
-  found: boolean;
-  icao: string;
-  airportName: string | null;
-  customsAvailable: boolean;
-  detailUrl: string | null;
-  pdfUrl: string | null;
-  message: string;
-  operatingHours: OperatingHours | null;
-  error?: string;
-}
-
-interface RunwayInfo {
-  id: string;
-  lengthFt: number;
-  widthFt: number;
-  surface: string;
-  lighted: boolean;
-  ident: string;
-}
-
-interface RunwayResult {
-  success: boolean;
-  found: boolean;
-  icao: string;
-  airportName: string | null;
-  runways: RunwayInfo[];
-  longestRunwayFt: number | null;
-  message: string;
-  error?: string;
-}
-
-interface PermitResult {
-  success: boolean;
-  icao: string;
-  country?: string;
-  permitRequired?: 'yes' | 'no' | 'conditional';
-  permitType?: string;
-  leadTimeDays?: number;
-  issuingAuthority?: string;
-  conditions?: string;
-  overflightPermit?: 'yes' | 'no' | 'conditional';
-  notes?: string;
-  confidence?: 'high' | 'medium' | 'low';
-  error?: string;
-}
-
-interface CiqResult {
-  success: boolean;
-  icao: string;
-  country?: string;
-  airportName?: string;
-  ciqAvailable?: 'yes' | 'no' | 'limited';
-  isPortOfEntry?: boolean;
-  operatingHours?: string;
-  advanceNotice?: string;
-  fees?: string;
-  alternateAirports?: string;
-  notes?: string;
-  confidence?: 'high' | 'medium' | 'low';
-  error?: string;
-}
-
-interface ChargesResult {
-  success: boolean;
-  icao: string;
-  aircraftType?: string | null;
-  country?: string;
-  airportName?: string;
-  currency?: string;
-  mtowKg?: number;
-  landingFeeLocal?: number;
-  landingFeeUsd?: number;
-  parkingPerDayLocal?: number;
-  parkingPerDayUsd?: number;
-  parkingDays?: number;
-  totalParkingUsd?: number;
-  passengerFeeUsd?: number;
-  surcharges?: string;
-  nightSurchargeApplies?: boolean;
-  totalEstimateUsd?: number;
-  notes?: string;
-  confidence?: 'high' | 'medium' | 'low';
-  error?: string;
-}
-
-interface PprResult {
-  success: boolean;
-  icao: string;
-  country?: string;
-  airportName?: string;
-  pprRequired?: 'yes' | 'no' | 'conditional';
-  advanceNoticePeriod?: string;
-  contactMethod?: string;
-  contactDetails?: string;
-  slotRequired?: boolean;
-  operatingRestrictions?: string;
-  conditions?: string;
-  handlingAgentRequired?: boolean;
-  notes?: string;
-  confidence?: 'high' | 'medium' | 'low';
-  error?: string;
-}
-
-interface OverflightCountry {
-  country: string;
-  overflightPermitRequired: 'yes' | 'no' | 'conditional';
-  permitType?: string;
-  leadTimeDays?: number;
-  issuingAuthority?: string;
-  conditions?: string;
-  notes?: string;
-  overflightChargeUsd?: number;
-  chargeBasis?: string;
-}
-
-interface OverflightResult {
-  success: boolean;
-  originIcao?: string;
-  destinationIcao?: string;
-  originAirport?: string;
-  originCountry?: string;
-  destinationAirport?: string;
-  destinationCountry?: string;
-  routeSummary?: string;
-  countries?: OverflightCountry[];
-  totalPermitsNeeded?: number;
-  maxLeadTimeDays?: number;
-  totalOverflightChargesUsd?: number;
-  notes?: string;
-  confidence?: 'high' | 'medium' | 'low';
-  error?: string;
-}
-
-interface VisaPassengerResult {
-  nationality: string;
-  visaRequired: 'yes' | 'no' | 'conditional';
-  visaType?: string;
-  visaOnArrival?: boolean;
-  eVisaAvailable?: boolean;
-  processingTimeDays?: number;
-  maxStayDays?: number;
-  transitVisaRequired?: boolean;
-  conditions?: string;
-  notes?: string;
-}
-
-interface VisaCheckResult {
-  success: boolean;
-  destinationCountry?: string;
-  results?: VisaPassengerResult[];
-  notes?: string;
-  confidence?: 'high' | 'medium' | 'low';
-  error?: string;
-}
-
-// Aircraft data imported from @/data/aircraftData
-
-// ── Helpers ────────────────────────────────────────────────
-
-function timeToMinutes(time: string): number {
-  const [h, m] = time.split(':').map(Number);
-  return h * 60 + m;
-}
-
-function isTimeInRange(time: string, open: string, close: string): boolean {
-  if (!time || !open || !close) return true;
-  const t = timeToMinutes(time);
-  const o = timeToMinutes(open);
-  const c = timeToMinutes(close);
-  if (c > o) return t >= o && t <= c;
-  return t >= o || t <= c;
-}
-
-function evaluateFeasibility(
-  data: FeasibilityData,
-  cbpHours: OperatingHours | null,
-  runwayLengthFt: number | null,
-  permitResult: PermitResult | null,
-  pprResult: PprResult | null,
-): FeasibilityResult {
-  const issues: string[] = [];
-  const notes: string[] = [];
-
-  if (!data.aircraftType) issues.push("Aircraft type not specified");
-  if (!data.airportIcao) issues.push("Airport ICAO code not specified");
-  if (data.airportIcao && !/^[A-Z]{4}$/.test(data.airportIcao.toUpperCase())) issues.push("ICAO code must be exactly 4 letters");
-  if (!data.arrivalDate) issues.push("Arrival date not set");
-  if (!data.departureDate) issues.push("Departure date not set");
-  if (!data.arrivalTime) issues.push("Arrival time not set");
-  if (!data.departureTime) issues.push("Departure time not set");
-
-  if (data.arrivalDate && data.departureDate && data.arrivalDate > data.departureDate) {
-    issues.push("Departure date is before arrival date");
-  }
-
-  if (data.permitRequired) notes.push("Landing permit must be obtained prior to ops");
-  if (data.pprRequired) notes.push("Prior Permission Required — contact airport ops");
-  if (!data.customsAvailable) issues.push("Customs not available at this airport");
-
-  // Permit lead time check
-  if (data.arrivalDate && permitResult?.success && permitResult.permitRequired === 'yes' && permitResult.leadTimeDays != null && permitResult.leadTimeDays > 0) {
-    const now = new Date();
-    const daysUntilArrival = Math.floor((data.arrivalDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-    if (daysUntilArrival < permitResult.leadTimeDays) {
-      issues.push(
-        `Insufficient lead time for landing permit: ${daysUntilArrival} day${daysUntilArrival !== 1 ? 's' : ''} until arrival, but ${permitResult.leadTimeDays} business days required (${permitResult.issuingAuthority || 'issuing authority'}). Contact the service provider to validate.`
-      );
-    }
-  }
-
-  // PPR lead time check
-  if (data.arrivalDate && pprResult?.success && pprResult.pprRequired === 'yes' && pprResult.advanceNoticePeriod) {
-    const noticeDays = parseInt(pprResult.advanceNoticePeriod, 10);
-    if (!isNaN(noticeDays) && noticeDays > 0) {
-      const now = new Date();
-      const daysUntilArrival = Math.floor((data.arrivalDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-      if (daysUntilArrival < noticeDays) {
-        issues.push(
-          `Insufficient lead time for PPR: ${daysUntilArrival} day${daysUntilArrival !== 1 ? 's' : ''} until arrival, but ${pprResult.advanceNoticePeriod} advance notice required. Contact airport operations to validate.`
-        );
-      }
-    }
-  }
-
-  // CBP hours check
-  if (cbpHours && cbpHours.open && cbpHours.close && data.customsAvailable) {
-    if (data.arrivalTime && !isTimeInRange(data.arrivalTime, cbpHours.open, cbpHours.close)) {
-      issues.push(`Arrival time ${data.arrivalTime} is outside CBP hours (${cbpHours.open}–${cbpHours.close})`);
-    }
-    if (data.departureTime && !isTimeInRange(data.departureTime, cbpHours.open, cbpHours.close)) {
-      issues.push(`Departure time ${data.departureTime} is outside CBP hours (${cbpHours.open}–${cbpHours.close})`);
-    }
-    if (cbpHours.notes) {
-      notes.push(`CBP note: ${cbpHours.notes}`);
-    }
-  }
-
-  // Runway length check
-  const requiredFt = data.aircraftType ? AIRCRAFT_RUNWAY_REQ[data.aircraftType] : undefined;
-  if (requiredFt && runwayLengthFt) {
-    if (runwayLengthFt < requiredFt) {
-      issues.push(
-        `Runway too short: ${runwayLengthFt.toLocaleString()} ft available, ${data.aircraftType} requires ~${requiredFt.toLocaleString()} ft`
-      );
-    } else {
-      const margin = runwayLengthFt - requiredFt;
-      notes.push(
-        `Runway OK: ${runwayLengthFt.toLocaleString()} ft available (${margin.toLocaleString()} ft margin for ${data.aircraftType})`
-      );
-    }
-  } else if (requiredFt && !runwayLengthFt) {
-    notes.push(`${data.aircraftType} requires ~${requiredFt.toLocaleString()} ft — runway data not available, verify manually`);
-  } else if (data.aircraftType === "Other") {
-    notes.push("Runway requirement unknown for custom aircraft — verify manually");
-  }
-
-  if (data.customsAvailable && (data.permitRequired || data.pprRequired)) {
-    notes.push("Allow additional lead time for permit/PPR processing");
-  }
-
-  return {
-    feasible: issues.length === 0,
-    issues,
-    notes,
-  };
-}
-
-// ── Constants ──────────────────────────────────────────────
-
-const TIMES = Array.from({ length: 48 }, (_, i) => {
-  const h = String(Math.floor(i / 2)).padStart(2, "0");
-  const m = i % 2 === 0 ? "00" : "30";
-  return `${h}:${m}`;
-});
-
-// ── Component ──────────────────────────────────────────────
+import TripLegCard, { evaluateLegFeasibility } from "./TripLegCard";
+import type {
+  LegData, OverflightResult, VisaCheckResult,
+} from "./tripTypes";
+import { createEmptyLeg } from "./tripTypes";
 
 export default function FeasibilityForm() {
-  const [data, setData] = useState<FeasibilityData>({
-    aircraftType: "",
-    airportIcao: "",
-    flightType: "",
-    arrivalDate: undefined,
-    arrivalTime: "",
-    departureDate: undefined,
-    departureTime: "",
-    permitRequired: false,
-    pprRequired: false,
-    customsAvailable: true,
-    runwayOverrideFt: "",
-  });
+  const [aircraftType, setAircraftType] = useState("");
+  const [flightType, setFlightType] = useState("");
+  const [legs, setLegs] = useState<LegData[]>([createEmptyLeg()]);
 
-  const [result, setResult] = useState<FeasibilityResult | null>(null);
-  const [cbpResult, setCbpResult] = useState<CbpResult | null>(null);
-  const [cbpLoading, setCbpLoading] = useState(false);
-  const [runwayResult, setRunwayResult] = useState<RunwayResult | null>(null);
-  const [runwayLoading, setRunwayLoading] = useState(false);
-  const [permitResult, setPermitResult] = useState<PermitResult | null>(null);
-  const [permitLoading, setPermitLoading] = useState(false);
-  const [ciqResult, setCiqResult] = useState<CiqResult | null>(null);
-  const [ciqLoading, setCiqLoading] = useState(false);
-  const [chargesResult, setChargesResult] = useState<ChargesResult | null>(null);
-  const [chargesLoading, setChargesLoading] = useState(false);
-  const [pprResult, setPprResult] = useState<PprResult | null>(null);
-  const [pprLoading, setPprLoading] = useState(false);
-  const [originIcao, setOriginIcao] = useState("");
-  const [destinationIcao, setDestinationIcao] = useState("");
-  const [overflightResult, setOverflightResult] = useState<OverflightResult | null>(null);
-  const [overflightLoading, setOverflightLoading] = useState(false);
+  // Overflight results keyed by "legIdx" (between leg legIdx and legIdx+1)
+  const [overflightResults, setOverflightResults] = useState<Record<number, OverflightResult | null>>({});
+  const [overflightLoading, setOverflightLoading] = useState<Record<number, boolean>>({});
+
+  // Visa
   const [visaNationalities, setVisaNationalities] = useState<string[]>([""]);
   const [visaDestination, setVisaDestination] = useState("");
   const [visaResult, setVisaResult] = useState<VisaCheckResult | null>(null);
   const [visaLoading, setVisaLoading] = useState(false);
 
-  const handleCbpLookup = useCallback(async () => {
-    if (data.airportIcao.length !== 4) return;
-    setCbpLoading(true);
-    setCbpResult(null);
-    try {
-      const { data: res, error } = await supabase.functions.invoke('cbp-lookup', {
-        body: { icao: data.airportIcao },
+  const updateLeg = useCallback((index: number, updates: Partial<LegData>) => {
+    setLegs(prev => prev.map((leg, i) => i === index ? { ...leg, ...updates } : leg));
+  }, []);
+
+  const removeLeg = useCallback((index: number) => {
+    setLegs(prev => prev.filter((_, i) => i !== index));
+    // Clean up overflight results
+    setOverflightResults(prev => {
+      const next: Record<number, OverflightResult | null> = {};
+      Object.entries(prev).forEach(([k, v]) => {
+        const ki = Number(k);
+        if (ki < index - 1) next[ki] = v;
+        else if (ki > index) next[ki - 1] = v;
       });
-      if (error) {
-        setCbpResult({ success: false, found: false, icao: data.airportIcao, airportName: null, customsAvailable: false, detailUrl: null, pdfUrl: null, message: '', operatingHours: null, error: error.message });
-      } else {
-        setCbpResult(res as CbpResult);
-        if (res?.found !== undefined) {
-          setData(prev => ({ ...prev, customsAvailable: res.customsAvailable }));
-        }
-      }
-    } catch (e) {
-      setCbpResult({ success: false, found: false, icao: data.airportIcao, airportName: null, customsAvailable: false, detailUrl: null, pdfUrl: null, message: '', operatingHours: null, error: 'Failed to connect' });
-    } finally {
-      setCbpLoading(false);
-    }
-  }, [data.airportIcao]);
+      return next;
+    });
+  }, []);
 
-  const handleRunwayLookup = useCallback(async () => {
-    if (data.airportIcao.length !== 4) return;
-    setRunwayLoading(true);
-    setRunwayResult(null);
-    try {
-      const { data: res, error } = await supabase.functions.invoke('runway-lookup', {
-        body: { icao: data.airportIcao },
-      });
-      if (error) {
-        setRunwayResult({ success: false, found: false, icao: data.airportIcao, airportName: null, runways: [], longestRunwayFt: null, message: '', error: error.message });
-      } else {
-        setRunwayResult(res as RunwayResult);
-      }
-    } catch {
-      setRunwayResult({ success: false, found: false, icao: data.airportIcao, airportName: null, runways: [], longestRunwayFt: null, message: '', error: 'Failed to connect' });
-    } finally {
-      setRunwayLoading(false);
-    }
-  }, [data.airportIcao]);
+  const addLeg = useCallback(() => {
+    setLegs(prev => [...prev, createEmptyLeg()]);
+  }, []);
 
-  const handlePermitLookup = useCallback(async () => {
-    if (data.airportIcao.length !== 4) return;
-    setPermitLoading(true);
-    setPermitResult(null);
-    try {
-      const { data: res, error } = await supabase.functions.invoke('permit-lookup', {
-        body: { icao: data.airportIcao, flightType: data.flightType || undefined, aircraftRegistration: undefined },
-      });
-      if (error) {
-        setPermitResult({ success: false, icao: data.airportIcao, error: error.message });
-      } else {
-        setPermitResult(res as PermitResult);
-        if (res?.permitRequired === 'yes') {
-          setData(prev => ({ ...prev, permitRequired: true }));
-        } else if (res?.permitRequired === 'no') {
-          setData(prev => ({ ...prev, permitRequired: false }));
-        }
-      }
-    } catch {
-      setPermitResult({ success: false, icao: data.airportIcao, error: 'Failed to connect' });
-    } finally {
-      setPermitLoading(false);
-    }
-  }, [data.airportIcao, data.flightType]);
+  // Check feasibility for all legs
+  const handleCheckAll = useCallback(() => {
+    setLegs(prev => prev.map(leg => ({
+      ...leg,
+      feasibilityResult: evaluateLegFeasibility(leg, aircraftType),
+    })));
+  }, [aircraftType]);
 
-  const handleCiqLookup = useCallback(async () => {
-    if (data.airportIcao.length !== 4) return;
-    setCiqLoading(true);
-    setCiqResult(null);
-    try {
-      const { data: res, error } = await supabase.functions.invoke('ciq-lookup', {
-        body: { icao: data.airportIcao },
-      });
-      if (error) {
-        setCiqResult({ success: false, icao: data.airportIcao, error: error.message });
-      } else {
-        setCiqResult(res as CiqResult);
-        if (res?.ciqAvailable === 'yes') {
-          setData(prev => ({ ...prev, customsAvailable: true }));
-        } else if (res?.ciqAvailable === 'no') {
-          setData(prev => ({ ...prev, customsAvailable: false }));
-        }
-      }
-    } catch {
-      setCiqResult({ success: false, icao: data.airportIcao, error: 'Failed to connect' });
-    } finally {
-      setCiqLoading(false);
-    }
-  }, [data.airportIcao]);
+  // Overflight between consecutive legs
+  const handleOverflightBetweenLegs = useCallback(async (fromIdx: number) => {
+    const fromLeg = legs[fromIdx];
+    const toLeg = legs[fromIdx + 1];
+    if (!fromLeg || !toLeg) return;
+    if (fromLeg.airportIcao.length !== 4 || toLeg.airportIcao.length !== 4) return;
 
-  const isUsAirport = (icao: string) => icao.startsWith('K') || icao.startsWith('PA') || icao.startsWith('PH') || icao.startsWith('PG') || icao.startsWith('TJ');
+    setOverflightLoading(prev => ({ ...prev, [fromIdx]: true }));
+    setOverflightResults(prev => ({ ...prev, [fromIdx]: null }));
 
-  const handleChargesLookup = useCallback(async () => {
-    if (data.airportIcao.length !== 4) return;
-    setChargesLoading(true);
-    setChargesResult(null);
-    try {
-      const { data: res, error } = await supabase.functions.invoke('charges-lookup', {
-        body: {
-          icao: data.airportIcao,
-          aircraftType: data.aircraftType || undefined,
-          arrivalDate: data.arrivalDate ? data.arrivalDate.toISOString() : undefined,
-          arrivalTime: data.arrivalTime || undefined,
-          departureDate: data.departureDate ? data.departureDate.toISOString() : undefined,
-          departureTime: data.departureTime || undefined,
-        },
-      });
-      if (error) {
-        setChargesResult({ success: false, icao: data.airportIcao, error: error.message });
-      } else {
-        setChargesResult(res as ChargesResult);
-      }
-    } catch {
-      setChargesResult({ success: false, icao: data.airportIcao, error: 'Failed to connect' });
-    } finally {
-      setChargesLoading(false);
-    }
-  }, [data.airportIcao, data.aircraftType, data.arrivalDate, data.arrivalTime, data.departureDate, data.departureTime]);
-
-  const handlePprLookup = useCallback(async () => {
-    if (data.airportIcao.length !== 4) return;
-    setPprLoading(true);
-    setPprResult(null);
-    try {
-      const { data: res, error } = await supabase.functions.invoke('ppr-lookup', {
-        body: { icao: data.airportIcao, flightType: data.flightType || undefined, aircraftType: data.aircraftType || undefined },
-      });
-      if (error) {
-        setPprResult({ success: false, icao: data.airportIcao, error: error.message });
-      } else {
-        setPprResult(res as PprResult);
-        if (res?.pprRequired === 'yes') {
-          setData(prev => ({ ...prev, pprRequired: true }));
-        } else if (res?.pprRequired === 'no') {
-          setData(prev => ({ ...prev, pprRequired: false }));
-        }
-      }
-    } catch {
-      setPprResult({ success: false, icao: data.airportIcao, error: 'Failed to connect' });
-    } finally {
-      setPprLoading(false);
-    }
-  }, [data.airportIcao, data.flightType, data.aircraftType]);
-
-  const handleLookupAll = useCallback(async () => {
-    if (data.airportIcao.length !== 4) return;
-    // US airports use CBP lookup, non-US use AI CIQ lookup
-    if (isUsAirport(data.airportIcao)) {
-      handleCbpLookup();
-    } else {
-      setCbpResult(null);
-      handleCiqLookup();
-    }
-    handleRunwayLookup();
-    handlePermitLookup();
-    handleChargesLookup();
-    handlePprLookup();
-  }, [data.airportIcao, handleCbpLookup, handleCiqLookup, handleRunwayLookup, handlePermitLookup, handleChargesLookup, handlePprLookup]);
-
-  const handleOverflightLookup = useCallback(async () => {
-    if (originIcao.length !== 4 || destinationIcao.length !== 4) return;
-    setOverflightLoading(true);
-    setOverflightResult(null);
     try {
       const { data: res, error } = await supabase.functions.invoke('overflight-permits', {
         body: {
-          originIcao,
-          destinationIcao,
-          flightType: data.flightType || undefined,
-          aircraftType: data.aircraftType || undefined,
+          originIcao: fromLeg.airportIcao,
+          destinationIcao: toLeg.airportIcao,
+          flightType: flightType || undefined,
+          aircraftType: aircraftType || undefined,
         },
       });
       if (error) {
-        setOverflightResult({ success: false, error: error.message });
+        setOverflightResults(prev => ({ ...prev, [fromIdx]: { success: false, error: error.message } }));
       } else {
-        setOverflightResult(res as OverflightResult);
+        setOverflightResults(prev => ({ ...prev, [fromIdx]: res as OverflightResult }));
       }
     } catch {
-      setOverflightResult({ success: false, error: 'Failed to connect' });
+      setOverflightResults(prev => ({ ...prev, [fromIdx]: { success: false, error: 'Failed to connect' } }));
     } finally {
-      setOverflightLoading(false);
+      setOverflightLoading(prev => ({ ...prev, [fromIdx]: false }));
     }
-  }, [originIcao, destinationIcao, data.flightType, data.aircraftType]);
+  }, [legs, flightType, aircraftType]);
 
+  // Check all overflight routes
+  const handleAllOverflights = useCallback(async () => {
+    for (let i = 0; i < legs.length - 1; i++) {
+      handleOverflightBetweenLegs(i);
+    }
+  }, [legs.length, handleOverflightBetweenLegs]);
+
+  // Visa check
   const handleVisaCheck = useCallback(async () => {
     const validNationalities = visaNationalities.filter(n => n.length > 0);
-    if (validNationalities.length === 0 || !visaDestination) return;
+    const destination = visaDestination || undefined;
+    if (validNationalities.length === 0) return;
+
+    // If no manual destination, use first leg's country from permit/CIQ result
+    const destinationCountry = destination
+      || legs.find(l => l.permitResult?.country)?.permitResult?.country
+      || legs.find(l => l.ciqResult?.country)?.ciqResult?.country;
+
+    if (!destinationCountry) return;
+
     setVisaLoading(true);
     setVisaResult(null);
     try {
       const { data: res, error } = await supabase.functions.invoke('visa-check', {
-        body: {
-          nationalities: validNationalities,
-          destinationCountry: visaDestination,
-        },
+        body: { nationalities: validNationalities, destinationCountry },
       });
-      if (error) {
-        setVisaResult({ success: false, error: error.message });
-      } else {
-        setVisaResult(res as VisaCheckResult);
-      }
-    } catch {
-      setVisaResult({ success: false, error: 'Failed to connect' });
-    } finally {
-      setVisaLoading(false);
-    }
-  }, [visaNationalities, visaDestination]);
+      if (error) { setVisaResult({ success: false, error: error.message }); }
+      else { setVisaResult(res as VisaCheckResult); }
+    } catch { setVisaResult({ success: false, error: 'Failed to connect' }); }
+    finally { setVisaLoading(false); }
+  }, [visaNationalities, visaDestination, legs]);
 
-  const effectiveRunwayFt: number | null =
-    data.runwayOverrideFt && parseInt(data.runwayOverrideFt, 10) > 0
-      ? parseInt(data.runwayOverrideFt, 10)
-      : runwayResult?.longestRunwayFt ?? null;
-
-  const handleCheck = () => {
-    setResult(evaluateFeasibility(data, cbpResult?.operatingHours ?? null, effectiveRunwayFt, permitResult, pprResult));
-  };
-
+  // Reset
   const handleReset = () => {
-    setData({
-      aircraftType: "",
-      airportIcao: "",
-      flightType: "",
-      arrivalDate: undefined,
-      arrivalTime: "",
-      departureDate: undefined,
-      departureTime: "",
-      permitRequired: false,
-      pprRequired: false,
-      customsAvailable: true,
-      runwayOverrideFt: "",
-    });
-    setResult(null);
-    setCbpResult(null);
-    setRunwayResult(null);
-    setPermitResult(null);
-    setCiqResult(null);
-    setChargesResult(null);
-    setPprResult(null);
-    setOriginIcao("");
-    setDestinationIcao("");
-    setOverflightResult(null);
+    setAircraftType("");
+    setFlightType("");
+    setLegs([createEmptyLeg()]);
+    setOverflightResults({});
+    setOverflightLoading({});
     setVisaNationalities([""]);
     setVisaDestination("");
     setVisaResult(null);
   };
 
+  // Compute trip totals
+  const totalCharges = legs.reduce((sum, l) => sum + (l.chargesResult?.totalEstimateUsd ?? 0), 0);
+  const totalOverflightCharges = Object.values(overflightResults).reduce(
+    (sum, r) => sum + (r?.totalOverflightChargesUsd ?? 0), 0
+  );
+  const allFeasible = legs.every(l => l.feasibilityResult?.feasible !== false);
+  const anyChecked = legs.some(l => l.feasibilityResult != null);
+
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <header className="border-b bg-primary">
         <div className="container mx-auto flex items-center gap-3 px-6 py-4">
           <Plane className="h-6 w-6 text-primary-foreground" />
@@ -626,877 +162,306 @@ export default function FeasibilityForm() {
         </div>
       </header>
 
-      <main className="container mx-auto max-w-3xl px-6 py-8">
+      <main className="container mx-auto max-w-3xl px-6 py-8 space-y-6">
+        {/* Shared Trip Config */}
         <Card>
           <CardHeader className="pb-4">
-            <CardTitle className="text-xl">Flight Operations Check</CardTitle>
+            <CardTitle className="text-xl">Trip Configuration</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Enter flight details to assess operational feasibility.
+              Set aircraft and flight type, then add legs for each stop.
             </p>
           </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Aircraft Type */}
-            <div className="space-y-2">
-              <Label htmlFor="aircraft">Aircraft Type</Label>
-              <Select
-                value={data.aircraftType}
-                onValueChange={(v) => setData({ ...data, aircraftType: v })}
-              >
-                <SelectTrigger id="aircraft">
-                  <SelectValue placeholder="Select aircraft type" />
-                </SelectTrigger>
-                <SelectContent className="max-h-80">
-                  {AIRCRAFT_CATEGORIES.map((cat) => (
-                    <SelectGroup key={cat.label}>
-                      <SelectLabel className="text-xs font-semibold text-muted-foreground">{cat.label}</SelectLabel>
-                      {cat.types.map((type) => (
-                        <SelectItem key={type} value={type}>
-                          {type}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  ))}
-                </SelectContent>
-              </Select>
-              {data.aircraftType && AIRCRAFT_RUNWAY_REQ[data.aircraftType] && (
-                <p className="text-xs text-muted-foreground">
-                  Takeoff distance required: ~{AIRCRAFT_RUNWAY_REQ[data.aircraftType].toLocaleString()} ft
-                </p>
-              )}
-            </div>
-
-            {/* Flight Type */}
-            <div className="space-y-2">
-              <Label htmlFor="flightType">Flight Type</Label>
-              <Select
-                value={data.flightType}
-                onValueChange={(v) => setData({ ...data, flightType: v })}
-              >
-                <SelectTrigger id="flightType">
-                  <SelectValue placeholder="Select flight type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="private">Private (Non-Commercial)</SelectItem>
-                  <SelectItem value="non-scheduled-commercial">Non-Scheduled Commercial</SelectItem>
-                  <SelectItem value="commercial">Commercial (Scheduled)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Airport ICAO */}
-            <div className="space-y-2">
-              <Label htmlFor="icao">Airport ICAO Code</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="icao"
-                  placeholder="e.g. KJFK"
-                  maxLength={4}
-                  value={data.airportIcao}
-                  onChange={(e) => {
-                    setData({ ...data, airportIcao: e.target.value.toUpperCase().replace(/[^A-Z]/g, "") });
-                    setCbpResult(null);
-                    setRunwayResult(null);
-                    setPermitResult(null);
-                    setCiqResult(null);
-                    setChargesResult(null);
-                    setPprResult(null);
-                  }}
-                  className="font-mono uppercase tracking-widest"
-                />
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={handleLookupAll}
-                  disabled={data.airportIcao.length !== 4 || cbpLoading || runwayLoading || permitLoading || ciqLoading || chargesLoading || pprLoading}
-                  className="shrink-0"
-                >
-                  {(cbpLoading || runwayLoading || permitLoading || ciqLoading || chargesLoading || pprLoading) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                  <span className="ml-1.5">Lookup</span>
-                </Button>
-              </div>
-
-              {/* CBP Result (US airports) */}
-              {cbpResult && (
-                <div className={cn(
-                  "rounded-md border p-3 text-sm space-y-1.5",
-                  cbpResult.found ? "border-success/30 bg-success/5" : "border-muted bg-muted/50"
-                )}>
-                  <div className="flex items-center gap-1.5 font-medium">
-                    {cbpResult.found ? (
-                      <CheckCircle2 className="h-3.5 w-3.5 text-success" />
-                    ) : (
-                      <AlertTriangle className="h-3.5 w-3.5 text-warning" />
-                    )}
-                    {cbpResult.airportName
-                      ? `${cbpResult.airportName} (${cbpResult.icao})`
-                      : cbpResult.icao}
-                  </div>
-                  <p className="text-muted-foreground text-xs">{cbpResult.message}</p>
-                  {cbpResult.operatingHours && (
-                    <div className="rounded bg-background/50 px-2 py-1.5 text-xs space-y-0.5">
-                      <p className="font-medium">CBP Operating Hours:</p>
-                      <p>{cbpResult.operatingHours.open}–{cbpResult.operatingHours.close} ({cbpResult.operatingHours.days})</p>
-                      {cbpResult.operatingHours.notes && (
-                        <p className="text-muted-foreground italic">{cbpResult.operatingHours.notes}</p>
-                      )}
-                      {cbpResult.operatingHours.raw && (
-                        <p className="text-muted-foreground">Source: "{cbpResult.operatingHours.raw}"</p>
-                      )}
-                    </div>
-                  )}
-                  {cbpResult.detailUrl && (
-                    <a
-                      href={cbpResult.detailUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                    >
-                      View CBP Fact Sheet <ExternalLink className="h-3 w-3" />
-                    </a>
-                  )}
-                  {cbpResult.error && (
-                    <p className="text-xs text-destructive">{cbpResult.error}</p>
-                  )}
-                </div>
-              )}
-
-              {/* CIQ Result (non-US airports) */}
-              {ciqLoading && (
-                <div className="rounded-md border p-3 text-sm flex items-center gap-2 text-muted-foreground">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  Looking up CIQ availability…
-                </div>
-              )}
-              {ciqResult && !ciqLoading && (
-                <div className={cn(
-                  "rounded-md border p-3 text-sm space-y-1.5",
-                  ciqResult.ciqAvailable === 'yes'
-                    ? "border-success/30 bg-success/5"
-                    : ciqResult.ciqAvailable === 'no'
-                      ? "border-destructive/30 bg-destructive/5"
-                      : "border-warning/30 bg-warning/5"
-                )}>
-                  <div className="flex items-center gap-1.5 font-medium">
-                    {ciqResult.ciqAvailable === 'yes' ? (
-                      <CheckCircle2 className="h-3.5 w-3.5 text-success" />
-                    ) : ciqResult.ciqAvailable === 'no' ? (
-                      <XCircle className="h-3.5 w-3.5 text-destructive" />
-                    ) : (
-                      <AlertTriangle className="h-3.5 w-3.5 text-warning" />
-                    )}
-                    CIQ — {ciqResult.airportName || ciqResult.country || ciqResult.icao}
-                  </div>
-                  <p className="text-xs font-medium">
-                    {ciqResult.ciqAvailable === 'yes' && '✅ CIQ services available'}
-                    {ciqResult.ciqAvailable === 'no' && '❌ CIQ services not available'}
-                    {ciqResult.ciqAvailable === 'limited' && '⚠️ Limited CIQ services'}
-                  </p>
-                  <div className="rounded bg-background/50 px-2 py-1.5 text-xs space-y-0.5">
-                    {ciqResult.isPortOfEntry !== undefined && (
-                      <p><span className="font-medium">Port of entry:</span> {ciqResult.isPortOfEntry ? 'Yes' : 'No'}</p>
-                    )}
-                    {ciqResult.operatingHours && <p><span className="font-medium">Hours:</span> {ciqResult.operatingHours}</p>}
-                    {ciqResult.advanceNotice && <p><span className="font-medium">Advance notice:</span> {ciqResult.advanceNotice}</p>}
-                    {ciqResult.fees && <p><span className="font-medium">Fees:</span> {ciqResult.fees}</p>}
-                    {ciqResult.alternateAirports && <p><span className="font-medium">Alternatives:</span> {ciqResult.alternateAirports}</p>}
-                    {ciqResult.notes && <p className="text-muted-foreground italic">{ciqResult.notes}</p>}
-                  </div>
-                  {ciqResult.confidence && (
-                    <p className="text-xs text-muted-foreground">Confidence: {ciqResult.confidence}</p>
-                  )}
-                  {ciqResult.error && (
-                    <p className="text-xs text-destructive">{ciqResult.error}</p>
-                  )}
-                </div>
-              )}
-
-              {/* Permit Result */}
-              {permitLoading && (
-                <div className="rounded-md border p-3 text-sm flex items-center gap-2 text-muted-foreground">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  Looking up landing permit requirements…
-                </div>
-              )}
-              {permitResult && !permitLoading && (
-                <div className={cn(
-                  "rounded-md border p-3 text-sm space-y-1.5",
-                  permitResult.permitRequired === 'no'
-                    ? "border-success/30 bg-success/5"
-                    : permitResult.permitRequired === 'yes'
-                      ? "border-warning/30 bg-warning/5"
-                      : "border-muted bg-muted/50"
-                )}>
-                  <div className="flex items-center gap-1.5 font-medium">
-                    <Shield className="h-3.5 w-3.5 text-primary" />
-                    Landing Permit — {permitResult.country || permitResult.icao}
-                  </div>
-                  <p className="text-xs font-medium">
-                    {permitResult.permitRequired === 'yes' && '⚠️ Landing permit required'}
-                    {permitResult.permitRequired === 'no' && '✅ No landing permit required'}
-                    {permitResult.permitRequired === 'conditional' && '⚠️ Landing permit conditionally required'}
-                  </p>
-                  <div className="rounded bg-background/50 px-2 py-1.5 text-xs space-y-0.5">
-                    {permitResult.permitType && <p><span className="font-medium">Type:</span> {permitResult.permitType}</p>}
-                    {permitResult.leadTimeDays != null && <p><span className="font-medium">Lead time:</span> {permitResult.leadTimeDays} business days</p>}
-                    {permitResult.issuingAuthority && <p><span className="font-medium">Authority:</span> {permitResult.issuingAuthority}</p>}
-                    {permitResult.conditions && <p><span className="font-medium">Conditions:</span> {permitResult.conditions}</p>}
-                    {permitResult.overflightPermit && permitResult.overflightPermit !== 'no' && (
-                      <p><span className="font-medium">Overflight permit:</span> {permitResult.overflightPermit === 'yes' ? 'Also required' : 'May be required'}</p>
-                    )}
-                    {permitResult.notes && <p className="text-muted-foreground italic">{permitResult.notes}</p>}
-                  </div>
-                  {permitResult.confidence && (
-                    <p className="text-xs text-muted-foreground">Confidence: {permitResult.confidence}</p>
-                  )}
-                  {permitResult.error && (
-                    <p className="text-xs text-destructive">{permitResult.error}</p>
-                  )}
-                </div>
-              )}
-
-              {/* PPR Result */}
-              {pprLoading && (
-                <div className="rounded-md border p-3 text-sm flex items-center gap-2 text-muted-foreground">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  Looking up PPR requirements…
-                </div>
-              )}
-              {pprResult && !pprLoading && (
-                <div className={cn(
-                  "rounded-md border p-3 text-sm space-y-1.5",
-                  pprResult.pprRequired === 'no'
-                    ? "border-success/30 bg-success/5"
-                    : pprResult.pprRequired === 'yes'
-                      ? "border-warning/30 bg-warning/5"
-                      : "border-muted bg-muted/50"
-                )}>
-                  <div className="flex items-center gap-1.5 font-medium">
-                    <Clock className="h-3.5 w-3.5 text-primary" />
-                    PPR — {pprResult.airportName || pprResult.country || pprResult.icao}
-                  </div>
-                  <p className="text-xs font-medium">
-                    {pprResult.pprRequired === 'yes' && '⚠️ PPR required'}
-                    {pprResult.pprRequired === 'no' && '✅ No PPR required'}
-                    {pprResult.pprRequired === 'conditional' && '⚠️ PPR conditionally required'}
-                  </p>
-                  <div className="rounded bg-background/50 px-2 py-1.5 text-xs space-y-0.5">
-                    {pprResult.advanceNoticePeriod && <p><span className="font-medium">Advance notice:</span> {pprResult.advanceNoticePeriod}</p>}
-                    {pprResult.contactMethod && <p><span className="font-medium">How to obtain:</span> {pprResult.contactMethod}</p>}
-                    {pprResult.contactDetails && <p><span className="font-medium">Contact:</span> {pprResult.contactDetails}</p>}
-                    {pprResult.slotRequired !== undefined && (
-                      <p><span className="font-medium">Slot booking:</span> {pprResult.slotRequired ? 'Required' : 'Not required'}</p>
-                    )}
-                    {pprResult.handlingAgentRequired !== undefined && (
-                      <p><span className="font-medium">Handling agent:</span> {pprResult.handlingAgentRequired ? 'Must be arranged in advance' : 'Not mandatory'}</p>
-                    )}
-                    {pprResult.operatingRestrictions && <p><span className="font-medium">Restrictions:</span> {pprResult.operatingRestrictions}</p>}
-                    {pprResult.conditions && <p><span className="font-medium">Conditions:</span> {pprResult.conditions}</p>}
-                    {pprResult.notes && <p className="text-muted-foreground italic">{pprResult.notes}</p>}
-                  </div>
-                  {pprResult.confidence && (
-                    <p className="text-xs text-muted-foreground">Confidence: {pprResult.confidence}</p>
-                  )}
-                  {pprResult.error && (
-                    <p className="text-xs text-destructive">{pprResult.error}</p>
-                  )}
-                </div>
-              )}
-
-              {/* Runway Result */}
-              {runwayResult && (
-                <div className={cn(
-                  "rounded-md border p-3 text-sm space-y-1.5",
-                  runwayResult.found ? "border-success/30 bg-success/5" : "border-muted bg-muted/50"
-                )}>
-                  <div className="flex items-center gap-1.5 font-medium">
-                    <Ruler className="h-3.5 w-3.5 text-primary" />
-                    Runway Data
-                  </div>
-                  <p className="text-muted-foreground text-xs">{runwayResult.message}</p>
-                  {runwayResult.runways.length > 0 && (
-                    <div className="rounded bg-background/50 px-2 py-1.5 text-xs space-y-0.5">
-                      {runwayResult.runways.map((rwy, i) => (
-                        <p key={i}>
-                          <span className="font-mono font-medium">{rwy.ident}</span>
-                          {" — "}
-                          {rwy.lengthFt.toLocaleString()} ft × {rwy.widthFt} ft
-                          {" · "}{rwy.surface}
-                          {rwy.lighted && " · Lighted"}
-                        </p>
-                      ))}
-                    </div>
-                  )}
-                  {runwayResult.error && (
-                    <p className="text-xs text-destructive">{runwayResult.error}</p>
-                  )}
-                </div>
-              )}
-
-              {/* Airport Charges */}
-              {chargesLoading && (
-                <div className="rounded-md border p-3 text-sm flex items-center gap-2 text-muted-foreground">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  Estimating airport charges…
-                </div>
-              )}
-              {chargesResult && !chargesLoading && (
-                <div className={cn(
-                  "rounded-md border p-3 text-sm space-y-1.5",
-                  chargesResult.success ? "border-primary/30 bg-primary/5" : "border-muted bg-muted/50"
-                )}>
-                  <div className="flex items-center gap-1.5 font-medium">
-                    <DollarSign className="h-3.5 w-3.5 text-primary" />
-                    Estimated Airport Charges — {chargesResult.airportName || chargesResult.icao}
-                  </div>
-                  {chargesResult.success && (
-                    <div className="rounded bg-background/50 px-2 py-1.5 text-xs space-y-0.5">
-                      {chargesResult.mtowKg && (
-                        <p className="text-muted-foreground">Based on MTOW: {chargesResult.mtowKg.toLocaleString()} kg</p>
-                      )}
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 pt-1">
-                        <p><span className="font-medium">Landing fee:</span></p>
-                        <p className="text-right font-mono">
-                          ${chargesResult.landingFeeUsd?.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 }) ?? '—'}
-                          {chargesResult.currency && chargesResult.currency !== 'USD' && chargesResult.landingFeeLocal != null && (
-                            <span className="text-muted-foreground ml-1">({chargesResult.currency} {chargesResult.landingFeeLocal.toLocaleString()})</span>
-                          )}
-                        </p>
-                        <p><span className="font-medium">Parking / day:</span></p>
-                        <p className="text-right font-mono">
-                          ${chargesResult.parkingPerDayUsd?.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 }) ?? '—'}
-                          {chargesResult.currency && chargesResult.currency !== 'USD' && chargesResult.parkingPerDayLocal != null && (
-                            <span className="text-muted-foreground ml-1">({chargesResult.currency} {chargesResult.parkingPerDayLocal.toLocaleString()})</span>
-                          )}
-                        </p>
-                        {chargesResult.parkingDays != null && chargesResult.totalParkingUsd != null && (
-                          <>
-                            <p><span className="font-medium">Parking ({chargesResult.parkingDays} day{chargesResult.parkingDays !== 1 ? 's' : ''}):</span></p>
-                            <p className="text-right font-mono">${chargesResult.totalParkingUsd.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
-                          </>
-                        )}
-                        {chargesResult.passengerFeeUsd != null && chargesResult.passengerFeeUsd > 0 && (
-                          <>
-                            <p><span className="font-medium">Passenger fee:</span></p>
-                            <p className="text-right font-mono">${chargesResult.passengerFeeUsd.toLocaleString()}/pax</p>
-                          </>
-                        )}
-                      </div>
-                      {chargesResult.surcharges && (
-                        <p className="pt-1"><span className="font-medium">Surcharges:</span> {chargesResult.surcharges}</p>
-                      )}
-                      {chargesResult.nightSurchargeApplies && (
-                        <p className="pt-0.5 text-warning text-xs">⚠️ Night surcharge applies based on your schedule</p>
-                      )}
-                      <div className="pt-1 border-t mt-1">
-                        <div className="flex justify-between font-medium">
-                          <span>Est. total{chargesResult.parkingDays != null ? ` (landing + ${chargesResult.parkingDays} day${chargesResult.parkingDays !== 1 ? 's' : ''} parking)` : ' (landing + 1 day)'}:</span>
-                          <span className="font-mono text-primary">${chargesResult.totalEstimateUsd?.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 }) ?? '—'}</span>
-                        </div>
-                      </div>
-                      {chargesResult.notes && <p className="text-muted-foreground italic pt-1">{chargesResult.notes}</p>}
-                    </div>
-                  )}
-                  {chargesResult.confidence && (
-                    <p className="text-xs text-muted-foreground">Confidence: {chargesResult.confidence}</p>
-                  )}
-                  {chargesResult.error && (
-                    <p className="text-xs text-destructive">{chargesResult.error}</p>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Overflight Permits */}
-            <Separator />
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Overflight Permits
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                Enter origin and next destination to check overflight permit requirements along the route.
-              </p>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <Label htmlFor="origin-icao" className="text-xs">Origin ICAO</Label>
-                  <Input
-                    id="origin-icao"
-                    placeholder="e.g. EGLL"
-                    maxLength={4}
-                    value={originIcao}
-                    onChange={(e) => {
-                      setOriginIcao(e.target.value.toUpperCase().replace(/[^A-Z]/g, ""));
-                      setOverflightResult(null);
-                    }}
-                    className="font-mono uppercase tracking-widest"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="dest-icao" className="text-xs">Destination ICAO</Label>
-                  <Input
-                    id="dest-icao"
-                    placeholder="e.g. OMDB"
-                    maxLength={4}
-                    value={destinationIcao}
-                    onChange={(e) => {
-                      setDestinationIcao(e.target.value.toUpperCase().replace(/[^A-Z]/g, ""));
-                      setOverflightResult(null);
-                    }}
-                    className="font-mono uppercase tracking-widest"
-                  />
-                </div>
-              </div>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={handleOverflightLookup}
-                disabled={originIcao.length !== 4 || destinationIcao.length !== 4 || overflightLoading}
-                className="w-full"
-              >
-                {overflightLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Navigation className="h-4 w-4 mr-1.5" />}
-                Check Overflight Permits
-              </Button>
-
-              {overflightLoading && (
-                <div className="rounded-md border p-3 text-sm flex items-center gap-2 text-muted-foreground">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  Analyzing route and overflight requirements…
-                </div>
-              )}
-
-              {overflightResult && !overflightLoading && (
-                <div className={cn(
-                  "rounded-md border p-3 text-sm space-y-2",
-                  overflightResult.success ? "border-primary/30 bg-primary/5" : "border-muted bg-muted/50"
-                )}>
-                  <div className="flex items-center gap-1.5 font-medium">
-                    <Navigation className="h-3.5 w-3.5 text-primary" />
-                    Overflight Permits — {overflightResult.originAirport || overflightResult.originIcao} → {overflightResult.destinationAirport || overflightResult.destinationIcao}
-                  </div>
-
-                  {overflightResult.routeSummary && (
-                    <p className="text-xs text-muted-foreground">{overflightResult.routeSummary}</p>
-                  )}
-
-                  {overflightResult.totalPermitsNeeded != null && (
-                    <p className="text-xs font-medium">
-                      {overflightResult.totalPermitsNeeded === 0
-                        ? '✅ No overflight permits required'
-                        : `⚠️ ${overflightResult.totalPermitsNeeded} overflight permit${overflightResult.totalPermitsNeeded > 1 ? 's' : ''} required`}
-                      {overflightResult.maxLeadTimeDays != null && overflightResult.maxLeadTimeDays > 0 && (
-                        <span className="text-muted-foreground"> · Max lead time: {overflightResult.maxLeadTimeDays} business days</span>
-                      )}
-                    </p>
-                  )}
-                  {overflightResult.totalOverflightChargesUsd != null && (
-                    <p className="text-xs font-medium flex items-center gap-1">
-                      <DollarSign className="h-3 w-3 text-primary" />
-                      Estimated total overflight charges: ${overflightResult.totalOverflightChargesUsd.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} USD
-                    </p>
-                  )}
-
-                  {overflightResult.countries && overflightResult.countries.length > 0 && (
-                    <div className="space-y-1.5">
-                      {overflightResult.countries.map((c, i) => (
-                        <div key={i} className={cn(
-                          "rounded bg-background/50 px-2 py-1.5 text-xs space-y-0.5",
-                          c.overflightPermitRequired === 'yes' ? "border-l-2 border-l-warning" : c.overflightPermitRequired === 'no' ? "border-l-2 border-l-success" : "border-l-2 border-l-muted-foreground"
-                        )}>
-                          <p className="font-medium">
-                            {c.overflightPermitRequired === 'yes' ? '⚠️' : c.overflightPermitRequired === 'no' ? '✅' : '⚠️'} {c.country}
-                            <span className="font-normal text-muted-foreground ml-1">
-                              — {c.overflightPermitRequired === 'yes' ? 'Permit required' : c.overflightPermitRequired === 'no' ? 'No permit needed' : 'Conditionally required'}
-                            </span>
-                          </p>
-                          {c.permitType && <p><span className="font-medium">Type:</span> {c.permitType}</p>}
-                          {c.leadTimeDays != null && <p><span className="font-medium">Lead time:</span> {c.leadTimeDays} business days</p>}
-                          {c.issuingAuthority && <p><span className="font-medium">Authority:</span> {c.issuingAuthority}</p>}
-                          {c.conditions && <p><span className="font-medium">Conditions:</span> {c.conditions}</p>}
-                          {c.overflightChargeUsd != null && (
-                            <p><span className="font-medium">Overflight charge:</span> ~${c.overflightChargeUsd.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} USD
-                              {c.chargeBasis && <span className="text-muted-foreground"> ({c.chargeBasis})</span>}
-                            </p>
-                          )}
-                          {c.notes && <p className="text-muted-foreground italic">{c.notes}</p>}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {overflightResult.notes && (
-                    <p className="text-xs text-muted-foreground italic">{overflightResult.notes}</p>
-                  )}
-                  {overflightResult.confidence && (
-                    <p className="text-xs text-muted-foreground">Confidence: {overflightResult.confidence}</p>
-                  )}
-                  {overflightResult.error && (
-                    <p className="text-xs text-destructive">{overflightResult.error}</p>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Visa Requirements */}
-            <Separator />
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Visa Requirements
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                Check visa requirements for passengers based on nationality and destination.
-              </p>
-
-              <div className="space-y-1">
-                <Label htmlFor="visa-destination" className="text-xs">Destination Country</Label>
-                <Select
-                  value={visaDestination}
-                  onValueChange={(v) => { setVisaDestination(v); setVisaResult(null); }}
-                >
-                  <SelectTrigger id="visa-destination">
-                    <SelectValue placeholder="Select destination country" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-60">
-                    {COUNTRIES.map((c) => (
-                      <SelectItem key={c} value={c}>{c}</SelectItem>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Aircraft Type</Label>
+                <Select value={aircraftType} onValueChange={setAircraftType}>
+                  <SelectTrigger><SelectValue placeholder="Select aircraft" /></SelectTrigger>
+                  <SelectContent className="max-h-80">
+                    {AIRCRAFT_CATEGORIES.map((cat) => (
+                      <SelectGroup key={cat.label}>
+                        <SelectLabel className="text-xs font-semibold text-muted-foreground">{cat.label}</SelectLabel>
+                        {cat.types.map((type) => (
+                          <SelectItem key={type} value={type}>{type}</SelectItem>
+                        ))}
+                      </SelectGroup>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-
               <div className="space-y-2">
-                <Label className="text-xs">Passenger Nationalities</Label>
-                {visaNationalities.map((nat, idx) => (
-                  <div key={idx} className="flex gap-2 items-center">
-                    <Select
-                      value={nat}
-                      onValueChange={(v) => {
-                        const updated = [...visaNationalities];
-                        updated[idx] = v;
-                        setVisaNationalities(updated);
-                        setVisaResult(null);
-                      }}
-                    >
-                      <SelectTrigger className="flex-1">
-                        <SelectValue placeholder="Select nationality" />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-60">
-                        {COUNTRIES.map((c) => (
-                          <SelectItem key={c} value={c}>{c}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {visaNationalities.length > 1 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="shrink-0 h-9 w-9"
-                        onClick={() => {
-                          setVisaNationalities(visaNationalities.filter((_, i) => i !== idx));
-                          setVisaResult(null);
-                        }}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                ))}
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setVisaNationalities([...visaNationalities, ""])}
-                  className="text-xs"
-                >
-                  <Plus className="h-3 w-3 mr-1" /> Add Passenger
-                </Button>
+                <Label>Flight Type</Label>
+                <Select value={flightType} onValueChange={setFlightType}>
+                  <SelectTrigger><SelectValue placeholder="Select flight type" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="private">Private (Non-Commercial)</SelectItem>
+                    <SelectItem value="non-scheduled-commercial">Non-Scheduled Commercial</SelectItem>
+                    <SelectItem value="commercial">Commercial (Scheduled)</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
+            </div>
+          </CardContent>
+        </Card>
 
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={handleVisaCheck}
-                disabled={!visaDestination || visaNationalities.filter(n => n).length === 0 || visaLoading}
-                className="w-full"
-              >
-                {visaLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Globe className="h-4 w-4 mr-1.5" />}
-                Check Visa Requirements
+        {/* Trip Legs */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Trip Legs</h2>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={addLeg}>
+                <Plus className="h-4 w-4 mr-1" /> Add Leg
               </Button>
+            </div>
+          </div>
 
-              {visaLoading && (
-                <div className="rounded-md border p-3 text-sm flex items-center gap-2 text-muted-foreground">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  Checking visa requirements…
-                </div>
-              )}
+          {legs.map((leg, idx) => (
+            <div key={leg.id}>
+              <TripLegCard
+                leg={leg}
+                legIndex={idx}
+                totalLegs={legs.length}
+                aircraftType={aircraftType}
+                flightType={flightType}
+                onUpdateLeg={updateLeg}
+                onRemoveLeg={removeLeg}
+              />
 
-              {visaResult && !visaLoading && (
-                <div className={cn(
-                  "rounded-md border p-3 text-sm space-y-2",
-                  visaResult.success ? "border-primary/30 bg-primary/5" : "border-muted bg-muted/50"
-                )}>
-                  <div className="flex items-center gap-1.5 font-medium">
-                    <Globe className="h-3.5 w-3.5 text-primary" />
-                    Visa Requirements — {visaResult.destinationCountry}
+              {/* Overflight between this leg and next */}
+              {idx < legs.length - 1 && (
+                <div className="my-3 ml-6 pl-4 border-l-2 border-dashed border-muted-foreground/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Navigation className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-xs font-medium text-muted-foreground">
+                      {leg.airportIcao && legs[idx + 1]?.airportIcao
+                        ? `Overflight: ${leg.airportIcao} → ${legs[idx + 1].airportIcao}`
+                        : 'Overflight route'}
+                    </span>
+                    <Button
+                      type="button" variant="ghost" size="sm"
+                      onClick={() => handleOverflightBetweenLegs(idx)}
+                      disabled={leg.airportIcao.length !== 4 || legs[idx + 1]?.airportIcao.length !== 4 || overflightLoading[idx]}
+                      className="text-xs h-7"
+                    >
+                      {overflightLoading[idx] ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Navigation className="h-3 w-3 mr-1" />}
+                      Check
+                    </Button>
                   </div>
 
-                  {visaResult.results && visaResult.results.length > 0 && (
-                    <div className="space-y-1.5">
-                      {visaResult.results.map((r, i) => (
-                        <div key={i} className={cn(
-                          "rounded bg-background/50 px-2 py-1.5 text-xs space-y-0.5",
-                          r.visaRequired === 'yes' ? "border-l-2 border-l-destructive" : r.visaRequired === 'no' ? "border-l-2 border-l-success" : "border-l-2 border-l-warning"
-                        )}>
-                          <p className="font-medium">
-                            {r.visaRequired === 'yes' ? '❌' : r.visaRequired === 'no' ? '✅' : '⚠️'} {r.nationality}
-                            <span className="font-normal text-muted-foreground ml-1">
-                              — {r.visaRequired === 'yes' ? 'Visa required' : r.visaRequired === 'no' ? 'Visa-free' : 'Conditional'}
-                            </span>
-                          </p>
-                          {r.visaType && <p><span className="font-medium">Visa type:</span> {r.visaType}</p>}
-                          {r.visaOnArrival && <p className="text-success">✅ Visa on arrival available</p>}
-                          {r.eVisaAvailable && <p className="text-success">✅ e-Visa available</p>}
-                          {r.maxStayDays != null && <p><span className="font-medium">Max stay:</span> {r.maxStayDays} days</p>}
-                          {r.processingTimeDays != null && <p><span className="font-medium">Processing time:</span> ~{r.processingTimeDays} business days</p>}
-                          {r.transitVisaRequired && <p className="text-warning">⚠️ Transit visa also required</p>}
-                          {r.conditions && <p><span className="font-medium">Conditions:</span> {r.conditions}</p>}
-                          {r.notes && <p className="text-muted-foreground italic">{r.notes}</p>}
-                        </div>
-                      ))}
+                  {overflightLoading[idx] && (
+                    <div className="rounded-md border p-2 text-xs flex items-center gap-2 text-muted-foreground">
+                      <Loader2 className="h-3 w-3 animate-spin" /> Analyzing overflight route…
                     </div>
                   )}
 
-                  {visaResult.notes && (
-                    <p className="text-xs text-muted-foreground italic">{visaResult.notes}</p>
-                  )}
-                  {visaResult.confidence && (
-                    <p className="text-xs text-muted-foreground">Confidence: {visaResult.confidence}</p>
-                  )}
-                  {visaResult.error && (
-                    <p className="text-xs text-destructive">{visaResult.error}</p>
+                  {overflightResults[idx] && !overflightLoading[idx] && (
+                    <div className={cn("rounded-md border p-3 text-xs space-y-1.5",
+                      overflightResults[idx]!.success ? "border-primary/30 bg-primary/5" : "border-muted bg-muted/50"
+                    )}>
+                      {overflightResults[idx]!.routeSummary && (
+                        <p className="text-muted-foreground">{overflightResults[idx]!.routeSummary}</p>
+                      )}
+                      {overflightResults[idx]!.totalPermitsNeeded != null && (
+                        <p className="font-medium">
+                          {overflightResults[idx]!.totalPermitsNeeded === 0
+                            ? '✅ No permits required'
+                            : `⚠️ ${overflightResults[idx]!.totalPermitsNeeded} permit${overflightResults[idx]!.totalPermitsNeeded! > 1 ? 's' : ''} required`}
+                        </p>
+                      )}
+                      {overflightResults[idx]!.totalOverflightChargesUsd != null && (
+                        <p className="font-medium flex items-center gap-1">
+                          <DollarSign className="h-3 w-3 text-primary" />
+                          Overflight charges: ${overflightResults[idx]!.totalOverflightChargesUsd!.toLocaleString(undefined, { maximumFractionDigits: 0 })} USD
+                        </p>
+                      )}
+                      {overflightResults[idx]!.countries && (
+                        <div className="space-y-1">
+                          {overflightResults[idx]!.countries!.map((c, ci) => (
+                            <div key={ci} className={cn("rounded bg-background/50 px-2 py-1 space-y-0.5",
+                              c.overflightPermitRequired === 'yes' ? "border-l-2 border-l-warning" : c.overflightPermitRequired === 'no' ? "border-l-2 border-l-success" : "border-l-2 border-l-muted-foreground"
+                            )}>
+                              <p className="font-medium">
+                                {c.overflightPermitRequired === 'yes' ? '⚠️' : '✅'} {c.country}
+                                <span className="font-normal text-muted-foreground ml-1">
+                                  — {c.overflightPermitRequired === 'yes' ? 'Permit required' : c.overflightPermitRequired === 'no' ? 'No permit' : 'Conditional'}
+                                </span>
+                              </p>
+                              {c.leadTimeDays != null && <p>Lead time: {c.leadTimeDays}d</p>}
+                              {c.overflightChargeUsd != null && <p>Charge: ~${c.overflightChargeUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })} USD</p>}
+                              {c.notes && <p className="text-muted-foreground italic">{c.notes}</p>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {overflightResults[idx]!.error && (
+                        <p className="text-destructive">{overflightResults[idx]!.error}</p>
+                      )}
+                    </div>
                   )}
                 </div>
               )}
             </div>
+          ))}
+        </div>
 
-            {/* Runway Override */}
-            <div className="space-y-2">
-              <Label htmlFor="runway-override">Runway Length Override (ft)</Label>
-              <Input
-                id="runway-override"
-                type="number"
-                placeholder={runwayResult?.longestRunwayFt ? `Auto: ${runwayResult.longestRunwayFt.toLocaleString()} ft` : "Enter runway length in feet"}
-                value={data.runwayOverrideFt}
-                onChange={(e) => setData({ ...data, runwayOverrideFt: e.target.value })}
-                className="font-mono"
-              />
-              <p className="text-xs text-muted-foreground">
-                {data.runwayOverrideFt
-                  ? `Using manual override: ${parseInt(data.runwayOverrideFt, 10).toLocaleString()} ft`
-                  : runwayResult?.longestRunwayFt
-                    ? `Using auto-fetched longest runway: ${runwayResult.longestRunwayFt.toLocaleString()} ft`
-                    : "Enter an ICAO code and run lookup, or enter runway length manually"}
-              </p>
+        {/* Visa Requirements */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Globe className="h-4 w-4" /> Visa Requirements
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Destination Country</Label>
+              <Select value={visaDestination} onValueChange={(v) => { setVisaDestination(v); setVisaResult(null); }}>
+                <SelectTrigger><SelectValue placeholder="Select destination country" /></SelectTrigger>
+                <SelectContent className="max-h-60">
+                  {COUNTRIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
 
-            <Separator />
-
-            {/* Arrival */}
             <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Arrival
-              </Label>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <Label htmlFor="arr-date" className="text-xs">Date</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        id="arr-date"
-                        variant="outline"
-                        className={cn(
-                          "w-full justify-start text-left font-normal",
-                          !data.arrivalDate && "text-muted-foreground"
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {data.arrivalDate ? format(data.arrivalDate, "dd MMM yyyy") : "Select date"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={data.arrivalDate}
-                        onSelect={(d) => setData({ ...data, arrivalDate: d })}
-                        initialFocus
-                        className="p-3 pointer-events-auto"
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="arr-time" className="text-xs">Time (UTC)</Label>
+              <Label className="text-xs">Passenger Nationalities</Label>
+              {visaNationalities.map((nat, idx) => (
+                <div key={idx} className="flex gap-2 items-center">
                   <Select
-                    value={data.arrivalTime}
-                    onValueChange={(v) => setData({ ...data, arrivalTime: v })}
+                    value={nat}
+                    onValueChange={(v) => {
+                      const updated = [...visaNationalities];
+                      updated[idx] = v;
+                      setVisaNationalities(updated);
+                      setVisaResult(null);
+                    }}
                   >
-                    <SelectTrigger id="arr-time">
-                      <SelectValue placeholder="HH:MM" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {TIMES.map((t) => (
-                        <SelectItem key={`arr-${t}`} value={t}>{t}</SelectItem>
-                      ))}
+                    <SelectTrigger className="flex-1"><SelectValue placeholder="Select nationality" /></SelectTrigger>
+                    <SelectContent className="max-h-60">
+                      {COUNTRIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                     </SelectContent>
                   </Select>
+                  {visaNationalities.length > 1 && (
+                    <Button type="button" variant="ghost" size="icon" className="shrink-0 h-9 w-9"
+                      onClick={() => { setVisaNationalities(visaNationalities.filter((_, i) => i !== idx)); setVisaResult(null); }}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
-              </div>
-            </div>
-
-            {/* Departure */}
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Departure
-              </Label>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <Label htmlFor="dep-date" className="text-xs">Date</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        id="dep-date"
-                        variant="outline"
-                        className={cn(
-                          "w-full justify-start text-left font-normal",
-                          !data.departureDate && "text-muted-foreground"
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {data.departureDate ? format(data.departureDate, "dd MMM yyyy") : "Select date"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={data.departureDate}
-                        onSelect={(d) => setData({ ...data, departureDate: d })}
-                        initialFocus
-                        className="p-3 pointer-events-auto"
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="dep-time" className="text-xs">Time (UTC)</Label>
-                  <Select
-                    value={data.departureTime}
-                    onValueChange={(v) => setData({ ...data, departureTime: v })}
-                  >
-                    <SelectTrigger id="dep-time">
-                      <SelectValue placeholder="HH:MM" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {TIMES.map((t) => (
-                        <SelectItem key={`dep-${t}`} value={t}>{t}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-
-            <Separator />
-
-            {/* Toggles */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between rounded-lg border p-4">
-                <div>
-                  <Label htmlFor="permit" className="font-medium">Permit Required</Label>
-                  <p className="text-xs text-muted-foreground">Landing/overflight permit needed</p>
-                </div>
-                <Switch
-                  id="permit"
-                  checked={data.permitRequired}
-                  onCheckedChange={(v) => setData({ ...data, permitRequired: v })}
-                />
-              </div>
-              <div className="flex items-center justify-between rounded-lg border p-4">
-                <div>
-                  <Label htmlFor="ppr" className="font-medium">PPR Required</Label>
-                  <p className="text-xs text-muted-foreground">Prior Permission Required from airport</p>
-                </div>
-                <Switch
-                  id="ppr"
-                  checked={data.pprRequired}
-                  onCheckedChange={(v) => setData({ ...data, pprRequired: v })}
-                />
-              </div>
-              <div className="flex items-center justify-between rounded-lg border p-4">
-                <div>
-                  <Label htmlFor="customs" className="font-medium">Customs Available</Label>
-                  <p className="text-xs text-muted-foreground">Customs & immigration services at airport</p>
-                </div>
-                <Switch
-                  id="customs"
-                  checked={data.customsAvailable}
-                  onCheckedChange={(v) => setData({ ...data, customsAvailable: v })}
-                />
-              </div>
-            </div>
-
-            <Separator />
-
-            {/* Actions */}
-            <div className="flex gap-3">
-              <Button onClick={handleCheck} className="flex-1">
-                Check Feasibility
+              ))}
+              <Button type="button" variant="outline" size="sm" onClick={() => setVisaNationalities([...visaNationalities, ""])} className="text-xs">
+                <Plus className="h-3 w-3 mr-1" /> Add Passenger
               </Button>
+            </div>
+
+            <Button type="button" variant="secondary" onClick={handleVisaCheck}
+              disabled={!visaDestination || visaNationalities.filter(n => n).length === 0 || visaLoading}
+              className="w-full">
+              {visaLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Globe className="h-4 w-4 mr-1.5" />}
+              Check Visa Requirements
+            </Button>
+
+            {visaLoading && (
+              <div className="rounded-md border p-3 text-sm flex items-center gap-2 text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking visa requirements…
+              </div>
+            )}
+
+            {visaResult && !visaLoading && (
+              <div className={cn("rounded-md border p-3 text-sm space-y-2", visaResult.success ? "border-primary/30 bg-primary/5" : "border-muted bg-muted/50")}>
+                <div className="flex items-center gap-1.5 font-medium">
+                  <Globe className="h-3.5 w-3.5 text-primary" />
+                  Visa — {visaResult.destinationCountry}
+                </div>
+                {visaResult.results?.map((r, i) => (
+                  <div key={i} className={cn("rounded bg-background/50 px-2 py-1.5 text-xs space-y-0.5",
+                    r.visaRequired === 'yes' ? "border-l-2 border-l-destructive" : r.visaRequired === 'no' ? "border-l-2 border-l-success" : "border-l-2 border-l-warning"
+                  )}>
+                    <p className="font-medium">
+                      {r.visaRequired === 'yes' ? '❌' : r.visaRequired === 'no' ? '✅' : '⚠️'} {r.nationality}
+                      <span className="font-normal text-muted-foreground ml-1">
+                        — {r.visaRequired === 'yes' ? 'Visa required' : r.visaRequired === 'no' ? 'Visa-free' : 'Conditional'}
+                      </span>
+                    </p>
+                    {r.visaType && <p><span className="font-medium">Type:</span> {r.visaType}</p>}
+                    {r.visaOnArrival && <p className="text-success">✅ Visa on arrival</p>}
+                    {r.eVisaAvailable && <p className="text-success">✅ e-Visa available</p>}
+                    {r.maxStayDays != null && <p><span className="font-medium">Max stay:</span> {r.maxStayDays} days</p>}
+                    {r.processingTimeDays != null && <p><span className="font-medium">Processing:</span> ~{r.processingTimeDays} days</p>}
+                    {r.transitVisaRequired && <p className="text-warning">⚠️ Transit visa required</p>}
+                    {r.conditions && <p><span className="font-medium">Conditions:</span> {r.conditions}</p>}
+                    {r.notes && <p className="text-muted-foreground italic">{r.notes}</p>}
+                  </div>
+                ))}
+                {visaResult.error && <p className="text-xs text-destructive">{visaResult.error}</p>}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Actions */}
+        <Card>
+          <CardContent className="pt-6 space-y-4">
+            <div className="flex gap-3">
+              <Button onClick={handleCheckAll} className="flex-1">
+                Check All Legs
+              </Button>
+              {legs.length > 1 && (
+                <Button variant="secondary" onClick={handleAllOverflights} className="flex-1">
+                  <Navigation className="h-4 w-4 mr-1.5" /> All Overflight Permits
+                </Button>
+              )}
               <Button variant="outline" onClick={handleReset}>
                 Reset
               </Button>
             </div>
 
-            {/* Result */}
-            {result && (
-              <div
-                className={cn(
-                  "rounded-lg border-2 p-5 space-y-3",
-                  result.feasible
-                    ? "border-success/40 bg-success/5"
-                    : "border-destructive/40 bg-destructive/5"
-                )}
-              >
+            {/* Trip Summary */}
+            {(anyChecked || totalCharges > 0 || totalOverflightCharges > 0) && (
+              <div className={cn("rounded-lg border-2 p-5 space-y-3",
+                allFeasible && anyChecked ? "border-success/40 bg-success/5" : anyChecked ? "border-destructive/40 bg-destructive/5" : "border-muted"
+              )}>
                 <div className="flex items-center gap-2">
-                  {result.feasible ? (
-                    <CheckCircle2 className="h-5 w-5 text-success" />
-                  ) : (
-                    <XCircle className="h-5 w-5 text-destructive" />
+                  {anyChecked && (allFeasible
+                    ? <><CheckCircle2 className="h-5 w-5 text-success" /><span className="font-semibold">All Legs Feasible</span></>
+                    : <><XCircle className="h-5 w-5 text-destructive" /><span className="font-semibold">Issues Detected</span></>
                   )}
-                  <span className="font-semibold">
-                    {result.feasible ? "Operations Feasible" : "Issues Detected"}
-                  </span>
                 </div>
 
-                {result.issues.length > 0 && (
-                  <ul className="space-y-1 text-sm">
-                    {result.issues.map((issue, i) => (
-                      <li key={i} className="flex items-start gap-2 text-destructive">
-                        <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                        {issue}
-                      </li>
-                    ))}
-                  </ul>
+                {(totalCharges > 0 || totalOverflightCharges > 0) && (
+                  <div className="rounded bg-background/50 px-3 py-2 text-sm space-y-1">
+                    <p className="font-semibold">Trip Cost Summary</p>
+                    {totalCharges > 0 && (
+                      <div className="flex justify-between">
+                        <span>Airport charges ({legs.length} leg{legs.length > 1 ? 's' : ''}):</span>
+                        <span className="font-mono">${totalCharges.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                      </div>
+                    )}
+                    {totalOverflightCharges > 0 && (
+                      <div className="flex justify-between">
+                        <span>Overflight charges:</span>
+                        <span className="font-mono">${totalOverflightCharges.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                      </div>
+                    )}
+                    <Separator />
+                    <div className="flex justify-between font-semibold">
+                      <span>Estimated total:</span>
+                      <span className="font-mono text-primary">${(totalCharges + totalOverflightCharges).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                    </div>
+                  </div>
                 )}
 
-                {result.notes.length > 0 && (
-                  <ul className="space-y-1 text-sm">
-                    {result.notes.map((note, i) => (
-                      <li key={i} className="flex items-start gap-2 text-warning">
-                        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                        {note}
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                {anyChecked && legs.map((leg, i) => (
+                  leg.feasibilityResult && !leg.feasibilityResult.feasible && (
+                    <div key={i} className="text-sm">
+                      <p className="font-medium text-destructive">Leg {i + 1} — {leg.airportIcao}:</p>
+                      {leg.feasibilityResult.issues.map((issue, j) => (
+                        <p key={j} className="flex items-start gap-2 text-xs text-destructive ml-4">
+                          <XCircle className="mt-0.5 h-3 w-3 shrink-0" />{issue}
+                        </p>
+                      ))}
+                    </div>
+                  )
+                ))}
               </div>
             )}
           </CardContent>
