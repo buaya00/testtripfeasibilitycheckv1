@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { format } from "date-fns";
-import { CalendarIcon, Plane, CheckCircle2, XCircle, AlertTriangle, Search, Loader2, ExternalLink, Ruler } from "lucide-react";
+import { CalendarIcon, Plane, CheckCircle2, XCircle, AlertTriangle, Search, Loader2, ExternalLink, Ruler, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { AIRCRAFT_RUNWAY_REQ, AIRCRAFT_CATEGORIES } from "@/data/aircraftData";
@@ -74,6 +74,21 @@ interface RunwayResult {
   runways: RunwayInfo[];
   longestRunwayFt: number | null;
   message: string;
+  error?: string;
+}
+
+interface PermitResult {
+  success: boolean;
+  icao: string;
+  country?: string;
+  permitRequired?: 'yes' | 'no' | 'conditional';
+  permitType?: string;
+  leadTimeDays?: number;
+  issuingAuthority?: string;
+  conditions?: string;
+  overflightPermit?: 'yes' | 'no' | 'conditional';
+  notes?: string;
+  confidence?: 'high' | 'medium' | 'low';
   error?: string;
 }
 
@@ -191,6 +206,8 @@ export default function FeasibilityForm() {
   const [cbpLoading, setCbpLoading] = useState(false);
   const [runwayResult, setRunwayResult] = useState<RunwayResult | null>(null);
   const [runwayLoading, setRunwayLoading] = useState(false);
+  const [permitResult, setPermitResult] = useState<PermitResult | null>(null);
+  const [permitLoading, setPermitLoading] = useState(false);
 
   const handleCbpLookup = useCallback(async () => {
     if (data.airportIcao.length !== 4) return;
@@ -235,11 +252,37 @@ export default function FeasibilityForm() {
     }
   }, [data.airportIcao]);
 
+  const handlePermitLookup = useCallback(async () => {
+    if (data.airportIcao.length !== 4) return;
+    setPermitLoading(true);
+    setPermitResult(null);
+    try {
+      const { data: res, error } = await supabase.functions.invoke('permit-lookup', {
+        body: { icao: data.airportIcao },
+      });
+      if (error) {
+        setPermitResult({ success: false, icao: data.airportIcao, error: error.message });
+      } else {
+        setPermitResult(res as PermitResult);
+        if (res?.permitRequired === 'yes') {
+          setData(prev => ({ ...prev, permitRequired: true }));
+        } else if (res?.permitRequired === 'no') {
+          setData(prev => ({ ...prev, permitRequired: false }));
+        }
+      }
+    } catch {
+      setPermitResult({ success: false, icao: data.airportIcao, error: 'Failed to connect' });
+    } finally {
+      setPermitLoading(false);
+    }
+  }, [data.airportIcao]);
+
   const handleLookupAll = useCallback(async () => {
     if (data.airportIcao.length !== 4) return;
     handleCbpLookup();
     handleRunwayLookup();
-  }, [data.airportIcao, handleCbpLookup, handleRunwayLookup]);
+    handlePermitLookup();
+  }, [data.airportIcao, handleCbpLookup, handleRunwayLookup, handlePermitLookup]);
 
   const effectiveRunwayFt: number | null =
     data.runwayOverrideFt && parseInt(data.runwayOverrideFt, 10) > 0
@@ -266,6 +309,7 @@ export default function FeasibilityForm() {
     setResult(null);
     setCbpResult(null);
     setRunwayResult(null);
+    setPermitResult(null);
   };
 
   return (
@@ -335,6 +379,7 @@ export default function FeasibilityForm() {
                     setData({ ...data, airportIcao: e.target.value.toUpperCase().replace(/[^A-Z]/g, "") });
                     setCbpResult(null);
                     setRunwayResult(null);
+                    setPermitResult(null);
                   }}
                   className="font-mono uppercase tracking-widest"
                 />
@@ -342,10 +387,10 @@ export default function FeasibilityForm() {
                   type="button"
                   variant="secondary"
                   onClick={handleLookupAll}
-                  disabled={data.airportIcao.length !== 4 || cbpLoading || runwayLoading}
+                  disabled={data.airportIcao.length !== 4 || cbpLoading || runwayLoading || permitLoading}
                   className="shrink-0"
                 >
-                  {(cbpLoading || runwayLoading) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                  {(cbpLoading || runwayLoading || permitLoading) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                   <span className="ml-1.5">Lookup</span>
                 </Button>
               </div>
@@ -378,7 +423,51 @@ export default function FeasibilityForm() {
                          <p className="text-muted-foreground">Source: "{cbpResult.operatingHours.raw}"</p>
                        )}
                      </div>
-                   )}
+              )}
+
+              {/* Permit Result */}
+              {permitLoading && (
+                <div className="rounded-md border p-3 text-sm flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Looking up landing permit requirements…
+                </div>
+              )}
+              {permitResult && !permitLoading && (
+                <div className={cn(
+                  "rounded-md border p-3 text-sm space-y-1.5",
+                  permitResult.permitRequired === 'no'
+                    ? "border-success/30 bg-success/5"
+                    : permitResult.permitRequired === 'yes'
+                      ? "border-warning/30 bg-warning/5"
+                      : "border-muted bg-muted/50"
+                )}>
+                  <div className="flex items-center gap-1.5 font-medium">
+                    <Shield className="h-3.5 w-3.5 text-primary" />
+                    Landing Permit — {permitResult.country || permitResult.icao}
+                  </div>
+                  <p className="text-xs font-medium">
+                    {permitResult.permitRequired === 'yes' && '⚠️ Landing permit required'}
+                    {permitResult.permitRequired === 'no' && '✅ No landing permit required'}
+                    {permitResult.permitRequired === 'conditional' && '⚠️ Landing permit conditionally required'}
+                  </p>
+                  <div className="rounded bg-background/50 px-2 py-1.5 text-xs space-y-0.5">
+                    {permitResult.permitType && <p><span className="font-medium">Type:</span> {permitResult.permitType}</p>}
+                    {permitResult.leadTimeDays != null && <p><span className="font-medium">Lead time:</span> {permitResult.leadTimeDays} business days</p>}
+                    {permitResult.issuingAuthority && <p><span className="font-medium">Authority:</span> {permitResult.issuingAuthority}</p>}
+                    {permitResult.conditions && <p><span className="font-medium">Conditions:</span> {permitResult.conditions}</p>}
+                    {permitResult.overflightPermit && permitResult.overflightPermit !== 'no' && (
+                      <p><span className="font-medium">Overflight permit:</span> {permitResult.overflightPermit === 'yes' ? 'Also required' : 'May be required'}</p>
+                    )}
+                    {permitResult.notes && <p className="text-muted-foreground italic">{permitResult.notes}</p>}
+                  </div>
+                  {permitResult.confidence && (
+                    <p className="text-xs text-muted-foreground">Confidence: {permitResult.confidence}</p>
+                  )}
+                  {permitResult.error && (
+                    <p className="text-xs text-destructive">{permitResult.error}</p>
+                  )}
+                </div>
+              )}
                    {cbpResult.detailUrl && (
                      <a
                        href={cbpResult.detailUrl}
