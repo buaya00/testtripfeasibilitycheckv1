@@ -155,6 +155,8 @@ interface OverflightCountry {
   issuingAuthority?: string;
   conditions?: string;
   notes?: string;
+  overflightChargeUsd?: number;
+  chargeBasis?: string;
 }
 
 interface OverflightResult {
@@ -169,6 +171,7 @@ interface OverflightResult {
   countries?: OverflightCountry[];
   totalPermitsNeeded?: number;
   maxLeadTimeDays?: number;
+  totalOverflightChargesUsd?: number;
   notes?: string;
   confidence?: 'high' | 'medium' | 'low';
   error?: string;
@@ -984,6 +987,12 @@ export default function FeasibilityForm() {
                       )}
                     </p>
                   )}
+                  {overflightResult.totalOverflightChargesUsd != null && (
+                    <p className="text-xs font-medium flex items-center gap-1">
+                      <DollarSign className="h-3 w-3 text-primary" />
+                      Estimated total overflight charges: ${overflightResult.totalOverflightChargesUsd.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} USD
+                    </p>
+                  )}
 
                   {overflightResult.countries && overflightResult.countries.length > 0 && (
                     <div className="space-y-1.5">
@@ -1002,6 +1011,11 @@ export default function FeasibilityForm() {
                           {c.leadTimeDays != null && <p><span className="font-medium">Lead time:</span> {c.leadTimeDays} business days</p>}
                           {c.issuingAuthority && <p><span className="font-medium">Authority:</span> {c.issuingAuthority}</p>}
                           {c.conditions && <p><span className="font-medium">Conditions:</span> {c.conditions}</p>}
+                          {c.overflightChargeUsd != null && (
+                            <p><span className="font-medium">Overflight charge:</span> ~${c.overflightChargeUsd.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} USD
+                              {c.chargeBasis && <span className="text-muted-foreground"> ({c.chargeBasis})</span>}
+                            </p>
+                          )}
                           {c.notes && <p className="text-muted-foreground italic">{c.notes}</p>}
                         </div>
                       ))}

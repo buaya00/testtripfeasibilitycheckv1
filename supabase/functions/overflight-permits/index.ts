@@ -44,10 +44,10 @@ Deno.serve(async (req) => {
 
 Determine the great circle route between these two airports. Identify ALL countries whose airspace would be crossed or closely skirted on this direct route (including the departure and arrival countries).
 
-For EACH country whose airspace is crossed, determine the overflight permit requirements.
+For EACH country whose airspace is crossed, determine the overflight permit requirements AND estimated overflight charges/fees.
 
 Flight type: ${flightTypeDesc}
-${aircraftType ? `Aircraft type: ${aircraftType}` : ''}
+${aircraftType ? `Aircraft type: ${aircraftType}` : 'Assume a mid-size business jet (~15,000 kg MTOW) if no aircraft specified.'}
 
 For each country, consider:
 - Whether a foreign-registered aircraft needs an overflight permit
@@ -55,7 +55,9 @@ For each country, consider:
 - Typical lead time for obtaining the permit
 - The issuing authority
 - Any special conditions or exemptions (e.g. EU/EASA member states, bilateral agreements)
-- Whether a diplomatic clearance is needed for certain regions`;
+- Whether a diplomatic clearance is needed for certain regions
+- Estimated overflight/air navigation charges in USD (based on MTOW, distance through airspace, and published Eurocontrol/IATA rates or national ANS fee schedules)
+- The basis for the charge calculation (e.g. weight factor, distance factor, unit rate)`;
 
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -99,6 +101,8 @@ For each country, consider:
                         issuingAuthority: { type: 'string', description: 'Authority that issues the permit' },
                         conditions: { type: 'string', description: 'Conditions or exemptions that apply' },
                         notes: { type: 'string', description: 'Additional notes for this country' },
+                        overflightChargeUsd: { type: 'number', description: 'Estimated overflight/navigation charge in USD for crossing this country airspace' },
+                        chargeBasis: { type: 'string', description: 'Basis for the charge (e.g. Eurocontrol unit rate, distance/weight formula, flat fee)' },
                       },
                       required: ['country', 'overflightPermitRequired'],
                       additionalProperties: false,
@@ -106,6 +110,7 @@ For each country, consider:
                   },
                   totalPermitsNeeded: { type: 'number', description: 'Total number of overflight permits required' },
                   maxLeadTimeDays: { type: 'number', description: 'Maximum lead time across all required permits' },
+                  totalOverflightChargesUsd: { type: 'number', description: 'Total estimated overflight charges across all countries in USD' },
                   notes: { type: 'string', description: 'Overall route notes and recommendations' },
                   confidence: { type: 'string', enum: ['high', 'medium', 'low'], description: 'Confidence level' },
                 },
