@@ -121,8 +121,11 @@ interface ChargesResult {
   landingFeeUsd?: number;
   parkingPerDayLocal?: number;
   parkingPerDayUsd?: number;
+  parkingDays?: number;
+  totalParkingUsd?: number;
   passengerFeeUsd?: number;
   surcharges?: string;
+  nightSurchargeApplies?: boolean;
   totalEstimateUsd?: number;
   notes?: string;
   confidence?: 'high' | 'medium' | 'low';
@@ -406,7 +409,14 @@ export default function FeasibilityForm() {
     setChargesResult(null);
     try {
       const { data: res, error } = await supabase.functions.invoke('charges-lookup', {
-        body: { icao: data.airportIcao, aircraftType: data.aircraftType || undefined },
+        body: {
+          icao: data.airportIcao,
+          aircraftType: data.aircraftType || undefined,
+          arrivalDate: data.arrivalDate ? data.arrivalDate.toISOString() : undefined,
+          arrivalTime: data.arrivalTime || undefined,
+          departureDate: data.departureDate ? data.departureDate.toISOString() : undefined,
+          departureTime: data.departureTime || undefined,
+        },
       });
       if (error) {
         setChargesResult({ success: false, icao: data.airportIcao, error: error.message });
@@ -418,7 +428,7 @@ export default function FeasibilityForm() {
     } finally {
       setChargesLoading(false);
     }
-  }, [data.airportIcao, data.aircraftType]);
+  }, [data.airportIcao, data.aircraftType, data.arrivalDate, data.arrivalTime, data.departureDate, data.departureTime]);
 
   const handlePprLookup = useCallback(async () => {
     if (data.airportIcao.length !== 4) return;
@@ -877,6 +887,12 @@ export default function FeasibilityForm() {
                             <span className="text-muted-foreground ml-1">({chargesResult.currency} {chargesResult.parkingPerDayLocal.toLocaleString()})</span>
                           )}
                         </p>
+                        {chargesResult.parkingDays != null && chargesResult.totalParkingUsd != null && (
+                          <>
+                            <p><span className="font-medium">Parking ({chargesResult.parkingDays} day{chargesResult.parkingDays !== 1 ? 's' : ''}):</span></p>
+                            <p className="text-right font-mono">${chargesResult.totalParkingUsd.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
+                          </>
+                        )}
                         {chargesResult.passengerFeeUsd != null && chargesResult.passengerFeeUsd > 0 && (
                           <>
                             <p><span className="font-medium">Passenger fee:</span></p>
@@ -887,9 +903,12 @@ export default function FeasibilityForm() {
                       {chargesResult.surcharges && (
                         <p className="pt-1"><span className="font-medium">Surcharges:</span> {chargesResult.surcharges}</p>
                       )}
+                      {chargesResult.nightSurchargeApplies && (
+                        <p className="pt-0.5 text-warning text-xs">⚠️ Night surcharge applies based on your schedule</p>
+                      )}
                       <div className="pt-1 border-t mt-1">
                         <div className="flex justify-between font-medium">
-                          <span>Est. total (landing + 1 day):</span>
+                          <span>Est. total{chargesResult.parkingDays != null ? ` (landing + ${chargesResult.parkingDays} day${chargesResult.parkingDays !== 1 ? 's' : ''} parking)` : ' (landing + 1 day)'}:</span>
                           <span className="font-mono text-primary">${chargesResult.totalEstimateUsd?.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 }) ?? '—'}</span>
                         </div>
                       </div>
