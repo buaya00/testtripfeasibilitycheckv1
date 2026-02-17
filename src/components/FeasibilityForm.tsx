@@ -362,100 +362,6 @@ export default function FeasibilityForm() {
           ))}
         </div>
 
-        {/* Visa Requirements */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Globe className="h-4 w-4" /> Visa Requirements
-            </CardTitle>
-            {destinationIcaos.length > 0 && (
-              <p className="text-xs text-muted-foreground">
-                Destinations detected: {destinationIcaos.join(', ')}
-              </p>
-            )}
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="space-y-2">
-              <Label className="text-xs">Passenger Nationalities</Label>
-              {visaNationalities.map((nat, idx) => (
-                <div key={idx} className="flex gap-2 items-center">
-                  <Select
-                    value={nat}
-                    onValueChange={(v) => {
-                      const updated = [...visaNationalities];
-                      updated[idx] = v;
-                      setVisaNationalities(updated);
-                      setVisaResults({});
-                    }}
-                  >
-                    <SelectTrigger className="flex-1"><SelectValue placeholder="Select nationality" /></SelectTrigger>
-                    <SelectContent className="max-h-60">
-                      {COUNTRIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  {visaNationalities.length > 1 && (
-                    <Button type="button" variant="ghost" size="icon" className="shrink-0 h-9 w-9"
-                      onClick={() => { setVisaNationalities(visaNationalities.filter((_, i) => i !== idx)); setVisaResults({}); }}>
-                      <X className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-              ))}
-              <Button type="button" variant="outline" size="sm" onClick={() => setVisaNationalities([...visaNationalities, ""])} className="text-xs">
-                <Plus className="h-3 w-3 mr-1" /> Add Passenger
-              </Button>
-            </div>
-
-            <Button type="button" variant="secondary" onClick={handleVisaCheck}
-              disabled={destinationIcaos.length === 0 || visaNationalities.filter(n => n).length === 0 || Object.values(visaLoading).some(Boolean)}
-              className="w-full">
-              {Object.values(visaLoading).some(Boolean) ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Globe className="h-4 w-4 mr-1.5" />}
-              Check Visa Requirements ({destinationIcaos.length} destination{destinationIcaos.length !== 1 ? 's' : ''})
-            </Button>
-
-            {/* Results per destination */}
-            {destinationIcaos.map(icao => (
-              <div key={icao}>
-                {visaLoading[icao] && (
-                  <div className="rounded-md border p-3 text-sm flex items-center gap-2 text-muted-foreground">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking visa for {icao}…
-                  </div>
-                )}
-
-                {visaResults[icao] && !visaLoading[icao] && (
-                  <div className={cn("rounded-md border p-3 text-sm space-y-2", visaResults[icao]!.success ? "border-primary/30 bg-primary/5" : "border-muted bg-muted/50")}>
-                    <div className="flex items-center gap-1.5 font-medium">
-                      <Globe className="h-3.5 w-3.5 text-primary" />
-                      {icao} — {visaResults[icao]!.destinationCountry || 'Unknown'}
-                    </div>
-                    {visaResults[icao]!.results?.map((r, i) => (
-                      <div key={i} className={cn("rounded bg-background/50 px-2 py-1.5 text-xs space-y-0.5",
-                        r.visaRequired === 'yes' ? "border-l-2 border-l-destructive" : r.visaRequired === 'no' ? "border-l-2 border-l-success" : "border-l-2 border-l-warning"
-                      )}>
-                        <p className="font-medium">
-                          {r.visaRequired === 'yes' ? '❌' : r.visaRequired === 'no' ? '✅' : '⚠️'} {r.nationality}
-                          <span className="font-normal text-muted-foreground ml-1">
-                            — {r.visaRequired === 'yes' ? 'Visa required' : r.visaRequired === 'no' ? 'Visa-free' : 'Conditional'}
-                          </span>
-                        </p>
-                        {r.visaType && <p><span className="font-medium">Type:</span> {r.visaType}</p>}
-                        {r.visaOnArrival && <p className="text-success">✅ Visa on arrival</p>}
-                        {r.eVisaAvailable && <p className="text-success">✅ e-Visa available</p>}
-                        {r.maxStayDays != null && <p><span className="font-medium">Max stay:</span> {r.maxStayDays} days</p>}
-                        {r.processingTimeDays != null && <p><span className="font-medium">Processing:</span> ~{r.processingTimeDays} days</p>}
-                        {r.transitVisaRequired && <p className="text-warning">⚠️ Transit visa required</p>}
-                        {r.conditions && <p><span className="font-medium">Conditions:</span> {r.conditions}</p>}
-                        {r.notes && <p className="text-muted-foreground italic">{r.notes}</p>}
-                      </div>
-                    ))}
-                    {visaResults[icao]!.error && <p className="text-xs text-destructive">{visaResults[icao]!.error}</p>}
-                  </div>
-                )}
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
         {/* Actions */}
         <Card>
           <CardContent className="pt-6 space-y-4">
@@ -559,6 +465,100 @@ export default function FeasibilityForm() {
                 ))}
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Visa Requirements */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Globe className="h-4 w-4" /> Visa Requirements
+            </CardTitle>
+            {destinationIcaos.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Destinations detected: {destinationIcaos.join(', ')}
+              </p>
+            )}
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="space-y-2">
+              <Label className="text-xs">Passenger Nationalities</Label>
+              {visaNationalities.map((nat, idx) => (
+                <div key={idx} className="flex gap-2 items-center">
+                  <Select
+                    value={nat}
+                    onValueChange={(v) => {
+                      const updated = [...visaNationalities];
+                      updated[idx] = v;
+                      setVisaNationalities(updated);
+                      setVisaResults({});
+                    }}
+                  >
+                    <SelectTrigger className="flex-1"><SelectValue placeholder="Select nationality" /></SelectTrigger>
+                    <SelectContent className="max-h-60">
+                      {COUNTRIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  {visaNationalities.length > 1 && (
+                    <Button type="button" variant="ghost" size="icon" className="shrink-0 h-9 w-9"
+                      onClick={() => { setVisaNationalities(visaNationalities.filter((_, i) => i !== idx)); setVisaResults({}); }}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              ))}
+              <Button type="button" variant="outline" size="sm" onClick={() => setVisaNationalities([...visaNationalities, ""])} className="text-xs">
+                <Plus className="h-3 w-3 mr-1" /> Add Passenger
+              </Button>
+            </div>
+
+            <Button type="button" variant="secondary" onClick={handleVisaCheck}
+              disabled={destinationIcaos.length === 0 || visaNationalities.filter(n => n).length === 0 || Object.values(visaLoading).some(Boolean)}
+              className="w-full">
+              {Object.values(visaLoading).some(Boolean) ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Globe className="h-4 w-4 mr-1.5" />}
+              Check Visa Requirements ({destinationIcaos.length} destination{destinationIcaos.length !== 1 ? 's' : ''})
+            </Button>
+
+            {/* Results per destination */}
+            {destinationIcaos.map(icao => (
+              <div key={icao}>
+                {visaLoading[icao] && (
+                  <div className="rounded-md border p-3 text-sm flex items-center gap-2 text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking visa for {icao}…
+                  </div>
+                )}
+
+                {visaResults[icao] && !visaLoading[icao] && (
+                  <div className={cn("rounded-md border p-3 text-sm space-y-2", visaResults[icao]!.success ? "border-primary/30 bg-primary/5" : "border-muted bg-muted/50")}>
+                    <div className="flex items-center gap-1.5 font-medium">
+                      <Globe className="h-3.5 w-3.5 text-primary" />
+                      {icao} — {visaResults[icao]!.destinationCountry || 'Unknown'}
+                    </div>
+                    {visaResults[icao]!.results?.map((r, i) => (
+                      <div key={i} className={cn("rounded bg-background/50 px-2 py-1.5 text-xs space-y-0.5",
+                        r.visaRequired === 'yes' ? "border-l-2 border-l-destructive" : r.visaRequired === 'no' ? "border-l-2 border-l-success" : "border-l-2 border-l-warning"
+                      )}>
+                        <p className="font-medium">
+                          {r.visaRequired === 'yes' ? '❌' : r.visaRequired === 'no' ? '✅' : '⚠️'} {r.nationality}
+                          <span className="font-normal text-muted-foreground ml-1">
+                            — {r.visaRequired === 'yes' ? 'Visa required' : r.visaRequired === 'no' ? 'Visa-free' : 'Conditional'}
+                          </span>
+                        </p>
+                        {r.visaType && <p><span className="font-medium">Type:</span> {r.visaType}</p>}
+                        {r.visaOnArrival && <p className="text-success">✅ Visa on arrival</p>}
+                        {r.eVisaAvailable && <p className="text-success">✅ e-Visa available</p>}
+                        {r.maxStayDays != null && <p><span className="font-medium">Max stay:</span> {r.maxStayDays} days</p>}
+                        {r.processingTimeDays != null && <p><span className="font-medium">Processing:</span> ~{r.processingTimeDays} days</p>}
+                        {r.transitVisaRequired && <p className="text-warning">⚠️ Transit visa required</p>}
+                        {r.conditions && <p><span className="font-medium">Conditions:</span> {r.conditions}</p>}
+                        {r.notes && <p className="text-muted-foreground italic">{r.notes}</p>}
+                      </div>
+                    ))}
+                    {visaResults[icao]!.error && <p className="text-xs text-destructive">{visaResults[icao]!.error}</p>}
+                  </div>
+                )}
+              </div>
+            ))}
           </CardContent>
         </Card>
       </main>
