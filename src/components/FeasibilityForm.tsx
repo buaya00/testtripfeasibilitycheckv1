@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import { format } from "date-fns";
 import {
   Plane, Loader2, Navigation, Globe, Plus, X, DollarSign,
@@ -29,11 +29,10 @@ export default function FeasibilityForm() {
   const [overflightResults, setOverflightResults] = useState<Record<number, OverflightResult | null>>({});
   const [overflightLoading, setOverflightLoading] = useState<Record<number, boolean>>({});
 
-  // Visa
+  // Visa — results keyed by ICAO code
   const [visaNationalities, setVisaNationalities] = useState<string[]>([""]);
-  const [visaDestination, setVisaDestination] = useState("");
-  const [visaResult, setVisaResult] = useState<VisaCheckResult | null>(null);
-  const [visaLoading, setVisaLoading] = useState(false);
+  const [visaResults, setVisaResults] = useState<Record<string, VisaCheckResult | null>>({});
+  const [visaLoading, setVisaLoading] = useState<Record<string, boolean>>({});
 
   const updateLeg = useCallback((index: number, updates: Partial<LegData>) => {
     setLegs(prev => prev.map((leg, i) => i === index ? { ...leg, ...updates } : leg));
@@ -112,30 +111,43 @@ export default function FeasibilityForm() {
     }
   }, [legs.length, handleOverflightBetweenLegs]);
 
-  // Visa check
+  // Auto-derive unique destination ICAOs from legs (skip first leg = departure origin when multi-leg)
+  const destinationIcaos = useMemo(() => {
+    const icaos = legs
+      .filter((l, i) => l.airportIcao.length === 4 && (legs.length === 1 || i > 0))
+      .map(l => l.airportIcao);
+    return [...new Set(icaos)];
+  }, [legs]);
+
+  // Visa check — runs for all destination ICAOs
   const handleVisaCheck = useCallback(async () => {
     const validNationalities = visaNationalities.filter(n => n.length > 0);
-    const destination = visaDestination || undefined;
-    if (validNationalities.length === 0) return;
+    if (validNationalities.length === 0 || destinationIcaos.length === 0) return;
 
-    // If no manual destination, use first leg's country from permit/CIQ result
-    const destinationCountry = destination
-      || legs.find(l => l.permitResult?.country)?.permitResult?.country
-      || legs.find(l => l.ciqResult?.country)?.ciqResult?.country;
+    // Set all loading
+    const loadingState: Record<string, boolean> = {};
+    destinationIcaos.forEach(icao => { loadingState[icao] = true; });
+    setVisaLoading(loadingState);
+    setVisaResults({});
 
-    if (!destinationCountry) return;
-
-    setVisaLoading(true);
-    setVisaResult(null);
-    try {
-      const { data: res, error } = await supabase.functions.invoke('visa-check', {
-        body: { nationalities: validNationalities, destinationCountry },
-      });
-      if (error) { setVisaResult({ success: false, error: error.message }); }
-      else { setVisaResult(res as VisaCheckResult); }
-    } catch { setVisaResult({ success: false, error: 'Failed to connect' }); }
-    finally { setVisaLoading(false); }
-  }, [visaNationalities, visaDestination, legs]);
+    // Fire all checks in parallel
+    await Promise.all(destinationIcaos.map(async (icao) => {
+      try {
+        const { data: res, error } = await supabase.functions.invoke('visa-check', {
+          body: { nationalities: validNationalities, destinationIcao: icao },
+        });
+        if (error) {
+          setVisaResults(prev => ({ ...prev, [icao]: { success: false, error: error.message } }));
+        } else {
+          setVisaResults(prev => ({ ...prev, [icao]: res as VisaCheckResult }));
+        }
+      } catch {
+        setVisaResults(prev => ({ ...prev, [icao]: { success: false, error: 'Failed to connect' } }));
+      } finally {
+        setVisaLoading(prev => ({ ...prev, [icao]: false }));
+      }
+    }));
+  }, [visaNationalities, destinationIcaos]);
 
   // Reset
   const handleReset = () => {
@@ -145,8 +157,8 @@ export default function FeasibilityForm() {
     setOverflightResults({});
     setOverflightLoading({});
     setVisaNationalities([""]);
-    setVisaDestination("");
-    setVisaResult(null);
+    setVisaResults({});
+    setVisaLoading({});
   };
 
   // Compute trip totals
@@ -320,18 +332,13 @@ export default function FeasibilityForm() {
             <CardTitle className="text-base flex items-center gap-2">
               <Globe className="h-4 w-4" /> Visa Requirements
             </CardTitle>
+            {destinationIcaos.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Destinations detected: {destinationIcaos.join(', ')}
+              </p>
+            )}
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="space-y-1">
-              <Label className="text-xs">Destination Country</Label>
-              <Select value={visaDestination} onValueChange={(v) => { setVisaDestination(v); setVisaResult(null); }}>
-                <SelectTrigger><SelectValue placeholder="Select destination country" /></SelectTrigger>
-                <SelectContent className="max-h-60">
-                  {COUNTRIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-
             <div className="space-y-2">
               <Label className="text-xs">Passenger Nationalities</Label>
               {visaNationalities.map((nat, idx) => (
@@ -342,7 +349,7 @@ export default function FeasibilityForm() {
                       const updated = [...visaNationalities];
                       updated[idx] = v;
                       setVisaNationalities(updated);
-                      setVisaResult(null);
+                      setVisaResults({});
                     }}
                   >
                     <SelectTrigger className="flex-1"><SelectValue placeholder="Select nationality" /></SelectTrigger>
@@ -352,7 +359,7 @@ export default function FeasibilityForm() {
                   </Select>
                   {visaNationalities.length > 1 && (
                     <Button type="button" variant="ghost" size="icon" className="shrink-0 h-9 w-9"
-                      onClick={() => { setVisaNationalities(visaNationalities.filter((_, i) => i !== idx)); setVisaResult(null); }}>
+                      onClick={() => { setVisaNationalities(visaNationalities.filter((_, i) => i !== idx)); setVisaResults({}); }}>
                       <X className="h-4 w-4" />
                     </Button>
                   )}
@@ -364,47 +371,52 @@ export default function FeasibilityForm() {
             </div>
 
             <Button type="button" variant="secondary" onClick={handleVisaCheck}
-              disabled={!visaDestination || visaNationalities.filter(n => n).length === 0 || visaLoading}
+              disabled={destinationIcaos.length === 0 || visaNationalities.filter(n => n).length === 0 || Object.values(visaLoading).some(Boolean)}
               className="w-full">
-              {visaLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Globe className="h-4 w-4 mr-1.5" />}
-              Check Visa Requirements
+              {Object.values(visaLoading).some(Boolean) ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Globe className="h-4 w-4 mr-1.5" />}
+              Check Visa Requirements ({destinationIcaos.length} destination{destinationIcaos.length !== 1 ? 's' : ''})
             </Button>
 
-            {visaLoading && (
-              <div className="rounded-md border p-3 text-sm flex items-center gap-2 text-muted-foreground">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking visa requirements…
-              </div>
-            )}
-
-            {visaResult && !visaLoading && (
-              <div className={cn("rounded-md border p-3 text-sm space-y-2", visaResult.success ? "border-primary/30 bg-primary/5" : "border-muted bg-muted/50")}>
-                <div className="flex items-center gap-1.5 font-medium">
-                  <Globe className="h-3.5 w-3.5 text-primary" />
-                  Visa — {visaResult.destinationCountry}
-                </div>
-                {visaResult.results?.map((r, i) => (
-                  <div key={i} className={cn("rounded bg-background/50 px-2 py-1.5 text-xs space-y-0.5",
-                    r.visaRequired === 'yes' ? "border-l-2 border-l-destructive" : r.visaRequired === 'no' ? "border-l-2 border-l-success" : "border-l-2 border-l-warning"
-                  )}>
-                    <p className="font-medium">
-                      {r.visaRequired === 'yes' ? '❌' : r.visaRequired === 'no' ? '✅' : '⚠️'} {r.nationality}
-                      <span className="font-normal text-muted-foreground ml-1">
-                        — {r.visaRequired === 'yes' ? 'Visa required' : r.visaRequired === 'no' ? 'Visa-free' : 'Conditional'}
-                      </span>
-                    </p>
-                    {r.visaType && <p><span className="font-medium">Type:</span> {r.visaType}</p>}
-                    {r.visaOnArrival && <p className="text-success">✅ Visa on arrival</p>}
-                    {r.eVisaAvailable && <p className="text-success">✅ e-Visa available</p>}
-                    {r.maxStayDays != null && <p><span className="font-medium">Max stay:</span> {r.maxStayDays} days</p>}
-                    {r.processingTimeDays != null && <p><span className="font-medium">Processing:</span> ~{r.processingTimeDays} days</p>}
-                    {r.transitVisaRequired && <p className="text-warning">⚠️ Transit visa required</p>}
-                    {r.conditions && <p><span className="font-medium">Conditions:</span> {r.conditions}</p>}
-                    {r.notes && <p className="text-muted-foreground italic">{r.notes}</p>}
+            {/* Results per destination */}
+            {destinationIcaos.map(icao => (
+              <div key={icao}>
+                {visaLoading[icao] && (
+                  <div className="rounded-md border p-3 text-sm flex items-center gap-2 text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking visa for {icao}…
                   </div>
-                ))}
-                {visaResult.error && <p className="text-xs text-destructive">{visaResult.error}</p>}
+                )}
+
+                {visaResults[icao] && !visaLoading[icao] && (
+                  <div className={cn("rounded-md border p-3 text-sm space-y-2", visaResults[icao]!.success ? "border-primary/30 bg-primary/5" : "border-muted bg-muted/50")}>
+                    <div className="flex items-center gap-1.5 font-medium">
+                      <Globe className="h-3.5 w-3.5 text-primary" />
+                      {icao} — {visaResults[icao]!.destinationCountry || 'Unknown'}
+                    </div>
+                    {visaResults[icao]!.results?.map((r, i) => (
+                      <div key={i} className={cn("rounded bg-background/50 px-2 py-1.5 text-xs space-y-0.5",
+                        r.visaRequired === 'yes' ? "border-l-2 border-l-destructive" : r.visaRequired === 'no' ? "border-l-2 border-l-success" : "border-l-2 border-l-warning"
+                      )}>
+                        <p className="font-medium">
+                          {r.visaRequired === 'yes' ? '❌' : r.visaRequired === 'no' ? '✅' : '⚠️'} {r.nationality}
+                          <span className="font-normal text-muted-foreground ml-1">
+                            — {r.visaRequired === 'yes' ? 'Visa required' : r.visaRequired === 'no' ? 'Visa-free' : 'Conditional'}
+                          </span>
+                        </p>
+                        {r.visaType && <p><span className="font-medium">Type:</span> {r.visaType}</p>}
+                        {r.visaOnArrival && <p className="text-success">✅ Visa on arrival</p>}
+                        {r.eVisaAvailable && <p className="text-success">✅ e-Visa available</p>}
+                        {r.maxStayDays != null && <p><span className="font-medium">Max stay:</span> {r.maxStayDays} days</p>}
+                        {r.processingTimeDays != null && <p><span className="font-medium">Processing:</span> ~{r.processingTimeDays} days</p>}
+                        {r.transitVisaRequired && <p className="text-warning">⚠️ Transit visa required</p>}
+                        {r.conditions && <p><span className="font-medium">Conditions:</span> {r.conditions}</p>}
+                        {r.notes && <p className="text-muted-foreground italic">{r.notes}</p>}
+                      </div>
+                    ))}
+                    {visaResults[icao]!.error && <p className="text-xs text-destructive">{visaResults[icao]!.error}</p>}
+                  </div>
+                )}
               </div>
-            )}
+            ))}
           </CardContent>
         </Card>
 
