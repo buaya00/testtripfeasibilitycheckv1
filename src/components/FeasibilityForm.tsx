@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { format } from "date-fns";
-import { CalendarIcon, Plane, CheckCircle2, XCircle, AlertTriangle, Search, Loader2, ExternalLink, Ruler, Shield, DollarSign } from "lucide-react";
+import { CalendarIcon, Plane, CheckCircle2, XCircle, AlertTriangle, Search, Loader2, ExternalLink, Ruler, Shield, DollarSign, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { AIRCRAFT_RUNWAY_REQ, AIRCRAFT_CATEGORIES } from "@/data/aircraftData";
@@ -129,6 +129,24 @@ interface ChargesResult {
   error?: string;
 }
 
+interface PprResult {
+  success: boolean;
+  icao: string;
+  country?: string;
+  airportName?: string;
+  pprRequired?: 'yes' | 'no' | 'conditional';
+  advanceNoticePeriod?: string;
+  contactMethod?: string;
+  contactDetails?: string;
+  slotRequired?: boolean;
+  operatingRestrictions?: string;
+  conditions?: string;
+  handlingAgentRequired?: boolean;
+  notes?: string;
+  confidence?: 'high' | 'medium' | 'low';
+  error?: string;
+}
+
 // Aircraft data imported from @/data/aircraftData
 
 // ── Helpers ────────────────────────────────────────────────
@@ -250,6 +268,8 @@ export default function FeasibilityForm() {
   const [ciqLoading, setCiqLoading] = useState(false);
   const [chargesResult, setChargesResult] = useState<ChargesResult | null>(null);
   const [chargesLoading, setChargesLoading] = useState(false);
+  const [pprResult, setPprResult] = useState<PprResult | null>(null);
+  const [pprLoading, setPprLoading] = useState(false);
 
   const handleCbpLookup = useCallback(async () => {
     if (data.airportIcao.length !== 4) return;
@@ -366,6 +386,31 @@ export default function FeasibilityForm() {
     }
   }, [data.airportIcao, data.aircraftType]);
 
+  const handlePprLookup = useCallback(async () => {
+    if (data.airportIcao.length !== 4) return;
+    setPprLoading(true);
+    setPprResult(null);
+    try {
+      const { data: res, error } = await supabase.functions.invoke('ppr-lookup', {
+        body: { icao: data.airportIcao, flightType: data.flightType || undefined, aircraftType: data.aircraftType || undefined },
+      });
+      if (error) {
+        setPprResult({ success: false, icao: data.airportIcao, error: error.message });
+      } else {
+        setPprResult(res as PprResult);
+        if (res?.pprRequired === 'yes') {
+          setData(prev => ({ ...prev, pprRequired: true }));
+        } else if (res?.pprRequired === 'no') {
+          setData(prev => ({ ...prev, pprRequired: false }));
+        }
+      }
+    } catch {
+      setPprResult({ success: false, icao: data.airportIcao, error: 'Failed to connect' });
+    } finally {
+      setPprLoading(false);
+    }
+  }, [data.airportIcao, data.flightType, data.aircraftType]);
+
   const handleLookupAll = useCallback(async () => {
     if (data.airportIcao.length !== 4) return;
     // US airports use CBP lookup, non-US use AI CIQ lookup
@@ -378,7 +423,8 @@ export default function FeasibilityForm() {
     handleRunwayLookup();
     handlePermitLookup();
     handleChargesLookup();
-  }, [data.airportIcao, handleCbpLookup, handleCiqLookup, handleRunwayLookup, handlePermitLookup, handleChargesLookup]);
+    handlePprLookup();
+  }, [data.airportIcao, handleCbpLookup, handleCiqLookup, handleRunwayLookup, handlePermitLookup, handleChargesLookup, handlePprLookup]);
 
   const effectiveRunwayFt: number | null =
     data.runwayOverrideFt && parseInt(data.runwayOverrideFt, 10) > 0
@@ -409,6 +455,7 @@ export default function FeasibilityForm() {
     setPermitResult(null);
     setCiqResult(null);
     setChargesResult(null);
+    setPprResult(null);
   };
 
   return (
@@ -499,6 +546,7 @@ export default function FeasibilityForm() {
                     setPermitResult(null);
                     setCiqResult(null);
                     setChargesResult(null);
+                    setPprResult(null);
                   }}
                   className="font-mono uppercase tracking-widest"
                 />
@@ -506,10 +554,10 @@ export default function FeasibilityForm() {
                   type="button"
                   variant="secondary"
                   onClick={handleLookupAll}
-                  disabled={data.airportIcao.length !== 4 || cbpLoading || runwayLoading || permitLoading || ciqLoading || chargesLoading}
+                  disabled={data.airportIcao.length !== 4 || cbpLoading || runwayLoading || permitLoading || ciqLoading || chargesLoading || pprLoading}
                   className="shrink-0"
                 >
-                  {(cbpLoading || runwayLoading || permitLoading || ciqLoading || chargesLoading) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                  {(cbpLoading || runwayLoading || permitLoading || ciqLoading || chargesLoading || pprLoading) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                   <span className="ml-1.5">Lookup</span>
                 </Button>
               </div>
@@ -649,6 +697,54 @@ export default function FeasibilityForm() {
                   )}
                   {permitResult.error && (
                     <p className="text-xs text-destructive">{permitResult.error}</p>
+                  )}
+                </div>
+              )}
+
+              {/* PPR Result */}
+              {pprLoading && (
+                <div className="rounded-md border p-3 text-sm flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Looking up PPR requirements…
+                </div>
+              )}
+              {pprResult && !pprLoading && (
+                <div className={cn(
+                  "rounded-md border p-3 text-sm space-y-1.5",
+                  pprResult.pprRequired === 'no'
+                    ? "border-success/30 bg-success/5"
+                    : pprResult.pprRequired === 'yes'
+                      ? "border-warning/30 bg-warning/5"
+                      : "border-muted bg-muted/50"
+                )}>
+                  <div className="flex items-center gap-1.5 font-medium">
+                    <Clock className="h-3.5 w-3.5 text-primary" />
+                    PPR — {pprResult.airportName || pprResult.country || pprResult.icao}
+                  </div>
+                  <p className="text-xs font-medium">
+                    {pprResult.pprRequired === 'yes' && '⚠️ PPR required'}
+                    {pprResult.pprRequired === 'no' && '✅ No PPR required'}
+                    {pprResult.pprRequired === 'conditional' && '⚠️ PPR conditionally required'}
+                  </p>
+                  <div className="rounded bg-background/50 px-2 py-1.5 text-xs space-y-0.5">
+                    {pprResult.advanceNoticePeriod && <p><span className="font-medium">Advance notice:</span> {pprResult.advanceNoticePeriod}</p>}
+                    {pprResult.contactMethod && <p><span className="font-medium">How to obtain:</span> {pprResult.contactMethod}</p>}
+                    {pprResult.contactDetails && <p><span className="font-medium">Contact:</span> {pprResult.contactDetails}</p>}
+                    {pprResult.slotRequired !== undefined && (
+                      <p><span className="font-medium">Slot booking:</span> {pprResult.slotRequired ? 'Required' : 'Not required'}</p>
+                    )}
+                    {pprResult.handlingAgentRequired !== undefined && (
+                      <p><span className="font-medium">Handling agent:</span> {pprResult.handlingAgentRequired ? 'Must be arranged in advance' : 'Not mandatory'}</p>
+                    )}
+                    {pprResult.operatingRestrictions && <p><span className="font-medium">Restrictions:</span> {pprResult.operatingRestrictions}</p>}
+                    {pprResult.conditions && <p><span className="font-medium">Conditions:</span> {pprResult.conditions}</p>}
+                    {pprResult.notes && <p className="text-muted-foreground italic">{pprResult.notes}</p>}
+                  </div>
+                  {pprResult.confidence && (
+                    <p className="text-xs text-muted-foreground">Confidence: {pprResult.confidence}</p>
+                  )}
+                  {pprResult.error && (
+                    <p className="text-xs text-destructive">{pprResult.error}</p>
                   )}
                 </div>
               )}
