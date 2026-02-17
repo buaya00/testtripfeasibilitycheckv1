@@ -73,18 +73,23 @@ export function evaluateLegFeasibility(
     issues.push("Departure date is before arrival date");
   }
 
+  const isUs = leg.airportIcao ? isUsAirport(leg.airportIcao.toUpperCase()) : false;
+
   if (leg.permitRequired) notes.push("Landing permit must be obtained prior to ops");
   if (leg.pprRequired) notes.push("Prior Permission Required — contact airport ops");
   if (!leg.customsAvailable) issues.push("Customs not available at this airport");
 
-  // Permit lead time check
+  // Permit lead time check — for US airports, only add as guidance notes, not feasibility issues
   if (leg.arrivalDate && leg.permitResult?.success && leg.permitResult.permitRequired === 'yes' && leg.permitResult.leadTimeDays != null && leg.permitResult.leadTimeDays > 0) {
     const now = new Date();
     const daysUntilArrival = Math.floor((leg.arrivalDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
     if (daysUntilArrival < leg.permitResult.leadTimeDays) {
-      issues.push(
-        `Insufficient lead time for landing permit: ${daysUntilArrival} day${daysUntilArrival !== 1 ? 's' : ''} until arrival, but ${leg.permitResult.leadTimeDays} business days required (${leg.permitResult.issuingAuthority || 'issuing authority'}). Contact the service provider to validate.`
-      );
+      const msg = `Insufficient lead time for landing permit: ${daysUntilArrival} day${daysUntilArrival !== 1 ? 's' : ''} until arrival, but ${leg.permitResult.leadTimeDays} business days required (${leg.permitResult.issuingAuthority || 'issuing authority'}). Contact the service provider to validate.`;
+      if (isUs) {
+        notes.push(msg);
+      } else {
+        issues.push(msg);
+      }
     }
   }
 
