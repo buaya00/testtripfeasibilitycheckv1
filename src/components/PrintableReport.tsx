@@ -441,7 +441,7 @@ export function generatePrintableHtml({
 </head>
 <body>
   <div class="header" style="display:flex;align-items:center;gap:16px;">
-    ${logoDataUrl ? `<img src="${logoDataUrl}" alt="AEG Fuels" style="height:48px;width:auto;" />` : ''}
+    ${logoDataUrl ? `<img src="${logoDataUrl}" alt="AEG Fuels" style="height:96px;width:auto;" />` : ''}
     <div>
       <h1 style="margin:0;">✈ Airport Ops Feasibility Report</h1>
       <div class="meta">${now} UTC</div>
