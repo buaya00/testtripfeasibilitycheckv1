@@ -14,6 +14,7 @@ import { Separator } from "@/components/ui/separator";
 
 interface FeasibilityData {
   aircraftType: string;
+  airportIcao: string;
   arrivalDate: Date | undefined;
   arrivalTime: string;
   departureDate: Date | undefined;
@@ -34,6 +35,8 @@ function evaluateFeasibility(data: FeasibilityData): FeasibilityResult {
   const notes: string[] = [];
 
   if (!data.aircraftType) issues.push("Aircraft type not specified");
+  if (!data.airportIcao) issues.push("Airport ICAO code not specified");
+  if (data.airportIcao && !/^[A-Z]{4}$/.test(data.airportIcao.toUpperCase())) issues.push("ICAO code must be exactly 4 letters");
   if (!data.arrivalDate) issues.push("Arrival date not set");
   if (!data.departureDate) issues.push("Departure date not set");
   if (!data.arrivalTime) issues.push("Arrival time not set");
@@ -80,6 +83,7 @@ const TIMES = Array.from({ length: 48 }, (_, i) => {
 export default function FeasibilityForm() {
   const [data, setData] = useState<FeasibilityData>({
     aircraftType: "",
+    airportIcao: "",
     arrivalDate: undefined,
     arrivalTime: "",
     departureDate: undefined,
@@ -98,6 +102,7 @@ export default function FeasibilityForm() {
   const handleReset = () => {
     setData({
       aircraftType: "",
+      airportIcao: "",
       arrivalDate: undefined,
       arrivalTime: "",
       departureDate: undefined,
@@ -151,6 +156,21 @@ export default function FeasibilityForm() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Airport ICAO */}
+            <div className="space-y-2">
+              <Label htmlFor="icao">Airport ICAO Code</Label>
+              <Input
+                id="icao"
+                placeholder="e.g. EGLL"
+                maxLength={4}
+                value={data.airportIcao}
+                onChange={(e) =>
+                  setData({ ...data, airportIcao: e.target.value.toUpperCase().replace(/[^A-Z]/g, "") })
+                }
+                className="font-mono uppercase tracking-widest"
+              />
             </div>
 
             <Separator />
