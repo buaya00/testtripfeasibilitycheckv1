@@ -9,7 +9,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { icao, aircraftType } = await req.json();
+    const { icao, aircraftType, arrivalDate, arrivalTime, departureDate, departureTime } = await req.json();
 
     if (!icao || typeof icao !== 'string' || !/^[A-Z]{4}$/.test(icao)) {
       return new Response(
@@ -28,19 +28,38 @@ Deno.serve(async (req) => {
 
     const icaoPrefix = icao.substring(0, 2);
 
+    // Calculate parking duration if dates provided
+    let parkingInfo = '';
+    if (arrivalDate && departureDate) {
+      const arr = new Date(arrivalDate);
+      const dep = new Date(departureDate);
+      if (arrivalTime) { const [h, m] = arrivalTime.split(':').map(Number); arr.setUTCHours(h, m); }
+      if (departureTime) { const [h, m] = departureTime.split(':').map(Number); dep.setUTCHours(h, m); }
+      const diffMs = dep.getTime() - arr.getTime();
+      const diffHours = Math.max(0, diffMs / (1000 * 60 * 60));
+      const diffDays = Math.ceil(diffHours / 24);
+      parkingInfo = `\nParking duration: approximately ${diffHours.toFixed(1)} hours (${diffDays} day${diffDays !== 1 ? 's' : ''}).`;
+    }
+
+    let scheduleInfo = '';
+    if (arrivalTime) scheduleInfo += `\nArrival time (UTC): ${arrivalTime}`;
+    if (departureTime) scheduleInfo += `\nDeparture time (UTC): ${departureTime}`;
+
     const prompt = `Estimate the airport landing and parking charges for airport ICAO "${icao}" (prefix "${icaoPrefix}") for the aircraft type "${aircraftType || 'mid-size business jet (~15,000 kg MTOW)'}".
+${parkingInfo}${scheduleInfo}
 
 Provide realistic estimates in USD based on:
 - Published airport authority fee schedules where known
 - Regional averages for similar airports in the same country
 - Aircraft MTOW category appropriate for the specified type
 - Typical GA/business aviation rates (not airline rates)
+${parkingInfo ? '- Calculate total parking cost based on the actual parking duration provided' : '- Parking fee per day or per 24-hour period'}
 
 Include:
 - Landing fee (per landing/movement)
-- Parking fee (per day or per 24-hour period)
+- Parking fee${parkingInfo ? ' for the actual duration' : ' (per day or per 24-hour period)'}
 - Any terminal/passenger fees if applicable
-- Any known surcharges (noise, night, weekend/holiday)
+- Any known surcharges (noise, night operations, weekend/holiday) — check if arrival/departure times fall in surcharge windows
 - Currency context (if originally in local currency, show both)
 
 Be specific about what MTOW assumption you're using for the calculation.`;
@@ -75,10 +94,13 @@ Be specific about what MTOW assumption you're using for the calculation.`;
                   mtowKg: { type: 'number', description: 'MTOW assumption in kg used for the estimate' },
                   landingFeeLocal: { type: 'number', description: 'Estimated landing fee in local currency' },
                   landingFeeUsd: { type: 'number', description: 'Estimated landing fee in USD' },
-                  parkingPerDayLocal: { type: 'number', description: 'Estimated parking fee per day in local currency' },
-                  parkingPerDayUsd: { type: 'number', description: 'Estimated parking fee per day in USD' },
+                  parkingPerDayLocal: { type: 'number', description: 'Parking fee per day in local currency' },
+                  parkingPerDayUsd: { type: 'number', description: 'Parking fee per day in USD' },
+                  parkingDays: { type: 'number', description: 'Number of parking days used in calculation' },
+                  totalParkingUsd: { type: 'number', description: 'Total parking cost in USD for the full duration' },
                   passengerFeeUsd: { type: 'number', description: 'Per-passenger terminal fee in USD, if applicable' },
-                  surcharges: { type: 'string', description: 'Description of any surcharges (noise, night, weekend)' },
+                  surcharges: { type: 'string', description: 'Description of any surcharges (noise, night, weekend) and whether they apply based on schedule' },
+                  nightSurchargeApplies: { type: 'boolean', description: 'Whether a night surcharge applies based on arrival/departure times' },
                   totalEstimateUsd: { type: 'number', description: 'Total estimated cost in USD for a single landing + 1 day parking' },
                   notes: { type: 'string', description: 'Important caveats, source context, or additional details' },
                   confidence: { type: 'string', enum: ['high', 'medium', 'low'], description: 'Confidence level in the estimates' },
