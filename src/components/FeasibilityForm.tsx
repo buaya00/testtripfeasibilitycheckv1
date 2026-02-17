@@ -21,6 +21,7 @@ import type {
 } from "./tripTypes";
 import { createEmptyLeg } from "./tripTypes";
 import { generatePrintableHtml } from "./PrintableReport";
+import aegLogo from "@/assets/aeg-logo.png";
 
 export default function FeasibilityForm() {
   const [aircraftType, setAircraftType] = useState("");
@@ -248,12 +249,11 @@ export default function FeasibilityForm() {
     <div className="min-h-screen bg-background">
       <header className="border-b bg-primary">
         <div className="container mx-auto flex items-center gap-3 px-6 py-4">
+          <img src={aegLogo} alt="AEG Fuels" className="h-8 w-auto" />
+          <Separator orientation="vertical" className="h-6 bg-primary-foreground/30" />
           <Plane className="h-6 w-6 text-primary-foreground" />
-          <h1 className="text-lg font-semibold tracking-tight text-primary-foreground">
-            Airport Ops Feasibility
-          </h1>
-          <span className="ml-auto font-mono text-xs text-primary-foreground/60">
-            {format(new Date(), "dd MMM yyyy HH:mm")} UTC
+          <span className="text-lg font-semibold text-primary-foreground">
+            Trip Feasibility Check
           </span>
         </div>
       </header>
