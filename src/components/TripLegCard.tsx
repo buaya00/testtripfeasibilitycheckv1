@@ -60,10 +60,13 @@ export function evaluateLegFeasibility(
   if (!aircraftType) issues.push("Aircraft type not specified");
   if (!leg.airportIcao) issues.push("Airport ICAO code not specified");
   if (leg.airportIcao && !/^[A-Z]{4}$/.test(leg.airportIcao.toUpperCase())) issues.push("ICAO code must be exactly 4 letters");
-  if (!isFirstLeg && !leg.arrivalDate) issues.push("Arrival date not set");
-  if (!isLastLeg && !leg.departureDate) issues.push("Departure date not set");
-  if (!isFirstLeg && !leg.arrivalTime) issues.push("Arrival time not set");
-  if (!isLastLeg && !leg.departureTime) issues.push("Departure time not set");
+  const showArrival = totalLegs === 1 || !isFirstLeg;
+  const showDeparture = totalLegs === 1 || !isLastLeg;
+
+  if (showArrival && !leg.arrivalDate) issues.push("Arrival date not set");
+  if (showDeparture && !leg.departureDate) issues.push("Departure date not set");
+  if (showArrival && !leg.arrivalTime) issues.push("Arrival time not set");
+  if (showDeparture && !leg.departureTime) issues.push("Departure time not set");
 
   if (leg.arrivalDate && leg.departureDate && leg.arrivalDate > leg.departureDate) {
     issues.push("Departure date is before arrival date");
@@ -331,8 +334,8 @@ export default function TripLegCard({
 
           {/* Arrival / Departure */}
           <div className="grid grid-cols-2 gap-4">
-            {/* Arrival fields — hidden for the first leg (departure origin) */}
-            {legIndex > 0 && (
+            {/* Arrival fields — hidden for the first leg when multi-leg */}
+            {(totalLegs === 1 || legIndex > 0) && (
               <>
                 <div className="space-y-1">
                   <Label className="text-xs">Arrival Date</Label>
@@ -357,8 +360,8 @@ export default function TripLegCard({
                 </div>
               </>
             )}
-            {/* Departure fields — hidden for the last leg (final destination) */}
-            {legIndex < totalLegs - 1 && (
+            {/* Departure fields — hidden for the last leg when multi-leg */}
+            {(totalLegs === 1 || legIndex < totalLegs - 1) && (
               <>
                 <div className="space-y-1">
                   <Label className="text-xs">Departure Date</Label>
