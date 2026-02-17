@@ -59,92 +59,105 @@ For each country, consider:
 - Estimated overflight/air navigation charges in USD (based on MTOW, distance through airspace, and published Eurocontrol/IATA rates or national ANS fee schedules)
 - The basis for the charge calculation (e.g. weight factor, distance factor, unit rate)`;
 
-    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-3-flash-preview',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an aviation regulatory expert specializing in overflight permits and airspace requirements. Analyze routes between airports, identify countries overflown on the great circle path, and determine overflight permit requirements for each. Return structured data via the provided tool.',
-          },
-          { role: 'user', content: prompt },
-        ],
-        tools: [
-          {
-            type: 'function',
-            function: {
-              name: 'extract_overflight_permits',
-              description: 'Extract overflight permit requirements for all countries on a route.',
-              parameters: {
-                type: 'object',
-                properties: {
-                  originAirport: { type: 'string', description: 'Full name of origin airport' },
-                  originCountry: { type: 'string', description: 'Country of origin airport' },
-                  destinationAirport: { type: 'string', description: 'Full name of destination airport' },
-                  destinationCountry: { type: 'string', description: 'Country of destination airport' },
-                  routeSummary: { type: 'string', description: 'Brief description of the great circle route and countries crossed' },
-                  countries: {
-                    type: 'array',
-                    description: 'List of countries whose airspace is crossed, in order along the route',
-                    items: {
-                      type: 'object',
-                      properties: {
-                        country: { type: 'string', description: 'Country name' },
-                        overflightPermitRequired: { type: 'string', enum: ['yes', 'no', 'conditional'], description: 'Whether overflight permit is needed' },
-                        permitType: { type: 'string', description: 'Type of permit (e.g. overflight permit, diplomatic clearance, blanket permit)' },
-                        leadTimeDays: { type: 'number', description: 'Typical lead time in business days' },
-                        issuingAuthority: { type: 'string', description: 'Authority that issues the permit' },
-                        conditions: { type: 'string', description: 'Conditions or exemptions that apply' },
-                        notes: { type: 'string', description: 'Additional notes for this country' },
-                        overflightChargeUsd: { type: 'number', description: 'Estimated overflight/navigation charge in USD for crossing this country airspace' },
-                        chargeBasis: { type: 'string', description: 'Basis for the charge (e.g. Eurocontrol unit rate, distance/weight formula, flat fee)' },
-                      },
-                      required: ['country', 'overflightPermitRequired'],
-                      additionalProperties: false,
+    const requestBody = {
+      model: 'google/gemini-3-flash-preview',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are an aviation regulatory expert specializing in overflight permits and airspace requirements. Analyze routes between airports, identify countries overflown on the great circle path, and determine overflight permit requirements and charges for each. You MUST call the extract_overflight_permits tool to return structured data.',
+        },
+        { role: 'user', content: prompt },
+      ],
+      tools: [
+        {
+          type: 'function',
+          function: {
+            name: 'extract_overflight_permits',
+            description: 'Extract overflight permit requirements for all countries on a route.',
+            parameters: {
+              type: 'object',
+              properties: {
+                originAirport: { type: 'string', description: 'Full name of origin airport' },
+                originCountry: { type: 'string', description: 'Country of origin airport' },
+                destinationAirport: { type: 'string', description: 'Full name of destination airport' },
+                destinationCountry: { type: 'string', description: 'Country of destination airport' },
+                routeSummary: { type: 'string', description: 'Brief description of the great circle route and countries crossed' },
+                countries: {
+                  type: 'array',
+                  description: 'List of countries whose airspace is crossed, in order along the route',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      country: { type: 'string' },
+                      overflightPermitRequired: { type: 'string', enum: ['yes', 'no', 'conditional'] },
+                      permitType: { type: 'string' },
+                      leadTimeDays: { type: 'number' },
+                      issuingAuthority: { type: 'string' },
+                      conditions: { type: 'string' },
+                      notes: { type: 'string' },
+                      overflightChargeUsd: { type: 'number', description: 'Estimated overflight charge in USD' },
+                      chargeBasis: { type: 'string', description: 'Basis for the charge calculation' },
                     },
+                    required: ['country', 'overflightPermitRequired'],
+                    additionalProperties: false,
                   },
-                  totalPermitsNeeded: { type: 'number', description: 'Total number of overflight permits required' },
-                  maxLeadTimeDays: { type: 'number', description: 'Maximum lead time across all required permits' },
-                  totalOverflightChargesUsd: { type: 'number', description: 'Total estimated overflight charges across all countries in USD' },
-                  notes: { type: 'string', description: 'Overall route notes and recommendations' },
-                  confidence: { type: 'string', enum: ['high', 'medium', 'low'], description: 'Confidence level' },
                 },
-                required: ['countries', 'totalPermitsNeeded', 'confidence'],
-                additionalProperties: false,
+                totalPermitsNeeded: { type: 'number' },
+                maxLeadTimeDays: { type: 'number' },
+                totalOverflightChargesUsd: { type: 'number' },
+                notes: { type: 'string' },
+                confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
               },
+              required: ['countries', 'totalPermitsNeeded', 'confidence'],
+              additionalProperties: false,
             },
           },
-        ],
-        tool_choice: { type: 'function', function: { name: 'extract_overflight_permits' } },
-      }),
-    });
+        },
+      ],
+      tool_choice: { type: 'function', function: { name: 'extract_overflight_permits' } },
+    };
 
-    if (!aiResponse.ok) {
-      const status = aiResponse.status;
-      if (status === 429) {
-        return new Response(
-          JSON.stringify({ success: false, error: 'Rate limit exceeded, please try again shortly' }),
-          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+    // Try up to 2 times
+    let toolCall = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!aiResponse.ok) {
+        const status = aiResponse.status;
+        await aiResponse.text().catch(() => {});
+        if (status === 429) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Rate limit exceeded, please try again shortly' }),
+            { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        console.error(`AI gateway error (attempt ${attempt + 1}):`, status);
+        if (attempt === 1) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'AI lookup failed' }),
+            { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        continue;
       }
-      console.error('AI gateway error:', status);
-      return new Response(
-        JSON.stringify({ success: false, error: 'AI lookup failed' }),
-        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
 
-    const aiData = await aiResponse.json();
-    const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
+      const aiData = await aiResponse.json();
+      toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
+
+      if (toolCall?.function?.arguments) break;
+      console.warn(`No tool call on attempt ${attempt + 1}, message:`, JSON.stringify(aiData.choices?.[0]?.message).slice(0, 300));
+    }
 
     if (!toolCall?.function?.arguments) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Could not determine overflight requirements' }),
+        JSON.stringify({ success: false, error: 'Could not determine overflight requirements — please try again' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
