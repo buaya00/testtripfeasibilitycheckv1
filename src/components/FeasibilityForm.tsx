@@ -202,6 +202,8 @@ function evaluateFeasibility(
   data: FeasibilityData,
   cbpHours: OperatingHours | null,
   runwayLengthFt: number | null,
+  permitResult: PermitResult | null,
+  pprResult: PprResult | null,
 ): FeasibilityResult {
   const issues: string[] = [];
   const notes: string[] = [];
@@ -221,6 +223,31 @@ function evaluateFeasibility(
   if (data.permitRequired) notes.push("Landing permit must be obtained prior to ops");
   if (data.pprRequired) notes.push("Prior Permission Required — contact airport ops");
   if (!data.customsAvailable) issues.push("Customs not available at this airport");
+
+  // Permit lead time check
+  if (data.arrivalDate && permitResult?.success && permitResult.permitRequired === 'yes' && permitResult.leadTimeDays != null && permitResult.leadTimeDays > 0) {
+    const now = new Date();
+    const daysUntilArrival = Math.floor((data.arrivalDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    if (daysUntilArrival < permitResult.leadTimeDays) {
+      issues.push(
+        `Insufficient lead time for landing permit: ${daysUntilArrival} day${daysUntilArrival !== 1 ? 's' : ''} until arrival, but ${permitResult.leadTimeDays} business days required (${permitResult.issuingAuthority || 'issuing authority'}). Contact the service provider to validate.`
+      );
+    }
+  }
+
+  // PPR lead time check
+  if (data.arrivalDate && pprResult?.success && pprResult.pprRequired === 'yes' && pprResult.advanceNoticePeriod) {
+    const noticeDays = parseInt(pprResult.advanceNoticePeriod, 10);
+    if (!isNaN(noticeDays) && noticeDays > 0) {
+      const now = new Date();
+      const daysUntilArrival = Math.floor((data.arrivalDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      if (daysUntilArrival < noticeDays) {
+        issues.push(
+          `Insufficient lead time for PPR: ${daysUntilArrival} day${daysUntilArrival !== 1 ? 's' : ''} until arrival, but ${pprResult.advanceNoticePeriod} advance notice required. Contact airport operations to validate.`
+        );
+      }
+    }
+  }
 
   // CBP hours check
   if (cbpHours && cbpHours.open && cbpHours.close && data.customsAvailable) {
@@ -501,7 +528,7 @@ export default function FeasibilityForm() {
       : runwayResult?.longestRunwayFt ?? null;
 
   const handleCheck = () => {
-    setResult(evaluateFeasibility(data, cbpResult?.operatingHours ?? null, effectiveRunwayFt));
+    setResult(evaluateFeasibility(data, cbpResult?.operatingHours ?? null, effectiveRunwayFt, permitResult, pprResult));
   };
 
   const handleReset = () => {
