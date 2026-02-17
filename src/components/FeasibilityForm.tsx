@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { format } from "date-fns";
-import { CalendarIcon, Plane, CheckCircle2, XCircle, AlertTriangle, Search, Loader2, ExternalLink, Ruler, Shield } from "lucide-react";
+import { CalendarIcon, Plane, CheckCircle2, XCircle, AlertTriangle, Search, Loader2, ExternalLink, Ruler, Shield, DollarSign } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { AIRCRAFT_RUNWAY_REQ, AIRCRAFT_CATEGORIES } from "@/data/aircraftData";
@@ -103,6 +103,26 @@ interface CiqResult {
   advanceNotice?: string;
   fees?: string;
   alternateAirports?: string;
+  notes?: string;
+  confidence?: 'high' | 'medium' | 'low';
+  error?: string;
+}
+
+interface ChargesResult {
+  success: boolean;
+  icao: string;
+  aircraftType?: string | null;
+  country?: string;
+  airportName?: string;
+  currency?: string;
+  mtowKg?: number;
+  landingFeeLocal?: number;
+  landingFeeUsd?: number;
+  parkingPerDayLocal?: number;
+  parkingPerDayUsd?: number;
+  passengerFeeUsd?: number;
+  surcharges?: string;
+  totalEstimateUsd?: number;
   notes?: string;
   confidence?: 'high' | 'medium' | 'low';
   error?: string;
@@ -226,6 +246,8 @@ export default function FeasibilityForm() {
   const [permitLoading, setPermitLoading] = useState(false);
   const [ciqResult, setCiqResult] = useState<CiqResult | null>(null);
   const [ciqLoading, setCiqLoading] = useState(false);
+  const [chargesResult, setChargesResult] = useState<ChargesResult | null>(null);
+  const [chargesLoading, setChargesLoading] = useState(false);
 
   const handleCbpLookup = useCallback(async () => {
     if (data.airportIcao.length !== 4) return;
@@ -322,6 +344,26 @@ export default function FeasibilityForm() {
 
   const isUsAirport = (icao: string) => icao.startsWith('K') || icao.startsWith('PA') || icao.startsWith('PH') || icao.startsWith('PG') || icao.startsWith('TJ');
 
+  const handleChargesLookup = useCallback(async () => {
+    if (data.airportIcao.length !== 4) return;
+    setChargesLoading(true);
+    setChargesResult(null);
+    try {
+      const { data: res, error } = await supabase.functions.invoke('charges-lookup', {
+        body: { icao: data.airportIcao, aircraftType: data.aircraftType || undefined },
+      });
+      if (error) {
+        setChargesResult({ success: false, icao: data.airportIcao, error: error.message });
+      } else {
+        setChargesResult(res as ChargesResult);
+      }
+    } catch {
+      setChargesResult({ success: false, icao: data.airportIcao, error: 'Failed to connect' });
+    } finally {
+      setChargesLoading(false);
+    }
+  }, [data.airportIcao, data.aircraftType]);
+
   const handleLookupAll = useCallback(async () => {
     if (data.airportIcao.length !== 4) return;
     // US airports use CBP lookup, non-US use AI CIQ lookup
@@ -333,7 +375,8 @@ export default function FeasibilityForm() {
     }
     handleRunwayLookup();
     handlePermitLookup();
-  }, [data.airportIcao, handleCbpLookup, handleCiqLookup, handleRunwayLookup, handlePermitLookup]);
+    handleChargesLookup();
+  }, [data.airportIcao, handleCbpLookup, handleCiqLookup, handleRunwayLookup, handlePermitLookup, handleChargesLookup]);
 
   const effectiveRunwayFt: number | null =
     data.runwayOverrideFt && parseInt(data.runwayOverrideFt, 10) > 0
@@ -362,6 +405,7 @@ export default function FeasibilityForm() {
     setRunwayResult(null);
     setPermitResult(null);
     setCiqResult(null);
+    setChargesResult(null);
   };
 
   return (
@@ -433,6 +477,7 @@ export default function FeasibilityForm() {
                     setRunwayResult(null);
                     setPermitResult(null);
                     setCiqResult(null);
+                    setChargesResult(null);
                   }}
                   className="font-mono uppercase tracking-widest"
                 />
@@ -440,10 +485,10 @@ export default function FeasibilityForm() {
                   type="button"
                   variant="secondary"
                   onClick={handleLookupAll}
-                  disabled={data.airportIcao.length !== 4 || cbpLoading || runwayLoading || permitLoading || ciqLoading}
+                  disabled={data.airportIcao.length !== 4 || cbpLoading || runwayLoading || permitLoading || ciqLoading || chargesLoading}
                   className="shrink-0"
                 >
-                  {(cbpLoading || runwayLoading || permitLoading || ciqLoading) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                  {(cbpLoading || runwayLoading || permitLoading || ciqLoading || chargesLoading) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                   <span className="ml-1.5">Lookup</span>
                 </Button>
               </div>
@@ -613,6 +658,70 @@ export default function FeasibilityForm() {
                   )}
                   {runwayResult.error && (
                     <p className="text-xs text-destructive">{runwayResult.error}</p>
+                  )}
+                </div>
+              )}
+
+              {/* Airport Charges */}
+              {chargesLoading && (
+                <div className="rounded-md border p-3 text-sm flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Estimating airport charges…
+                </div>
+              )}
+              {chargesResult && !chargesLoading && (
+                <div className={cn(
+                  "rounded-md border p-3 text-sm space-y-1.5",
+                  chargesResult.success ? "border-primary/30 bg-primary/5" : "border-muted bg-muted/50"
+                )}>
+                  <div className="flex items-center gap-1.5 font-medium">
+                    <DollarSign className="h-3.5 w-3.5 text-primary" />
+                    Estimated Airport Charges — {chargesResult.airportName || chargesResult.icao}
+                  </div>
+                  {chargesResult.success && (
+                    <div className="rounded bg-background/50 px-2 py-1.5 text-xs space-y-0.5">
+                      {chargesResult.mtowKg && (
+                        <p className="text-muted-foreground">Based on MTOW: {chargesResult.mtowKg.toLocaleString()} kg</p>
+                      )}
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 pt-1">
+                        <p><span className="font-medium">Landing fee:</span></p>
+                        <p className="text-right font-mono">
+                          ${chargesResult.landingFeeUsd?.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 }) ?? '—'}
+                          {chargesResult.currency && chargesResult.currency !== 'USD' && chargesResult.landingFeeLocal != null && (
+                            <span className="text-muted-foreground ml-1">({chargesResult.currency} {chargesResult.landingFeeLocal.toLocaleString()})</span>
+                          )}
+                        </p>
+                        <p><span className="font-medium">Parking / day:</span></p>
+                        <p className="text-right font-mono">
+                          ${chargesResult.parkingPerDayUsd?.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 }) ?? '—'}
+                          {chargesResult.currency && chargesResult.currency !== 'USD' && chargesResult.parkingPerDayLocal != null && (
+                            <span className="text-muted-foreground ml-1">({chargesResult.currency} {chargesResult.parkingPerDayLocal.toLocaleString()})</span>
+                          )}
+                        </p>
+                        {chargesResult.passengerFeeUsd != null && chargesResult.passengerFeeUsd > 0 && (
+                          <>
+                            <p><span className="font-medium">Passenger fee:</span></p>
+                            <p className="text-right font-mono">${chargesResult.passengerFeeUsd.toLocaleString()}/pax</p>
+                          </>
+                        )}
+                      </div>
+                      {chargesResult.surcharges && (
+                        <p className="pt-1"><span className="font-medium">Surcharges:</span> {chargesResult.surcharges}</p>
+                      )}
+                      <div className="pt-1 border-t mt-1">
+                        <div className="flex justify-between font-medium">
+                          <span>Est. total (landing + 1 day):</span>
+                          <span className="font-mono text-primary">${chargesResult.totalEstimateUsd?.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 }) ?? '—'}</span>
+                        </div>
+                      </div>
+                      {chargesResult.notes && <p className="text-muted-foreground italic pt-1">{chargesResult.notes}</p>}
+                    </div>
+                  )}
+                  {chargesResult.confidence && (
+                    <p className="text-xs text-muted-foreground">Confidence: {chargesResult.confidence}</p>
+                  )}
+                  {chargesResult.error && (
+                    <p className="text-xs text-destructive">{chargesResult.error}</p>
                   )}
                 </div>
               )}
