@@ -202,7 +202,7 @@ export function createEmptyLeg(): LegData {
     departureTime: "",
     permitRequired: false,
     pprRequired: false,
-    customsAvailable: true,
+    customsAvailable: false,
     runwayOverrideFt: "",
     cbpResult: null,
     runwayResult: null,
