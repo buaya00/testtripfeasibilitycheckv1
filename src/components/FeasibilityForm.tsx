@@ -24,10 +24,25 @@ import { generatePrintableHtml } from "./PrintableReport";
 import aegLogo from "@/assets/aeg-logo.png";
 
 export default function FeasibilityForm() {
+  const [logoDataUrl, setLogoDataUrl] = useState<string>("");
   const [aircraftType, setAircraftType] = useState("");
   const [flightType, setFlightType] = useState("");
   const [legs, setLegs] = useState<LegData[]>([createEmptyLeg()]);
+  // Convert logo to data URL for printable reports
+  useEffect(() => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      canvas.getContext("2d")!.drawImage(img, 0, 0);
+      setLogoDataUrl(canvas.toDataURL("image/png"));
+    };
+    img.src = aegLogo;
+  }, []);
 
+  
   // Overflight results keyed by "legIdx" (between leg legIdx and legIdx+1)
   const [overflightResults, setOverflightResults] = useState<Record<number, OverflightResult | null>>({});
   const [overflightLoading, setOverflightLoading] = useState<Record<number, boolean>>({});
@@ -426,7 +441,7 @@ export default function FeasibilityForm() {
                   onClick={() => {
                     const html = generatePrintableHtml({
                       aircraftType, flightType, legs, overflightResults,
-                      visaNationalities, visaResults, totalCharges, totalOverflightCharges, petTypes, petResults,
+                      visaNationalities, visaResults, totalCharges, totalOverflightCharges, petTypes, petResults, logoDataUrl,
                     });
                     const w = window.open("", "_blank");
                     if (w) { w.document.write(html); w.document.close(); }
@@ -440,7 +455,7 @@ export default function FeasibilityForm() {
                   onClick={() => {
                     const html = generatePrintableHtml({
                       aircraftType, flightType, legs, overflightResults,
-                      visaNationalities, visaResults, totalCharges, totalOverflightCharges, petTypes, petResults,
+                      visaNationalities, visaResults, totalCharges, totalOverflightCharges, petTypes, petResults, logoDataUrl,
                     });
                     const w = window.open("", "_blank");
                     if (w) {
