@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { format } from "date-fns";
-import { CalendarIcon, Plane, CheckCircle2, XCircle, AlertTriangle, Search, Loader2, ExternalLink, Ruler, Shield, DollarSign, Clock } from "lucide-react";
+import { CalendarIcon, Plane, CheckCircle2, XCircle, AlertTriangle, Search, Loader2, ExternalLink, Ruler, Shield, DollarSign, Clock, Navigation } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { AIRCRAFT_RUNWAY_REQ, AIRCRAFT_CATEGORIES } from "@/data/aircraftData";
@@ -147,6 +147,33 @@ interface PprResult {
   error?: string;
 }
 
+interface OverflightCountry {
+  country: string;
+  overflightPermitRequired: 'yes' | 'no' | 'conditional';
+  permitType?: string;
+  leadTimeDays?: number;
+  issuingAuthority?: string;
+  conditions?: string;
+  notes?: string;
+}
+
+interface OverflightResult {
+  success: boolean;
+  originIcao?: string;
+  destinationIcao?: string;
+  originAirport?: string;
+  originCountry?: string;
+  destinationAirport?: string;
+  destinationCountry?: string;
+  routeSummary?: string;
+  countries?: OverflightCountry[];
+  totalPermitsNeeded?: number;
+  maxLeadTimeDays?: number;
+  notes?: string;
+  confidence?: 'high' | 'medium' | 'low';
+  error?: string;
+}
+
 // Aircraft data imported from @/data/aircraftData
 
 // ── Helpers ────────────────────────────────────────────────
@@ -270,6 +297,10 @@ export default function FeasibilityForm() {
   const [chargesLoading, setChargesLoading] = useState(false);
   const [pprResult, setPprResult] = useState<PprResult | null>(null);
   const [pprLoading, setPprLoading] = useState(false);
+  const [originIcao, setOriginIcao] = useState("");
+  const [destinationIcao, setDestinationIcao] = useState("");
+  const [overflightResult, setOverflightResult] = useState<OverflightResult | null>(null);
+  const [overflightLoading, setOverflightLoading] = useState(false);
 
   const handleCbpLookup = useCallback(async () => {
     if (data.airportIcao.length !== 4) return;
@@ -426,6 +457,31 @@ export default function FeasibilityForm() {
     handlePprLookup();
   }, [data.airportIcao, handleCbpLookup, handleCiqLookup, handleRunwayLookup, handlePermitLookup, handleChargesLookup, handlePprLookup]);
 
+  const handleOverflightLookup = useCallback(async () => {
+    if (originIcao.length !== 4 || destinationIcao.length !== 4) return;
+    setOverflightLoading(true);
+    setOverflightResult(null);
+    try {
+      const { data: res, error } = await supabase.functions.invoke('overflight-permits', {
+        body: {
+          originIcao,
+          destinationIcao,
+          flightType: data.flightType || undefined,
+          aircraftType: data.aircraftType || undefined,
+        },
+      });
+      if (error) {
+        setOverflightResult({ success: false, error: error.message });
+      } else {
+        setOverflightResult(res as OverflightResult);
+      }
+    } catch {
+      setOverflightResult({ success: false, error: 'Failed to connect' });
+    } finally {
+      setOverflightLoading(false);
+    }
+  }, [originIcao, destinationIcao, data.flightType, data.aircraftType]);
+
   const effectiveRunwayFt: number | null =
     data.runwayOverrideFt && parseInt(data.runwayOverrideFt, 10) > 0
       ? parseInt(data.runwayOverrideFt, 10)
@@ -456,6 +512,9 @@ export default function FeasibilityForm() {
     setCiqResult(null);
     setChargesResult(null);
     setPprResult(null);
+    setOriginIcao("");
+    setDestinationIcao("");
+    setOverflightResult(null);
   };
 
   return (
@@ -839,6 +898,124 @@ export default function FeasibilityForm() {
                   )}
                   {chargesResult.error && (
                     <p className="text-xs text-destructive">{chargesResult.error}</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Overflight Permits */}
+            <Separator />
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Overflight Permits
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Enter origin and next destination to check overflight permit requirements along the route.
+              </p>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label htmlFor="origin-icao" className="text-xs">Origin ICAO</Label>
+                  <Input
+                    id="origin-icao"
+                    placeholder="e.g. EGLL"
+                    maxLength={4}
+                    value={originIcao}
+                    onChange={(e) => {
+                      setOriginIcao(e.target.value.toUpperCase().replace(/[^A-Z]/g, ""));
+                      setOverflightResult(null);
+                    }}
+                    className="font-mono uppercase tracking-widest"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="dest-icao" className="text-xs">Destination ICAO</Label>
+                  <Input
+                    id="dest-icao"
+                    placeholder="e.g. OMDB"
+                    maxLength={4}
+                    value={destinationIcao}
+                    onChange={(e) => {
+                      setDestinationIcao(e.target.value.toUpperCase().replace(/[^A-Z]/g, ""));
+                      setOverflightResult(null);
+                    }}
+                    className="font-mono uppercase tracking-widest"
+                  />
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={handleOverflightLookup}
+                disabled={originIcao.length !== 4 || destinationIcao.length !== 4 || overflightLoading}
+                className="w-full"
+              >
+                {overflightLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Navigation className="h-4 w-4 mr-1.5" />}
+                Check Overflight Permits
+              </Button>
+
+              {overflightLoading && (
+                <div className="rounded-md border p-3 text-sm flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Analyzing route and overflight requirements…
+                </div>
+              )}
+
+              {overflightResult && !overflightLoading && (
+                <div className={cn(
+                  "rounded-md border p-3 text-sm space-y-2",
+                  overflightResult.success ? "border-primary/30 bg-primary/5" : "border-muted bg-muted/50"
+                )}>
+                  <div className="flex items-center gap-1.5 font-medium">
+                    <Navigation className="h-3.5 w-3.5 text-primary" />
+                    Overflight Permits — {overflightResult.originAirport || overflightResult.originIcao} → {overflightResult.destinationAirport || overflightResult.destinationIcao}
+                  </div>
+
+                  {overflightResult.routeSummary && (
+                    <p className="text-xs text-muted-foreground">{overflightResult.routeSummary}</p>
+                  )}
+
+                  {overflightResult.totalPermitsNeeded != null && (
+                    <p className="text-xs font-medium">
+                      {overflightResult.totalPermitsNeeded === 0
+                        ? '✅ No overflight permits required'
+                        : `⚠️ ${overflightResult.totalPermitsNeeded} overflight permit${overflightResult.totalPermitsNeeded > 1 ? 's' : ''} required`}
+                      {overflightResult.maxLeadTimeDays != null && overflightResult.maxLeadTimeDays > 0 && (
+                        <span className="text-muted-foreground"> · Max lead time: {overflightResult.maxLeadTimeDays} business days</span>
+                      )}
+                    </p>
+                  )}
+
+                  {overflightResult.countries && overflightResult.countries.length > 0 && (
+                    <div className="space-y-1.5">
+                      {overflightResult.countries.map((c, i) => (
+                        <div key={i} className={cn(
+                          "rounded bg-background/50 px-2 py-1.5 text-xs space-y-0.5",
+                          c.overflightPermitRequired === 'yes' ? "border-l-2 border-l-warning" : c.overflightPermitRequired === 'no' ? "border-l-2 border-l-success" : "border-l-2 border-l-muted-foreground"
+                        )}>
+                          <p className="font-medium">
+                            {c.overflightPermitRequired === 'yes' ? '⚠️' : c.overflightPermitRequired === 'no' ? '✅' : '⚠️'} {c.country}
+                            <span className="font-normal text-muted-foreground ml-1">
+                              — {c.overflightPermitRequired === 'yes' ? 'Permit required' : c.overflightPermitRequired === 'no' ? 'No permit needed' : 'Conditionally required'}
+                            </span>
+                          </p>
+                          {c.permitType && <p><span className="font-medium">Type:</span> {c.permitType}</p>}
+                          {c.leadTimeDays != null && <p><span className="font-medium">Lead time:</span> {c.leadTimeDays} business days</p>}
+                          {c.issuingAuthority && <p><span className="font-medium">Authority:</span> {c.issuingAuthority}</p>}
+                          {c.conditions && <p><span className="font-medium">Conditions:</span> {c.conditions}</p>}
+                          {c.notes && <p className="text-muted-foreground italic">{c.notes}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {overflightResult.notes && (
+                    <p className="text-xs text-muted-foreground italic">{overflightResult.notes}</p>
+                  )}
+                  {overflightResult.confidence && (
+                    <p className="text-xs text-muted-foreground">Confidence: {overflightResult.confidence}</p>
+                  )}
+                  {overflightResult.error && (
+                    <p className="text-xs text-destructive">{overflightResult.error}</p>
                   )}
                 </div>
               )}
