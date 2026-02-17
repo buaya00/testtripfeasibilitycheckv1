@@ -43,13 +43,7 @@ ${aircraftRegistration ? `Aircraft registration prefix: ${aircraftRegistration}`
 
 IMPORTANT: Different flight types often have different permit requirements. For example, private flights may need a landing permit while scheduled commercial flights may not (or vice versa). Be specific about how the flight type affects the permit requirement.`;
 
-    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+    const requestBody = JSON.stringify({
         model: 'google/gemini-3-flash-preview',
         messages: [
           {
@@ -84,35 +78,60 @@ IMPORTANT: Different flight types often have different permit requirements. For 
           },
         ],
         tool_choice: { type: 'function', function: { name: 'extract_permit_info' } },
-      }),
-    });
+      });
 
-    if (!aiResponse.ok) {
-      const status = aiResponse.status;
-      if (status === 429) {
-        return new Response(
-          JSON.stringify({ success: false, error: 'Rate limit exceeded, please try again shortly' }),
-          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+    let permitInfo = null;
+    const maxRetries = 3;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      if (attempt > 0) {
+        const delay = 1000 * Math.pow(2, attempt - 1);
+        console.log(`Retry attempt ${attempt + 1} after ${delay}ms`);
+        await new Promise(r => setTimeout(r, delay));
       }
-      console.error('AI gateway error:', status);
-      return new Response(
-        JSON.stringify({ success: false, error: 'AI lookup failed' }),
-        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+
+      const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: requestBody,
+      });
+
+      if (aiResponse.status === 429) {
+        console.warn(`Rate limited on attempt ${attempt + 1}`);
+        if (attempt === maxRetries - 1) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Rate limit exceeded, please try again shortly' }),
+            { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        continue;
+      }
+
+      if (!aiResponse.ok) {
+        console.error('AI gateway error:', aiResponse.status);
+        if (attempt === maxRetries - 1) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'AI lookup failed' }),
+            { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        continue;
+      }
+
+      const aiData = await aiResponse.json();
+      const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
+      if (toolCall?.function?.arguments) {
+        permitInfo = JSON.parse(toolCall.function.arguments);
+        break;
+      }
+      console.warn(`No tool call in response on attempt ${attempt + 1}`);
     }
 
-    const aiData = await aiResponse.json();
-    const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
-
-    if (!toolCall?.function?.arguments) {
+    if (!permitInfo) {
       return new Response(
         JSON.stringify({ success: false, error: 'Could not determine permit requirements' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
-    const permitInfo = JSON.parse(toolCall.function.arguments);
 
     return new Response(
       JSON.stringify({
