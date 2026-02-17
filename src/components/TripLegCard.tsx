@@ -352,29 +352,55 @@ export default function TripLegCard({
   const mtowKg = aircraftType ? AIRCRAFT_MTOW_KG[aircraftType] : undefined;
   const mtowCat = mtowKg ? getMtowCategory(mtowKg) : undefined;
 
-  // Filter line items to only show the applicable MTOW category (+ non-categorized items)
-  const filterLineItemsByMtow = (items: GroundHandlingQuote['line_items']): GroundHandlingQuote['line_items'] => {
-    if (!mtowCat) return items; // No aircraft selected, show all
+  // Compute ground time in minutes from arrival→departure
+  const groundTimeMinutes = (() => {
+    if (!leg.arrivalTime || !leg.departureTime) return null;
+    const arr = timeToMinutes(leg.arrivalTime);
+    let dep = timeToMinutes(leg.departureTime);
+    // Handle overnight: if departure is earlier, add 24h
+    if (dep <= arr) dep += 24 * 60;
+    return dep - arr;
+  })();
+
+  // Determine which service type to show based on ground time
+  // ≥120 min → stay/stay over; <120 min → transit/turnaround/technical
+  const isStayOver = groundTimeMinutes !== null ? groundTimeMinutes >= 120 : null;
+
+  // Filter line items by MTOW weight range AND service type (stay vs transit)
+  const filterLineItems = (items: GroundHandlingQuote['line_items']): GroundHandlingQuote['line_items'] => {
+    if (!mtowCat) return items;
     const mtowKg = mtowCat.mtowTonnes * 1000;
 
-    // Parse MTOW range from description, supports formats like:
-    //   "Cat A (MTOW 1-2t)"  or  "Cat A: MTOW 0-4t"  or  "Cat I (MTOW 51t+)"
     const parseMtowRange = (desc: string): { min: number; max: number } | null => {
-      // Match "MTOW X-Yt" or "MTOW X.X-Y.Yt"
       const rangeMatch = desc.match(/MTOW\s+([\d.]+)\s*-\s*([\d.]+)\s*t/i);
       if (rangeMatch) return { min: parseFloat(rangeMatch[1]) * 1000, max: parseFloat(rangeMatch[2]) * 1000 };
-      // Match "MTOW Xt+" (open-ended upper)
       const plusMatch = desc.match(/MTOW\s+([\d.]+)\s*t\+/i);
       if (plusMatch) return { min: parseFloat(plusMatch[1]) * 1000, max: Infinity };
       return null;
     };
 
+    // Classify a line item's service type from its description
+    const getServiceType = (desc: string): 'stay' | 'transit' | null => {
+      const d = desc.toLowerCase();
+      if (d.includes('stay over') || d.includes('stay-over') || d.includes('full stay') || d.includes('– stay')) return 'stay';
+      if (d.includes('transit') || d.includes('turnaround') || d.includes('technical')) return 'transit';
+      return null; // not a service-type-specific item
+    };
+
     return items.filter(item => {
+      // 1. Filter by MTOW
       const range = parseMtowRange(item.description);
-      if (!range) return true; // Non-categorized item, always show
-      return mtowKg >= range.min && mtowKg <= range.max;
+      if (range && (mtowKg < range.min || mtowKg > range.max)) return false;
+
+      // 2. Filter by service type if ground time is known
+      if (isStayOver !== null) {
+        const svcType = getServiceType(item.description);
+        if (svcType === 'stay' && !isStayOver) return false;
+        if (svcType === 'transit' && isStayOver) return false;
+      }
+
+      return true;
     }).map(item => {
-      // For per-ton rates (open-ended category), calculate actual cost
       const range = parseMtowRange(item.description);
       if (range && range.max === Infinity) {
         const actualPrice = item.unit_price * mtowCat.mtowTonnes;
@@ -720,7 +746,7 @@ export default function TripLegCard({
             {/* Ground Handling (from invoice database) */}
             {ghLoading && <div className="rounded-md border p-3 text-sm flex items-center gap-2 text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Loading ground handling data…</div>}
             {groundHandlingQuotes.length > 0 && !ghLoading && groundHandlingQuotes.map((ghq) => {
-              const filteredItems = filterLineItemsByMtow(ghq.line_items);
+              const filteredItems = filterLineItems(ghq.line_items);
               if (filteredItems.length === 0) return null;
               // Calculate total from filtered items
               const filteredTotal = filteredItems.reduce((sum, item) => sum + (item.subtotal ?? 0), 0);
@@ -733,6 +759,9 @@ export default function TripLegCard({
                 {mtowCat && (
                   <p className="text-[10px] text-muted-foreground">
                     Aircraft: {aircraftType} — MTOW {mtowCat.mtowTonnes.toFixed(1)}t — Category {mtowCat.category} ({mtowCat.label})
+                    {groundTimeMinutes !== null && (
+                      <span className="ml-1">— Ground time: {Math.floor(groundTimeMinutes / 60)}h{String(groundTimeMinutes % 60).padStart(2, '0')}m → {isStayOver ? 'Stay Over' : 'Transit/Technical'} rates</span>
+                    )}
                   </p>
                 )}
                 {ghq.quote_date && <p className="text-[10px] text-muted-foreground">Tariff effective: {ghq.quote_date}</p>}
@@ -747,7 +776,7 @@ export default function TripLegCard({
                       <p className="font-medium text-muted-foreground pt-1 first:pt-0">{cat}</p>
                       {items.map((item, i) => (
                         <div key={i} className="grid grid-cols-[1fr_auto] gap-x-4">
-                          <span>{item.description.replace(/ - Cat [A-I] \(MTOW [\d\-t+]+\)/, '')}{item.quantity > 1 ? ` ×${item.quantity}` : ''}{item.unit ? ` (${item.unit})` : ''}</span>
+                          <span>{item.description.replace(/\s*[-–]\s*Cat [A-Z]\s*[:(]\s*MTOW[\s\d.\-t+]+\)?/i, '')}{item.quantity > 1 ? ` ×${item.quantity}` : ''}{item.unit ? ` (${item.unit})` : ''}</span>
                           <span className="text-right font-mono">
                             {ghq.currency === 'USD' ? '$' : ghq.currency === 'EUR' ? '€' : ghq.currency === 'GBP' ? '£' : ghq.currency + ' '}
                             {(item.subtotal ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
