@@ -2,7 +2,7 @@ import React, { useState, useCallback, useMemo, useEffect, useRef } from "react"
 import { format } from "date-fns";
 import {
   Plane, Loader2, Navigation, Globe, Plus, X, DollarSign,
-  CheckCircle2, XCircle, AlertTriangle,
+  CheckCircle2, XCircle, AlertTriangle, Printer, FileDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -19,6 +19,7 @@ import type {
   LegData, OverflightResult, VisaCheckResult,
 } from "./tripTypes";
 import { createEmptyLeg } from "./tripTypes";
+import { generatePrintableHtml } from "./PrintableReport";
 
 export default function FeasibilityForm() {
   const [aircraftType, setAircraftType] = useState("");
@@ -471,6 +472,43 @@ export default function FeasibilityForm() {
                 Reset
               </Button>
             </div>
+
+            {anyChecked && (
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => {
+                    const html = generatePrintableHtml({
+                      aircraftType, flightType, legs, overflightResults,
+                      visaNationalities, visaResults, totalCharges, totalOverflightCharges,
+                    });
+                    const w = window.open("", "_blank");
+                    if (w) { w.document.write(html); w.document.close(); }
+                  }}
+                >
+                  <Printer className="h-4 w-4 mr-1.5" /> Print Report
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => {
+                    const html = generatePrintableHtml({
+                      aircraftType, flightType, legs, overflightResults,
+                      visaNationalities, visaResults, totalCharges, totalOverflightCharges,
+                    });
+                    const w = window.open("", "_blank");
+                    if (w) {
+                      w.document.write(html);
+                      w.document.close();
+                      setTimeout(() => w.print(), 500);
+                    }
+                  }}
+                >
+                  <FileDown className="h-4 w-4 mr-1.5" /> Save as PDF
+                </Button>
+              </div>
+            )}
 
             {/* Trip Summary */}
             {(anyChecked || totalCharges > 0 || totalOverflightCharges > 0) && (
