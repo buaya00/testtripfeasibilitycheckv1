@@ -12,6 +12,7 @@ interface PrintableReportProps {
   totalOverflightCharges: number;
   petTypes: string[];
   petResults: Record<string, PetCheckResult | null>;
+  logoDataUrl?: string;
 }
 
 export function generatePrintableHtml({
@@ -25,6 +26,7 @@ export function generatePrintableHtml({
   totalOverflightCharges,
   petTypes,
   petResults,
+  logoDataUrl,
 }: PrintableReportProps): string {
   const now = format(new Date(), "dd MMM yyyy HH:mm");
   const allFeasible = legs.every(l => l.feasibilityResult?.feasible !== false);
@@ -438,9 +440,12 @@ export function generatePrintableHtml({
 </style>
 </head>
 <body>
-  <div class="header">
-    <h1>✈ Airport Ops Feasibility Report</h1>
-    <div class="meta">${now} UTC</div>
+  <div class="header" style="display:flex;align-items:center;gap:16px;">
+    ${logoDataUrl ? `<img src="${logoDataUrl}" alt="AEG Fuels" style="height:48px;width:auto;" />` : ''}
+    <div>
+      <h1 style="margin:0;">✈ Airport Ops Feasibility Report</h1>
+      <div class="meta">${now} UTC</div>
+    </div>
   </div>
 
   <div class="actions no-print">
