@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import {
   CalendarIcon, CheckCircle2, XCircle, AlertTriangle, Search, Loader2,
   ExternalLink, Ruler, Shield, DollarSign, Clock, ChevronDown, ChevronUp,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -334,6 +335,62 @@ export default function TripLegCard({
     return () => onRegisterLookup?.(legIndex, null);
   }, [legIndex, handleLookupAll, onRegisterLookup]);
 
+  // Ground handling data from invoice database
+  interface GroundHandlingQuote {
+    id: string;
+    provider_name: string;
+    aircraft_type: string | null;
+    currency: string;
+    grand_total: number | null;
+    quote_date: string | null;
+    line_items: { service_category: string; description: string; quantity: number; unit_price: number; vat_rate: number; subtotal: number }[];
+  }
+  const [groundHandlingQuotes, setGroundHandlingQuotes] = useState<GroundHandlingQuote[]>([]);
+  const [ghLoading, setGhLoading] = useState(false);
+
+  useEffect(() => {
+    if (leg.airportIcao.length !== 4) { setGroundHandlingQuotes([]); return; }
+    const icao = leg.airportIcao.toUpperCase();
+    let cancelled = false;
+    setGhLoading(true);
+    (async () => {
+      try {
+        const { data: quotes, error } = await supabase
+          .from('ground_handling_quotes')
+          .select('id, provider_id, aircraft_type, currency, grand_total, quote_date')
+          .eq('icao', icao);
+        if (error || !quotes || quotes.length === 0) { if (!cancelled) { setGroundHandlingQuotes([]); setGhLoading(false); } return; }
+
+        // Get provider names
+        const providerIds = [...new Set(quotes.map(q => q.provider_id).filter(Boolean))];
+        const { data: providers } = providerIds.length > 0
+          ? await supabase.from('ground_handling_providers').select('id, name').in('id', providerIds)
+          : { data: [] };
+        const providerMap = new Map((providers || []).map(p => [p.id, p.name]));
+
+        // Get line items for all quotes
+        const quoteIds = quotes.map(q => q.id);
+        const { data: items } = await supabase
+          .from('ground_handling_line_items')
+          .select('quote_id, service_category, description, quantity, unit_price, vat_rate, subtotal')
+          .in('quote_id', quoteIds);
+
+        const result: GroundHandlingQuote[] = quotes.map(q => ({
+          id: q.id,
+          provider_name: providerMap.get(q.provider_id) || 'Unknown',
+          aircraft_type: q.aircraft_type,
+          currency: q.currency,
+          grand_total: q.grand_total,
+          quote_date: q.quote_date,
+          line_items: (items || []).filter(i => i.quote_id === q.id),
+        }));
+        if (!cancelled) setGroundHandlingQuotes(result);
+      } catch { if (!cancelled) setGroundHandlingQuotes([]); }
+      finally { if (!cancelled) setGhLoading(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [leg.airportIcao]);
+
   const feasResult = leg.feasibilityResult;
 
   return (
@@ -624,7 +681,51 @@ export default function TripLegCard({
               </div>
             )}
 
-            {/* Airport Hours & NOTAMs */}
+            {/* Ground Handling (from invoice database) */}
+            {ghLoading && <div className="rounded-md border p-3 text-sm flex items-center gap-2 text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Loading ground handling data…</div>}
+            {groundHandlingQuotes.length > 0 && !ghLoading && groundHandlingQuotes.map((ghq) => (
+              <div key={ghq.id} className="rounded-md border border-accent/30 bg-accent/5 p-3 text-sm space-y-1.5">
+                <div className="flex items-center gap-1.5 font-medium">
+                  <FileText className="h-3.5 w-3.5 text-accent-foreground" />
+                  Ground Handling — {ghq.provider_name}
+                  {ghq.aircraft_type && <span className="text-xs text-muted-foreground font-normal ml-1">({ghq.aircraft_type})</span>}
+                </div>
+                {ghq.quote_date && <p className="text-[10px] text-muted-foreground">Quote date: {ghq.quote_date}</p>}
+                <div className="rounded bg-background/50 px-2 py-1.5 text-xs space-y-0.5">
+                  {/* Group by category */}
+                  {Object.entries(
+                    ghq.line_items.reduce<Record<string, typeof ghq.line_items>>((acc, item) => {
+                      (acc[item.service_category] ??= []).push(item);
+                      return acc;
+                    }, {})
+                  ).map(([cat, items]) => (
+                    <div key={cat} className="space-y-0.5">
+                      <p className="font-medium text-muted-foreground pt-1 first:pt-0">{cat}</p>
+                      {items.map((item, i) => (
+                        <div key={i} className="grid grid-cols-[1fr_auto] gap-x-4">
+                          <span>{item.description}{item.quantity > 1 ? ` ×${item.quantity}` : ''}</span>
+                          <span className="text-right font-mono">
+                            {ghq.currency === 'USD' ? '$' : ghq.currency === 'EUR' ? '€' : ghq.currency === 'GBP' ? '£' : ghq.currency + ' '}
+                            {item.subtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            {item.vat_rate > 0 && <span className="text-muted-foreground ml-1 text-[10px]">+{item.vat_rate}%</span>}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                  {ghq.grand_total != null && (
+                    <div className="pt-1 border-t mt-1 flex justify-between font-medium">
+                      <span>Total (incl. VAT):</span>
+                      <span className="font-mono text-accent-foreground">
+                        {ghq.currency === 'USD' ? '$' : ghq.currency === 'EUR' ? '€' : ghq.currency === 'GBP' ? '£' : ghq.currency + ' '}
+                        {ghq.grand_total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <p className="text-[10px] text-muted-foreground italic">Source: uploaded invoice</p>
+              </div>
+            ))}
             {hoursLoading && <div className="rounded-md border p-3 text-sm flex items-center gap-2 text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Checking airport hours & NOTAMs…</div>}
             {leg.airportHoursResult && !hoursLoading && (
               <div className={cn("rounded-md border p-3 text-sm space-y-1.5",
