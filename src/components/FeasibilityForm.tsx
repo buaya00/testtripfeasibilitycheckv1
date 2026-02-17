@@ -59,9 +59,9 @@ export default function FeasibilityForm() {
 
   // Check feasibility for all legs
   const handleCheckAll = useCallback(() => {
-    setLegs(prev => prev.map(leg => ({
+    setLegs(prev => prev.map((leg, idx) => ({
       ...leg,
-      feasibilityResult: evaluateLegFeasibility(leg, aircraftType),
+      feasibilityResult: evaluateLegFeasibility(leg, aircraftType, idx, prev.length),
     })));
   }, [aircraftType]);
 

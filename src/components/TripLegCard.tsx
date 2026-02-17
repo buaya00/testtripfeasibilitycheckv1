@@ -48,17 +48,22 @@ function isUsAirport(icao: string) {
 export function evaluateLegFeasibility(
   leg: LegData,
   aircraftType: string,
+  legIndex: number = 0,
+  totalLegs: number = 1,
 ): FeasibilityResult {
   const issues: string[] = [];
   const notes: string[] = [];
 
+  const isFirstLeg = legIndex === 0;
+  const isLastLeg = legIndex === totalLegs - 1;
+
   if (!aircraftType) issues.push("Aircraft type not specified");
   if (!leg.airportIcao) issues.push("Airport ICAO code not specified");
   if (leg.airportIcao && !/^[A-Z]{4}$/.test(leg.airportIcao.toUpperCase())) issues.push("ICAO code must be exactly 4 letters");
-  if (!leg.arrivalDate) issues.push("Arrival date not set");
-  if (!leg.departureDate) issues.push("Departure date not set");
-  if (!leg.arrivalTime) issues.push("Arrival time not set");
-  if (!leg.departureTime) issues.push("Departure time not set");
+  if (!isFirstLeg && !leg.arrivalDate) issues.push("Arrival date not set");
+  if (!isLastLeg && !leg.departureDate) issues.push("Departure date not set");
+  if (!isFirstLeg && !leg.arrivalTime) issues.push("Arrival time not set");
+  if (!isLastLeg && !leg.departureTime) issues.push("Departure time not set");
 
   if (leg.arrivalDate && leg.departureDate && leg.arrivalDate > leg.departureDate) {
     issues.push("Departure date is before arrival date");
@@ -273,9 +278,15 @@ export default function TripLegCard({
               ? <CheckCircle2 className="h-4 w-4 text-success" />
               : <XCircle className="h-4 w-4 text-destructive" />
           )}
-          {leg.arrivalDate && leg.departureDate && (
+          {(leg.arrivalDate || leg.departureDate) && (
             <span className="text-xs text-muted-foreground">
-              {format(leg.arrivalDate, "dd MMM")} – {format(leg.departureDate, "dd MMM")}
+              {leg.arrivalDate && leg.departureDate
+                ? `${format(leg.arrivalDate, "dd MMM")} – ${format(leg.departureDate, "dd MMM")}`
+                : leg.departureDate
+                  ? `DEP ${format(leg.departureDate, "dd MMM")}`
+                  : leg.arrivalDate
+                    ? `ARR ${format(leg.arrivalDate, "dd MMM")}`
+                    : ''}
             </span>
           )}
         </div>
@@ -313,48 +324,58 @@ export default function TripLegCard({
 
           {/* Arrival / Departure */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <Label className="text-xs">Arrival Date</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className={cn("w-full justify-start text-left font-normal text-xs", !leg.arrivalDate && "text-muted-foreground")}>
-                    <CalendarIcon className="mr-2 h-3.5 w-3.5" />
-                    {leg.arrivalDate ? format(leg.arrivalDate, "dd MMM yyyy") : "Select"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={leg.arrivalDate} onSelect={(d) => update({ arrivalDate: d })} initialFocus className="p-3 pointer-events-auto" />
-                </PopoverContent>
-              </Popover>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Arrival Time (UTC)</Label>
-              <Select value={leg.arrivalTime} onValueChange={(v) => update({ arrivalTime: v })}>
-                <SelectTrigger className="text-xs"><SelectValue placeholder="HH:MM" /></SelectTrigger>
-                <SelectContent>{TIMES.map((t) => <SelectItem key={`a-${t}`} value={t}>{t}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Departure Date</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className={cn("w-full justify-start text-left font-normal text-xs", !leg.departureDate && "text-muted-foreground")}>
-                    <CalendarIcon className="mr-2 h-3.5 w-3.5" />
-                    {leg.departureDate ? format(leg.departureDate, "dd MMM yyyy") : "Select"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={leg.departureDate} onSelect={(d) => update({ departureDate: d })} initialFocus className="p-3 pointer-events-auto" />
-                </PopoverContent>
-              </Popover>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Departure Time (UTC)</Label>
-              <Select value={leg.departureTime} onValueChange={(v) => update({ departureTime: v })}>
-                <SelectTrigger className="text-xs"><SelectValue placeholder="HH:MM" /></SelectTrigger>
-                <SelectContent>{TIMES.map((t) => <SelectItem key={`d-${t}`} value={t}>{t}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
+            {/* Arrival fields — hidden for the first leg (departure origin) */}
+            {legIndex > 0 && (
+              <>
+                <div className="space-y-1">
+                  <Label className="text-xs">Arrival Date</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className={cn("w-full justify-start text-left font-normal text-xs", !leg.arrivalDate && "text-muted-foreground")}>
+                        <CalendarIcon className="mr-2 h-3.5 w-3.5" />
+                        {leg.arrivalDate ? format(leg.arrivalDate, "dd MMM yyyy") : "Select"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar mode="single" selected={leg.arrivalDate} onSelect={(d) => update({ arrivalDate: d })} initialFocus className="p-3 pointer-events-auto" />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Arrival Time (UTC)</Label>
+                  <Select value={leg.arrivalTime} onValueChange={(v) => update({ arrivalTime: v })}>
+                    <SelectTrigger className="text-xs"><SelectValue placeholder="HH:MM" /></SelectTrigger>
+                    <SelectContent>{TIMES.map((t) => <SelectItem key={`a-${t}`} value={t}>{t}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
+            {/* Departure fields — hidden for the last leg (final destination) */}
+            {legIndex < totalLegs - 1 && (
+              <>
+                <div className="space-y-1">
+                  <Label className="text-xs">Departure Date</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className={cn("w-full justify-start text-left font-normal text-xs", !leg.departureDate && "text-muted-foreground")}>
+                        <CalendarIcon className="mr-2 h-3.5 w-3.5" />
+                        {leg.departureDate ? format(leg.departureDate, "dd MMM yyyy") : "Select"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar mode="single" selected={leg.departureDate} onSelect={(d) => update({ departureDate: d })} initialFocus className="p-3 pointer-events-auto" />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Departure Time (UTC)</Label>
+                  <Select value={leg.departureTime} onValueChange={(v) => update({ departureTime: v })}>
+                    <SelectTrigger className="text-xs"><SelectValue placeholder="HH:MM" /></SelectTrigger>
+                    <SelectContent>{TIMES.map((t) => <SelectItem key={`d-${t}`} value={t}>{t}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Runway Override */}
