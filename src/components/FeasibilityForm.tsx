@@ -496,7 +496,9 @@ export default function FeasibilityForm() {
                   >
                     <SelectTrigger className="flex-1"><SelectValue placeholder="Select nationality" /></SelectTrigger>
                     <SelectContent className="max-h-60">
-                      {COUNTRIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                      <SelectItem value="United States of America">United States of America</SelectItem>
+                      <Separator className="my-1" />
+                      {COUNTRIES.filter(c => c !== "United States of America").map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                     </SelectContent>
                   </Select>
                   {visaNationalities.length > 1 && (
