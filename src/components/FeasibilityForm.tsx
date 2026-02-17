@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { format } from "date-fns";
 import {
   Plane, Loader2, Navigation, Globe, Plus, X, DollarSign,
@@ -63,15 +63,50 @@ export default function FeasibilityForm() {
     legLookupRefs.current[index] = fn;
   }, []);
 
+  // Track whether a check-all has been triggered so we can re-evaluate on lookup completion
+  const feasibilityTriggered = useRef(false);
+
   // Check feasibility for all legs
   const handleCheckAll = useCallback(() => {
+    feasibilityTriggered.current = true;
     // Trigger lookup on each leg
     Object.values(legLookupRefs.current).forEach(fn => fn?.());
+    // Initial evaluation with current data
     setLegs(prev => prev.map((leg, idx) => ({
       ...leg,
       feasibilityResult: evaluateLegFeasibility(leg, aircraftType, idx, prev.length),
     })));
   }, [aircraftType]);
+
+  // Re-evaluate feasibility whenever lookup results change (permits, PPR, etc.)
+  useEffect(() => {
+    if (!feasibilityTriggered.current) return;
+    // Check if any leg has a feasibilityResult already (means we've run check-all)
+    const anyEvaluated = legs.some(l => l.feasibilityResult != null);
+    if (!anyEvaluated) return;
+
+    // Re-evaluate with latest lookup data
+    setLegs(prev => {
+      const updated = prev.map((leg, idx) => ({
+        ...leg,
+        feasibilityResult: evaluateLegFeasibility(leg, aircraftType, idx, prev.length),
+      }));
+      // Only update if results actually changed to avoid infinite loop
+      const changed = updated.some((u, i) =>
+        u.feasibilityResult?.feasible !== prev[i].feasibilityResult?.feasible ||
+        u.feasibilityResult?.issues.length !== prev[i].feasibilityResult?.issues.length
+      );
+      return changed ? updated : prev;
+    });
+  }, [
+    // Re-run when any lookup result changes
+    ...legs.map(l => l.permitResult),
+    ...legs.map(l => l.pprResult),
+    ...legs.map(l => l.cbpResult),
+    ...legs.map(l => l.runwayResult),
+    ...legs.map(l => l.ciqResult),
+    aircraftType,
+  ]);
 
   // Overflight between consecutive legs
   const handleOverflightBetweenLegs = useCallback(async (fromIdx: number) => {
