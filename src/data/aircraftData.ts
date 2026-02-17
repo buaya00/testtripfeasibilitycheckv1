@@ -1,6 +1,178 @@
 // Aircraft types and their approximate takeoff distance requirements (ft)
 // Covers private, commercial, and military (non-fighter) jets manufactured in the last 20 years
 
+// MTOW in kilograms for each aircraft type (used for fee category determination)
+export const AIRCRAFT_MTOW_KG: Record<string, number> = {
+  // ── Private Jets ──────────────────────────────────────────
+  // Bombardier
+  "Bombardier Challenger 350": 18416,
+  "Bombardier Challenger 3500": 18416,
+  "Bombardier Challenger 604": 21863,
+  "Bombardier Challenger 605": 21863,
+  "Bombardier Challenger 650": 22226,
+  "Bombardier Global 5000": 41957,
+  "Bombardier Global 5500": 41957,
+  "Bombardier Global 6000": 44452,
+  "Bombardier Global 6500": 44452,
+  "Bombardier Global 7500": 48800,
+  "Bombardier Global 8000": 48800,
+  "Bombardier Learjet 40": 9525,
+  "Bombardier Learjet 45": 9752,
+  "Bombardier Learjet 60": 10659,
+  "Bombardier Learjet 70": 9752,
+  "Bombardier Learjet 75": 9752,
+  // Cessna / Textron
+  "Cessna Citation CJ3": 6291,
+  "Cessna Citation CJ3+": 6291,
+  "Cessna Citation CJ4": 7761,
+  "Cessna Citation Latitude": 9163,
+  "Cessna Citation Longitude": 17917,
+  "Cessna Citation M2": 4717,
+  "Cessna Citation Mustang": 3921,
+  "Cessna Citation Sovereign": 13870,
+  "Cessna Citation Sovereign+": 13870,
+  "Cessna Citation X": 16193,
+  "Cessna Citation X+": 16193,
+  "Cessna Citation XLS": 9072,
+  "Cessna Citation XLS+": 9163,
+  // Dassault
+  "Dassault Falcon 2000EX": 19414,
+  "Dassault Falcon 2000LXS": 19414,
+  "Dassault Falcon 2000S": 19000,
+  "Dassault Falcon 6X": 35000,
+  "Dassault Falcon 7X": 31751,
+  "Dassault Falcon 8X": 33113,
+  "Dassault Falcon 900LX": 22226,
+  "Dassault Falcon 10X": 35000,
+  // Embraer
+  "Embraer Legacy 450": 16800,
+  "Embraer Legacy 500": 17399,
+  "Embraer Legacy 600": 22500,
+  "Embraer Legacy 650": 24300,
+  "Embraer Legacy 650E": 24300,
+  "Embraer Lineage 1000E": 55000,
+  "Embraer Phenom 100": 4750,
+  "Embraer Phenom 100EV": 4800,
+  "Embraer Phenom 300": 8150,
+  "Embraer Phenom 300E": 8500,
+  "Embraer Praetor 500": 17399,
+  "Embraer Praetor 600": 22500,
+  // Gulfstream
+  "Gulfstream G280": 18711,
+  "Gulfstream G400": 30390,
+  "Gulfstream G450": 33203,
+  "Gulfstream G500": 35107,
+  "Gulfstream G550": 41277,
+  "Gulfstream G600": 42411,
+  "Gulfstream G650": 45178,
+  "Gulfstream G650ER": 46175,
+  "Gulfstream G700": 48787,
+  "Gulfstream G800": 48787,
+  // Honda
+  "HondaJet": 4853,
+  "HondaJet Elite": 4853,
+  "HondaJet Elite II": 4853,
+  // Pilatus
+  "Pilatus PC-24": 8300,
+  // Cirrus
+  "Cirrus Vision SF50": 2722,
+  // SyberJet
+  "SyberJet SJ30i": 5670,
+  // ── Commercial Jets ───────────────────────────────────────
+  "Airbus A220-100": 63100,
+  "Airbus A220-300": 67585,
+  "Airbus A319neo": 75500,
+  "Airbus A320neo": 79000,
+  "Airbus A320": 78000,
+  "Airbus A321neo": 97000,
+  "Airbus A321XLR": 101000,
+  "Airbus A330-200": 242000,
+  "Airbus A330-300": 242000,
+  "Airbus A330-800neo": 251000,
+  "Airbus A330-900neo": 251000,
+  "Airbus A340-600": 380000,
+  "Airbus A350-900": 280000,
+  "Airbus A350-1000": 316000,
+  "Airbus A380-800": 575000,
+  "Boeing 737-700": 70080,
+  "Boeing 737-800": 79016,
+  "Boeing 737-900ER": 85139,
+  "Boeing 737 MAX 7": 72574,
+  "Boeing 737 MAX 8": 82191,
+  "Boeing 737 MAX 9": 88314,
+  "Boeing 737 MAX 10": 89765,
+  "Boeing 747-8": 447696,
+  "Boeing 747-8F": 447696,
+  "Boeing 767-300ER": 187330,
+  "Boeing 767-300F": 186880,
+  "Boeing 777-200LR": 347452,
+  "Boeing 777-300ER": 351534,
+  "Boeing 777F": 347814,
+  "Boeing 777X-8": 351534,
+  "Boeing 777X-9": 351534,
+  "Boeing 787-8": 227930,
+  "Boeing 787-9": 254011,
+  "Boeing 787-10": 254011,
+  "Bombardier CRJ-700": 34019,
+  "Bombardier CRJ-900": 38330,
+  "Bombardier CRJ-1000": 41640,
+  "Embraer E170": 37200,
+  "Embraer E175": 40370,
+  "Embraer E175-E2": 44790,
+  "Embraer E190": 51800,
+  "Embraer E190-E2": 56400,
+  "Embraer E195": 52290,
+  "Embraer E195-E2": 61500,
+  "ATR 42-600": 18600,
+  "ATR 42-600S": 18600,
+  "ATR 72-600": 23000,
+  "COMAC ARJ21-700": 43500,
+  "COMAC C919": 77300,
+  "Irkut MC-21-300": 79250,
+  "Sukhoi Superjet 100": 49450,
+  "Sukhoi Superjet New (SJ-100)": 49450,
+  "Mitsubishi SpaceJet M90": 42800,
+  // ── Military ──────────────────────────────────────────────
+  "Boeing C-17 Globemaster III": 265352,
+  "Airbus A400M Atlas": 141000,
+  "Lockheed Martin C-130J Super Hercules": 79380,
+  "Lockheed Martin C-130J-30": 79380,
+  "Embraer KC-390 Millennium": 87000,
+  "Kawasaki C-2": 141100,
+  "Antonov An-178": 51000,
+  "Ilyushin Il-76MD-90A": 210000,
+  "Xian Y-20": 220000,
+  "Airbus A330 MRTT": 233000,
+  "Boeing KC-46 Pegasus": 188240,
+  "Boeing P-8 Poseidon": 85820,
+  "Kawasaki P-1": 79700,
+  "Airbus C295": 23200,
+  "Leonardo C-27J Spartan": 31800,
+  "Boeing T-7A Red Hawk": 12680,
+  "Leonardo M-346 Master": 9500,
+  "KAI T-50 Golden Eagle": 13500,
+  "Aero L-39NG": 5800,
+  "Pilatus PC-21": 4250,
+  "Boeing 747-8 (VC-25B)": 447696,
+  "Gulfstream C-37B (G550)": 41277,
+  "Boeing C-40 Clipper (737)": 79016,
+  "Bombardier CC-144 Challenger": 21863,
+};
+
+// Determine MTOW fee category (A-I) based on MTOW in tonnes
+export function getMtowCategory(mtowKg: number): { category: string; label: string; mtowTonnes: number } {
+  const t = mtowKg / 1000;
+  if (t <= 2) return { category: 'A', label: 'MTOW 1-2t', mtowTonnes: t };
+  if (t <= 4) return { category: 'B', label: 'MTOW 3-4t', mtowTonnes: t };
+  if (t <= 8) return { category: 'C', label: 'MTOW 5-8t', mtowTonnes: t };
+  if (t <= 12) return { category: 'D', label: 'MTOW 9-12t', mtowTonnes: t };
+  if (t <= 18) return { category: 'E', label: 'MTOW 13-18t', mtowTonnes: t };
+  if (t <= 30) return { category: 'F', label: 'MTOW 19-30t', mtowTonnes: t };
+  if (t <= 40) return { category: 'G', label: 'MTOW 31-40t', mtowTonnes: t };
+  if (t <= 50) return { category: 'H', label: 'MTOW 41-50t', mtowTonnes: t };
+  return { category: 'I', label: 'MTOW 51t+', mtowTonnes: t };
+}
+
 export interface AircraftCategory {
   label: string;
   types: string[];
