@@ -3,10 +3,13 @@ import { format } from "date-fns";
 import {
   Plane, Loader2, Navigation, Globe, Plus, X, DollarSign,
   CheckCircle2, XCircle, AlertTriangle, Printer, FileDown, PawPrint,
+  Clock, Ruler,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { AIRCRAFT_CATEGORIES } from "@/data/aircraftData";
+import { AIRCRAFT_RANGE_NM, AIRCRAFT_CRUISE_KTAS } from "@/data/aircraftPerformance";
+import { calculateFlightLeg, type FlightLegCalculation } from "@/lib/flightCalculations";
 import { COUNTRIES } from "@/data/countries";
 import { SelectGroup, SelectLabel } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -252,12 +255,34 @@ export default function FeasibilityForm() {
     setPetLoading({});
   };
 
+  // Compute flight leg calculations between consecutive legs
+  const flightCalcs = useMemo(() => {
+    const calcs: Record<number, FlightLegCalculation> = {};
+    const rangeNm = aircraftType ? AIRCRAFT_RANGE_NM[aircraftType] : undefined;
+    const cruiseKtas = aircraftType ? AIRCRAFT_CRUISE_KTAS[aircraftType] : undefined;
+    for (let i = 0; i < legs.length - 1; i++) {
+      const from = legs[i];
+      const to = legs[i + 1];
+      const lat1 = from.runwayResult?.latitude;
+      const lon1 = from.runwayResult?.longitude;
+      const lat2 = to.runwayResult?.latitude;
+      const lon2 = to.runwayResult?.longitude;
+      if (lat1 != null && lon1 != null && lat2 != null && lon2 != null) {
+        calcs[i] = calculateFlightLeg(lat1, lon1, lat2, lon2, rangeNm, cruiseKtas);
+      }
+    }
+    return calcs;
+  }, [legs, aircraftType]);
+
   // Compute trip totals
   const totalCharges = legs.reduce((sum, l) => sum + (l.chargesResult?.totalEstimateUsd ?? 0), 0);
   const totalOverflightCharges = Object.values(overflightResults).reduce(
     (sum, r) => sum + (r?.totalOverflightChargesUsd ?? 0), 0
   );
-  const allFeasible = legs.every(l => l.feasibilityResult?.feasible !== false);
+  const totalDistanceNm = Object.values(flightCalcs).reduce((sum, c) => sum + c.distanceNm, 0);
+  const totalFlightTimeMin = Object.values(flightCalcs).reduce((sum, c) => sum + c.flightTimeMinutes, 0);
+  const anyOutOfRange = Object.values(flightCalcs).some(c => !c.withinRange);
+  const allFeasible = legs.every(l => l.feasibilityResult?.feasible !== false) && !anyOutOfRange;
   const anyChecked = legs.some(l => l.feasibilityResult != null);
 
   return (
@@ -342,6 +367,36 @@ export default function FeasibilityForm() {
               {/* Overflight between this leg and next */}
               {idx < legs.length - 1 && (
                 <div className="my-3 ml-6 pl-4 border-l-2 border-dashed border-muted-foreground/30 space-y-2">
+                  {/* Flight info between legs */}
+                  {flightCalcs[idx] && (
+                    <div className={cn("rounded-md border px-3 py-2 text-xs flex flex-wrap items-center gap-x-4 gap-y-1",
+                      !flightCalcs[idx].withinRange ? "border-destructive/40 bg-destructive/5" : "border-muted bg-muted/30"
+                    )}>
+                      <span className="flex items-center gap-1 font-medium">
+                        <Ruler className="h-3 w-3 text-muted-foreground" />
+                        {flightCalcs[idx].distanceNm.toLocaleString()} nm
+                      </span>
+                      {flightCalcs[idx].cruiseSpeedKtas && (
+                        <span className="flex items-center gap-1 font-medium">
+                          <Clock className="h-3 w-3 text-muted-foreground" />
+                          {flightCalcs[idx].flightTimeFormatted}
+                        </span>
+                      )}
+                      {flightCalcs[idx].cruiseSpeedKtas && (
+                        <span className="text-muted-foreground">
+                          @ {flightCalcs[idx].cruiseSpeedKtas} KTAS
+                        </span>
+                      )}
+                      {flightCalcs[idx].rangeNm && (
+                        <span className={cn("font-medium", !flightCalcs[idx].withinRange ? "text-destructive" : "text-muted-foreground")}>
+                          {!flightCalcs[idx].withinRange
+                            ? `❌ Exceeds range (${flightCalcs[idx].rangeNm!.toLocaleString()} nm max)`
+                            : `✅ Within range (${flightCalcs[idx].rangeNm!.toLocaleString()} nm max)`}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   <div className="flex items-center gap-2">
                     <Navigation className="h-4 w-4 text-muted-foreground" />
                     <span className="text-xs font-medium text-muted-foreground">
@@ -441,7 +496,7 @@ export default function FeasibilityForm() {
                   onClick={() => {
                     const html = generatePrintableHtml({
                       aircraftType, flightType, legs, overflightResults,
-                      visaNationalities, visaResults, totalCharges, totalOverflightCharges, petTypes, petResults, logoDataUrl,
+                      visaNationalities, visaResults, totalCharges, totalOverflightCharges, petTypes, petResults, logoDataUrl, flightCalcs,
                     });
                     const w = window.open("", "_blank");
                     if (w) { w.document.write(html); w.document.close(); }
@@ -455,7 +510,7 @@ export default function FeasibilityForm() {
                   onClick={() => {
                     const html = generatePrintableHtml({
                       aircraftType, flightType, legs, overflightResults,
-                      visaNationalities, visaResults, totalCharges, totalOverflightCharges, petTypes, petResults, logoDataUrl,
+                      visaNationalities, visaResults, totalCharges, totalOverflightCharges, petTypes, petResults, logoDataUrl, flightCalcs,
                     });
                     const w = window.open("", "_blank");
                     if (w) {
@@ -481,6 +536,26 @@ export default function FeasibilityForm() {
                     : <><XCircle className="h-5 w-5 text-destructive" /><span className="font-semibold">Issues Detected</span></>
                   )}
                 </div>
+
+                {/* Flight Summary */}
+                {totalDistanceNm > 0 && (
+                  <div className="rounded bg-background/50 px-3 py-2 text-sm space-y-1">
+                    <p className="font-semibold">Flight Summary</p>
+                    <div className="flex justify-between">
+                      <span>Total distance:</span>
+                      <span className="font-mono">{totalDistanceNm.toLocaleString()} nm</span>
+                    </div>
+                    {totalFlightTimeMin > 0 && (
+                      <div className="flex justify-between">
+                        <span>Estimated total flight time:</span>
+                        <span className="font-mono">{Math.floor(totalFlightTimeMin / 60)}h {totalFlightTimeMin % 60}m</span>
+                      </div>
+                    )}
+                    {anyOutOfRange && (
+                      <p className="text-destructive font-medium text-xs mt-1">⚠️ One or more legs exceed aircraft range</p>
+                    )}
+                  </div>
+                )}
 
                 {(totalCharges > 0 || totalOverflightCharges > 0) && (
                   <div className="rounded bg-background/50 px-3 py-2 text-sm space-y-1">

@@ -232,9 +232,9 @@ export default function TripLegCard({
     try {
       const { data: res, error } = await supabase.functions.invoke('runway-lookup', { body: { icao: leg.airportIcao } });
       if (error) {
-        update({ runwayResult: { success: false, found: false, icao: leg.airportIcao, airportName: null, runways: [], longestRunwayFt: null, message: '', error: error.message } });
+        update({ runwayResult: { success: false, found: false, icao: leg.airportIcao, airportName: null, latitude: null, longitude: null, runways: [], longestRunwayFt: null, message: '', error: error.message } });
       } else { update({ runwayResult: res as RunwayResult }); }
-    } catch { update({ runwayResult: { success: false, found: false, icao: leg.airportIcao, airportName: null, runways: [], longestRunwayFt: null, message: '', error: 'Failed to connect' } }); }
+    } catch { update({ runwayResult: { success: false, found: false, icao: leg.airportIcao, airportName: null, latitude: null, longitude: null, runways: [], longestRunwayFt: null, message: '', error: 'Failed to connect' } }); }
     finally { setRunwayLoading(false); }
   }, [leg.airportIcao]);
 

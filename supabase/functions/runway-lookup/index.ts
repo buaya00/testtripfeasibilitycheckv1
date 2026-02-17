@@ -124,8 +124,10 @@ Deno.serve(async (req) => {
       ? Math.max(...runways.map(r => r.lengthFt))
       : null;
 
-    // Also fetch airport name from airports.csv
+    // Also fetch airport name and coordinates from airports.csv
     let airportName: string | null = null;
+    let latitude: number | null = null;
+    let longitude: number | null = null;
     try {
       const airportsRes = await fetch('https://davidmegginson.github.io/ourairports-data/airports.csv');
       if (airportsRes.ok) {
@@ -134,6 +136,8 @@ Deno.serve(async (req) => {
         const airportHeader = parseCSVLine(airportLines[0]);
         const iAIdent = airportHeader.indexOf('ident');
         const iAName = airportHeader.indexOf('name');
+        const iALat = airportHeader.indexOf('latitude_deg');
+        const iALon = airportHeader.indexOf('longitude_deg');
         for (let i = 1; i < airportLines.length; i++) {
           const line = airportLines[i].trim();
           if (!line) continue;
@@ -141,6 +145,10 @@ Deno.serve(async (req) => {
           const fields = parseCSVLine(line);
           if (fields[iAIdent] === icao) {
             airportName = fields[iAName] || null;
+            const lat = parseFloat(fields[iALat]);
+            const lon = parseFloat(fields[iALon]);
+            if (!isNaN(lat)) latitude = lat;
+            if (!isNaN(lon)) longitude = lon;
             break;
           }
         }
@@ -155,6 +163,8 @@ Deno.serve(async (req) => {
         found: runways.length > 0,
         icao,
         airportName,
+        latitude,
+        longitude,
         runways,
         longestRunwayFt,
         message: runways.length > 0
