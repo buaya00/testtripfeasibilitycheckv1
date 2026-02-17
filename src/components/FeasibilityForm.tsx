@@ -3,6 +3,8 @@ import { format } from "date-fns";
 import { CalendarIcon, Plane, CheckCircle2, XCircle, AlertTriangle, Search, Loader2, ExternalLink, Ruler } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import { AIRCRAFT_RUNWAY_REQ, AIRCRAFT_CATEGORIES } from "@/data/aircraftData";
+import { SelectGroup, SelectLabel } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -75,75 +77,7 @@ interface RunwayResult {
   error?: string;
 }
 
-// ── Aircraft runway requirements (takeoff distance in ft) ──
-
-const AIRCRAFT_RUNWAY_REQ: Record<string, number> = {
-  "Bombardier Challenger 350": 4835,
-  "Bombardier Challenger 3500": 4835,
-  "Bombardier Challenger 604": 5530,
-  "Bombardier Challenger 605": 5530,
-  "Bombardier Challenger 650": 5530,
-  "Bombardier Global 5000": 5540,
-  "Bombardier Global 5500": 5540,
-  "Bombardier Global 6000": 5900,
-  "Bombardier Global 6500": 5900,
-  "Bombardier Global 7500": 5800,
-  "Bombardier Global 8000": 6000,
-  "Bombardier Learjet 40": 3580,
-  "Bombardier Learjet 45": 3580,
-  "Bombardier Learjet 60": 5050,
-  "Bombardier Learjet 70": 3700,
-  "Bombardier Learjet 75": 3700,
-  "Cessna Citation CJ3": 3360,
-  "Cessna Citation CJ3+": 3360,
-  "Cessna Citation CJ4": 3410,
-  "Cessna Citation Latitude": 3580,
-  "Cessna Citation Longitude": 3900,
-  "Cessna Citation M2": 3210,
-  "Cessna Citation Mustang": 3110,
-  "Cessna Citation Sovereign": 3530,
-  "Cessna Citation Sovereign+": 3530,
-  "Cessna Citation X": 5140,
-  "Cessna Citation X+": 5140,
-  "Cessna Citation XLS": 3560,
-  "Cessna Citation XLS+": 3560,
-  "Dassault Falcon 2000EX": 4675,
-  "Dassault Falcon 2000LXS": 4675,
-  "Dassault Falcon 2000S": 4480,
-  "Dassault Falcon 6X": 5480,
-  "Dassault Falcon 7X": 5430,
-  "Dassault Falcon 8X": 5710,
-  "Dassault Falcon 900LX": 5025,
-  "Dassault Falcon 10X": 6100,
-  "Embraer Legacy 450": 3907,
-  "Embraer Legacy 500": 4084,
-  "Embraer Legacy 600": 5250,
-  "Embraer Legacy 650": 5250,
-  "Embraer Legacy 650E": 5250,
-  "Embraer Lineage 1000E": 5890,
-  "Embraer Phenom 100": 3125,
-  "Embraer Phenom 100EV": 3125,
-  "Embraer Phenom 300": 3138,
-  "Embraer Phenom 300E": 3138,
-  "Embraer Praetor 500": 4084,
-  "Embraer Praetor 600": 4717,
-  "Gulfstream G280": 4750,
-  "Gulfstream G400": 5200,
-  "Gulfstream G450": 5200,
-  "Gulfstream G500": 5300,
-  "Gulfstream G550": 5910,
-  "Gulfstream G600": 5700,
-  "Gulfstream G650": 5858,
-  "Gulfstream G650ER": 6299,
-  "Gulfstream G700": 6250,
-  "Gulfstream G800": 6600,
-  "HondaJet": 3120,
-  "HondaJet Elite": 3120,
-  "HondaJet Elite II": 3120,
-  "Pilatus PC-24": 2810,
-  "Cirrus Vision SF50": 2036,
-  "SyberJet SJ30i": 3850,
-};
+// Aircraft data imported from @/data/aircraftData
 
 // ── Helpers ────────────────────────────────────────────────
 
@@ -229,85 +163,6 @@ function evaluateFeasibility(
 }
 
 // ── Constants ──────────────────────────────────────────────
-
-const AIRCRAFT_TYPES = [
-  // Bombardier
-  "Bombardier Challenger 350",
-  "Bombardier Challenger 3500",
-  "Bombardier Challenger 604",
-  "Bombardier Challenger 605",
-  "Bombardier Challenger 650",
-  "Bombardier Global 5000",
-  "Bombardier Global 5500",
-  "Bombardier Global 6000",
-  "Bombardier Global 6500",
-  "Bombardier Global 7500",
-  "Bombardier Global 8000",
-  "Bombardier Learjet 40",
-  "Bombardier Learjet 45",
-  "Bombardier Learjet 60",
-  "Bombardier Learjet 70",
-  "Bombardier Learjet 75",
-  // Cessna / Textron
-  "Cessna Citation CJ3",
-  "Cessna Citation CJ3+",
-  "Cessna Citation CJ4",
-  "Cessna Citation Latitude",
-  "Cessna Citation Longitude",
-  "Cessna Citation M2",
-  "Cessna Citation Mustang",
-  "Cessna Citation Sovereign",
-  "Cessna Citation Sovereign+",
-  "Cessna Citation X",
-  "Cessna Citation X+",
-  "Cessna Citation XLS",
-  "Cessna Citation XLS+",
-  // Dassault
-  "Dassault Falcon 2000EX",
-  "Dassault Falcon 2000LXS",
-  "Dassault Falcon 2000S",
-  "Dassault Falcon 6X",
-  "Dassault Falcon 7X",
-  "Dassault Falcon 8X",
-  "Dassault Falcon 900LX",
-  "Dassault Falcon 10X",
-  // Embraer
-  "Embraer Legacy 450",
-  "Embraer Legacy 500",
-  "Embraer Legacy 600",
-  "Embraer Legacy 650",
-  "Embraer Legacy 650E",
-  "Embraer Lineage 1000E",
-  "Embraer Phenom 100",
-  "Embraer Phenom 100EV",
-  "Embraer Phenom 300",
-  "Embraer Phenom 300E",
-  "Embraer Praetor 500",
-  "Embraer Praetor 600",
-  // Gulfstream
-  "Gulfstream G280",
-  "Gulfstream G400",
-  "Gulfstream G450",
-  "Gulfstream G500",
-  "Gulfstream G550",
-  "Gulfstream G600",
-  "Gulfstream G650",
-  "Gulfstream G650ER",
-  "Gulfstream G700",
-  "Gulfstream G800",
-  // Honda
-  "HondaJet",
-  "HondaJet Elite",
-  "HondaJet Elite II",
-  // Pilatus
-  "Pilatus PC-24",
-  // Cirrus
-  "Cirrus Vision SF50",
-  // Syberjet (MSJ)
-  "SyberJet SJ30i",
-  // Other
-  "Other",
-];
 
 const TIMES = Array.from({ length: 48 }, (_, i) => {
   const h = String(Math.floor(i / 2)).padStart(2, "0");
@@ -447,11 +302,16 @@ export default function FeasibilityForm() {
                 <SelectTrigger id="aircraft">
                   <SelectValue placeholder="Select aircraft type" />
                 </SelectTrigger>
-                <SelectContent>
-                  {AIRCRAFT_TYPES.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {type}
-                    </SelectItem>
+                <SelectContent className="max-h-80">
+                  {AIRCRAFT_CATEGORIES.map((cat) => (
+                    <SelectGroup key={cat.label}>
+                      <SelectLabel className="text-xs font-semibold text-muted-foreground">{cat.label}</SelectLabel>
+                      {cat.types.map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {type}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
                   ))}
                 </SelectContent>
               </Select>
