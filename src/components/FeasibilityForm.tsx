@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { format } from "date-fns";
-import { CalendarIcon, Plane, CheckCircle2, XCircle, AlertTriangle, Search, Loader2, ExternalLink } from "lucide-react";
+import { CalendarIcon, Plane, CheckCircle2, XCircle, AlertTriangle, Search, Loader2, ExternalLink, Ruler } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 
+// ── Types ──────────────────────────────────────────────────
+
 interface FeasibilityData {
   aircraftType: string;
   airportIcao: string;
@@ -23,6 +25,7 @@ interface FeasibilityData {
   permitRequired: boolean;
   pprRequired: boolean;
   customsAvailable: boolean;
+  runwayOverrideFt: string; // manual override
 }
 
 interface FeasibilityResult {
@@ -52,22 +55,117 @@ interface CbpResult {
   error?: string;
 }
 
+interface RunwayInfo {
+  id: string;
+  lengthFt: number;
+  widthFt: number;
+  surface: string;
+  lighted: boolean;
+  ident: string;
+}
+
+interface RunwayResult {
+  success: boolean;
+  found: boolean;
+  icao: string;
+  airportName: string | null;
+  runways: RunwayInfo[];
+  longestRunwayFt: number | null;
+  message: string;
+  error?: string;
+}
+
+// ── Aircraft runway requirements (takeoff distance in ft) ──
+
+const AIRCRAFT_RUNWAY_REQ: Record<string, number> = {
+  "Bombardier Challenger 350": 4835,
+  "Bombardier Challenger 3500": 4835,
+  "Bombardier Challenger 604": 5530,
+  "Bombardier Challenger 605": 5530,
+  "Bombardier Challenger 650": 5530,
+  "Bombardier Global 5000": 5540,
+  "Bombardier Global 5500": 5540,
+  "Bombardier Global 6000": 5900,
+  "Bombardier Global 6500": 5900,
+  "Bombardier Global 7500": 5800,
+  "Bombardier Global 8000": 6000,
+  "Bombardier Learjet 40": 3580,
+  "Bombardier Learjet 45": 3580,
+  "Bombardier Learjet 60": 5050,
+  "Bombardier Learjet 70": 3700,
+  "Bombardier Learjet 75": 3700,
+  "Cessna Citation CJ3": 3360,
+  "Cessna Citation CJ3+": 3360,
+  "Cessna Citation CJ4": 3410,
+  "Cessna Citation Latitude": 3580,
+  "Cessna Citation Longitude": 3900,
+  "Cessna Citation M2": 3210,
+  "Cessna Citation Mustang": 3110,
+  "Cessna Citation Sovereign": 3530,
+  "Cessna Citation Sovereign+": 3530,
+  "Cessna Citation X": 5140,
+  "Cessna Citation X+": 5140,
+  "Cessna Citation XLS": 3560,
+  "Cessna Citation XLS+": 3560,
+  "Dassault Falcon 2000EX": 4675,
+  "Dassault Falcon 2000LXS": 4675,
+  "Dassault Falcon 2000S": 4480,
+  "Dassault Falcon 6X": 5480,
+  "Dassault Falcon 7X": 5430,
+  "Dassault Falcon 8X": 5710,
+  "Dassault Falcon 900LX": 5025,
+  "Dassault Falcon 10X": 6100,
+  "Embraer Legacy 450": 3907,
+  "Embraer Legacy 500": 4084,
+  "Embraer Legacy 600": 5250,
+  "Embraer Legacy 650": 5250,
+  "Embraer Legacy 650E": 5250,
+  "Embraer Lineage 1000E": 5890,
+  "Embraer Phenom 100": 3125,
+  "Embraer Phenom 100EV": 3125,
+  "Embraer Phenom 300": 3138,
+  "Embraer Phenom 300E": 3138,
+  "Embraer Praetor 500": 4084,
+  "Embraer Praetor 600": 4717,
+  "Gulfstream G280": 4750,
+  "Gulfstream G400": 5200,
+  "Gulfstream G450": 5200,
+  "Gulfstream G500": 5300,
+  "Gulfstream G550": 5910,
+  "Gulfstream G600": 5700,
+  "Gulfstream G650": 5858,
+  "Gulfstream G650ER": 6299,
+  "Gulfstream G700": 6250,
+  "Gulfstream G800": 6600,
+  "HondaJet": 3120,
+  "HondaJet Elite": 3120,
+  "HondaJet Elite II": 3120,
+  "Pilatus PC-24": 2810,
+  "Cirrus Vision SF50": 2036,
+  "SyberJet SJ30i": 3850,
+};
+
+// ── Helpers ────────────────────────────────────────────────
+
 function timeToMinutes(time: string): number {
   const [h, m] = time.split(':').map(Number);
   return h * 60 + m;
 }
 
 function isTimeInRange(time: string, open: string, close: string): boolean {
-  if (!time || !open || !close) return true; // can't check, don't flag
+  if (!time || !open || !close) return true;
   const t = timeToMinutes(time);
   const o = timeToMinutes(open);
   const c = timeToMinutes(close);
   if (c > o) return t >= o && t <= c;
-  // overnight range (e.g. 22:00 - 06:00)
   return t >= o || t <= c;
 }
 
-function evaluateFeasibility(data: FeasibilityData, cbpHours: OperatingHours | null): FeasibilityResult {
+function evaluateFeasibility(
+  data: FeasibilityData,
+  cbpHours: OperatingHours | null,
+  runwayLengthFt: number | null,
+): FeasibilityResult {
   const issues: string[] = [];
   const notes: string[] = [];
 
@@ -87,7 +185,7 @@ function evaluateFeasibility(data: FeasibilityData, cbpHours: OperatingHours | n
   if (data.pprRequired) notes.push("Prior Permission Required — contact airport ops");
   if (!data.customsAvailable) issues.push("Customs not available at this airport");
 
-  // Check times against CBP operating hours
+  // CBP hours check
   if (cbpHours && cbpHours.open && cbpHours.close && data.customsAvailable) {
     if (data.arrivalTime && !isTimeInRange(data.arrivalTime, cbpHours.open, cbpHours.close)) {
       issues.push(`Arrival time ${data.arrivalTime} is outside CBP hours (${cbpHours.open}–${cbpHours.close})`);
@@ -100,6 +198,25 @@ function evaluateFeasibility(data: FeasibilityData, cbpHours: OperatingHours | n
     }
   }
 
+  // Runway length check
+  const requiredFt = data.aircraftType ? AIRCRAFT_RUNWAY_REQ[data.aircraftType] : undefined;
+  if (requiredFt && runwayLengthFt) {
+    if (runwayLengthFt < requiredFt) {
+      issues.push(
+        `Runway too short: ${runwayLengthFt.toLocaleString()} ft available, ${data.aircraftType} requires ~${requiredFt.toLocaleString()} ft`
+      );
+    } else {
+      const margin = runwayLengthFt - requiredFt;
+      notes.push(
+        `Runway OK: ${runwayLengthFt.toLocaleString()} ft available (${margin.toLocaleString()} ft margin for ${data.aircraftType})`
+      );
+    }
+  } else if (requiredFt && !runwayLengthFt) {
+    notes.push(`${data.aircraftType} requires ~${requiredFt.toLocaleString()} ft — runway data not available, verify manually`);
+  } else if (data.aircraftType === "Other") {
+    notes.push("Runway requirement unknown for custom aircraft — verify manually");
+  }
+
   if (data.customsAvailable && (data.permitRequired || data.pprRequired)) {
     notes.push("Allow additional lead time for permit/PPR processing");
   }
@@ -110,6 +227,8 @@ function evaluateFeasibility(data: FeasibilityData, cbpHours: OperatingHours | n
     notes,
   };
 }
+
+// ── Constants ──────────────────────────────────────────────
 
 const AIRCRAFT_TYPES = [
   // Bombardier
@@ -196,6 +315,8 @@ const TIMES = Array.from({ length: 48 }, (_, i) => {
   return `${h}:${m}`;
 });
 
+// ── Component ──────────────────────────────────────────────
+
 export default function FeasibilityForm() {
   const [data, setData] = useState<FeasibilityData>({
     aircraftType: "",
@@ -207,11 +328,14 @@ export default function FeasibilityForm() {
     permitRequired: false,
     pprRequired: false,
     customsAvailable: true,
+    runwayOverrideFt: "",
   });
 
   const [result, setResult] = useState<FeasibilityResult | null>(null);
   const [cbpResult, setCbpResult] = useState<CbpResult | null>(null);
   const [cbpLoading, setCbpLoading] = useState(false);
+  const [runwayResult, setRunwayResult] = useState<RunwayResult | null>(null);
+  const [runwayLoading, setRunwayLoading] = useState(false);
 
   const handleCbpLookup = useCallback(async () => {
     if (data.airportIcao.length !== 4) return;
@@ -236,8 +360,39 @@ export default function FeasibilityForm() {
     }
   }, [data.airportIcao]);
 
+  const handleRunwayLookup = useCallback(async () => {
+    if (data.airportIcao.length !== 4) return;
+    setRunwayLoading(true);
+    setRunwayResult(null);
+    try {
+      const { data: res, error } = await supabase.functions.invoke('runway-lookup', {
+        body: { icao: data.airportIcao },
+      });
+      if (error) {
+        setRunwayResult({ success: false, found: false, icao: data.airportIcao, airportName: null, runways: [], longestRunwayFt: null, message: '', error: error.message });
+      } else {
+        setRunwayResult(res as RunwayResult);
+      }
+    } catch {
+      setRunwayResult({ success: false, found: false, icao: data.airportIcao, airportName: null, runways: [], longestRunwayFt: null, message: '', error: 'Failed to connect' });
+    } finally {
+      setRunwayLoading(false);
+    }
+  }, [data.airportIcao]);
+
+  const handleLookupAll = useCallback(async () => {
+    if (data.airportIcao.length !== 4) return;
+    handleCbpLookup();
+    handleRunwayLookup();
+  }, [data.airportIcao, handleCbpLookup, handleRunwayLookup]);
+
+  const effectiveRunwayFt: number | null =
+    data.runwayOverrideFt && parseInt(data.runwayOverrideFt, 10) > 0
+      ? parseInt(data.runwayOverrideFt, 10)
+      : runwayResult?.longestRunwayFt ?? null;
+
   const handleCheck = () => {
-    setResult(evaluateFeasibility(data, cbpResult?.operatingHours ?? null));
+    setResult(evaluateFeasibility(data, cbpResult?.operatingHours ?? null, effectiveRunwayFt));
   };
 
   const handleReset = () => {
@@ -251,8 +406,11 @@ export default function FeasibilityForm() {
       permitRequired: false,
       pprRequired: false,
       customsAvailable: true,
+      runwayOverrideFt: "",
     });
     setResult(null);
+    setCbpResult(null);
+    setRunwayResult(null);
   };
 
   return (
@@ -297,6 +455,11 @@ export default function FeasibilityForm() {
                   ))}
                 </SelectContent>
               </Select>
+              {data.aircraftType && AIRCRAFT_RUNWAY_REQ[data.aircraftType] && (
+                <p className="text-xs text-muted-foreground">
+                  Takeoff distance required: ~{AIRCRAFT_RUNWAY_REQ[data.aircraftType].toLocaleString()} ft
+                </p>
+              )}
             </div>
 
             {/* Airport ICAO */}
@@ -311,18 +474,19 @@ export default function FeasibilityForm() {
                   onChange={(e) => {
                     setData({ ...data, airportIcao: e.target.value.toUpperCase().replace(/[^A-Z]/g, "") });
                     setCbpResult(null);
+                    setRunwayResult(null);
                   }}
                   className="font-mono uppercase tracking-widest"
                 />
                 <Button
                   type="button"
                   variant="secondary"
-                  onClick={handleCbpLookup}
-                  disabled={data.airportIcao.length !== 4 || cbpLoading}
+                  onClick={handleLookupAll}
+                  disabled={data.airportIcao.length !== 4 || cbpLoading || runwayLoading}
                   className="shrink-0"
                 >
-                  {cbpLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                  <span className="ml-1.5">CBP Lookup</span>
+                  {(cbpLoading || runwayLoading) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                  <span className="ml-1.5">Lookup</span>
                 </Button>
               </div>
 
@@ -370,6 +534,56 @@ export default function FeasibilityForm() {
                    )}
                 </div>
               )}
+
+              {/* Runway Result */}
+              {runwayResult && (
+                <div className={cn(
+                  "rounded-md border p-3 text-sm space-y-1.5",
+                  runwayResult.found ? "border-success/30 bg-success/5" : "border-muted bg-muted/50"
+                )}>
+                  <div className="flex items-center gap-1.5 font-medium">
+                    <Ruler className="h-3.5 w-3.5 text-primary" />
+                    Runway Data
+                  </div>
+                  <p className="text-muted-foreground text-xs">{runwayResult.message}</p>
+                  {runwayResult.runways.length > 0 && (
+                    <div className="rounded bg-background/50 px-2 py-1.5 text-xs space-y-0.5">
+                      {runwayResult.runways.map((rwy, i) => (
+                        <p key={i}>
+                          <span className="font-mono font-medium">{rwy.ident}</span>
+                          {" — "}
+                          {rwy.lengthFt.toLocaleString()} ft × {rwy.widthFt} ft
+                          {" · "}{rwy.surface}
+                          {rwy.lighted && " · Lighted"}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                  {runwayResult.error && (
+                    <p className="text-xs text-destructive">{runwayResult.error}</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Runway Override */}
+            <div className="space-y-2">
+              <Label htmlFor="runway-override">Runway Length Override (ft)</Label>
+              <Input
+                id="runway-override"
+                type="number"
+                placeholder={runwayResult?.longestRunwayFt ? `Auto: ${runwayResult.longestRunwayFt.toLocaleString()} ft` : "Enter runway length in feet"}
+                value={data.runwayOverrideFt}
+                onChange={(e) => setData({ ...data, runwayOverrideFt: e.target.value })}
+                className="font-mono"
+              />
+              <p className="text-xs text-muted-foreground">
+                {data.runwayOverrideFt
+                  ? `Using manual override: ${parseInt(data.runwayOverrideFt, 10).toLocaleString()} ft`
+                  : runwayResult?.longestRunwayFt
+                    ? `Using auto-fetched longest runway: ${runwayResult.longestRunwayFt.toLocaleString()} ft`
+                    : "Enter an ICAO code and run lookup, or enter runway length manually"}
+              </p>
             </div>
 
             <Separator />
