@@ -380,11 +380,12 @@ export default function TripLegCard({
     };
 
     // Classify a line item's service type from its description
-    const getServiceType = (desc: string): 'stay' | 'transit' | null => {
+    const getServiceType = (desc: string): 'stay' | 'transit' | 'technical' | null => {
       const d = desc.toLowerCase();
       if (d.includes('stay over') || d.includes('stay-over') || d.includes('full stay') || d.includes('– stay')) return 'stay';
-      if (d.includes('transit') || d.includes('turnaround') || d.includes('technical')) return 'transit';
-      return null; // not a service-type-specific item
+      if (d.includes('technical')) return 'technical';
+      if (d.includes('transit') || d.includes('turnaround')) return 'transit';
+      return null;
     };
 
     return items.filter(item => {
@@ -393,10 +394,11 @@ export default function TripLegCard({
       if (range && (mtowKg < range.min || mtowKg > range.max)) return false;
 
       // 2. Filter by service type if ground time is known
+      // <2hrs → transit only; ≥2hrs → stay over only
       if (isStayOver !== null) {
         const svcType = getServiceType(item.description);
-        if (svcType === 'stay' && !isStayOver) return false;
-        if (svcType === 'transit' && isStayOver) return false;
+        if (!isStayOver && (svcType === 'stay' || svcType === 'technical')) return false;
+        if (isStayOver && (svcType === 'transit' || svcType === 'technical')) return false;
       }
 
       return true;
@@ -760,7 +762,7 @@ export default function TripLegCard({
                   <p className="text-[10px] text-muted-foreground">
                     Aircraft: {aircraftType} — MTOW {mtowCat.mtowTonnes.toFixed(1)}t — Category {mtowCat.category} ({mtowCat.label})
                     {groundTimeMinutes !== null && (
-                      <span className="ml-1">— Ground time: {Math.floor(groundTimeMinutes / 60)}h{String(groundTimeMinutes % 60).padStart(2, '0')}m → {isStayOver ? 'Stay Over' : 'Transit/Technical'} rates</span>
+                      <span className="ml-1">— Ground time: {Math.floor(groundTimeMinutes / 60)}h{String(groundTimeMinutes % 60).padStart(2, '0')}m → {isStayOver ? 'Stay Over' : 'Transit'} rates</span>
                     )}
                   </p>
                 )}
