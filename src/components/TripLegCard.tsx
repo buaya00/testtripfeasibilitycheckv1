@@ -69,6 +69,10 @@ export function evaluateLegFeasibility(
   if (showArrival && !leg.arrivalTime) issues.push("Arrival time not set");
   if (showDeparture && !leg.departureTime) issues.push("Departure time not set");
 
+  // Skip arrival-based checks for first leg and departure-based checks for last leg in multi-leg trips
+  const checkArrival = showArrival;
+  const checkDeparture = showDeparture;
+
   if (leg.arrivalDate && leg.departureDate && leg.arrivalDate > leg.departureDate) {
     issues.push("Departure date is before arrival date");
   }
@@ -80,7 +84,7 @@ export function evaluateLegFeasibility(
   if (!leg.customsAvailable) issues.push("Customs not available at this airport");
 
   // Permit lead time check — for US airports, only add as guidance notes, not feasibility issues
-  if (leg.arrivalDate && leg.permitResult?.success && leg.permitResult.permitRequired === 'yes' && leg.permitResult.leadTimeDays != null && leg.permitResult.leadTimeDays > 0) {
+  if (checkArrival && leg.arrivalDate && leg.permitResult?.success && leg.permitResult.permitRequired === 'yes' && leg.permitResult.leadTimeDays != null && leg.permitResult.leadTimeDays > 0) {
     const now = new Date();
     const daysUntilArrival = Math.floor((leg.arrivalDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
     if (daysUntilArrival < leg.permitResult.leadTimeDays) {
@@ -94,7 +98,7 @@ export function evaluateLegFeasibility(
   }
 
   // PPR lead time check
-  if (leg.arrivalDate && leg.pprResult?.success && leg.pprResult.pprRequired === 'yes' && leg.pprResult.advanceNoticePeriod) {
+  if (checkArrival && leg.arrivalDate && leg.pprResult?.success && leg.pprResult.pprRequired === 'yes' && leg.pprResult.advanceNoticePeriod) {
     const noticeDays = parseInt(leg.pprResult.advanceNoticePeriod, 10);
     if (!isNaN(noticeDays) && noticeDays > 0) {
       const now = new Date();
@@ -110,10 +114,10 @@ export function evaluateLegFeasibility(
   // CBP hours check
   const cbpHours = leg.cbpResult?.operatingHours ?? null;
   if (cbpHours && cbpHours.open && cbpHours.close && leg.customsAvailable) {
-    if (leg.arrivalTime && !isTimeInRange(leg.arrivalTime, cbpHours.open, cbpHours.close)) {
+    if (checkArrival && leg.arrivalTime && !isTimeInRange(leg.arrivalTime, cbpHours.open, cbpHours.close)) {
       issues.push(`Arrival time ${leg.arrivalTime} is outside CBP hours (${cbpHours.open}–${cbpHours.close})`);
     }
-    if (leg.departureTime && !isTimeInRange(leg.departureTime, cbpHours.open, cbpHours.close)) {
+    if (checkDeparture && leg.departureTime && !isTimeInRange(leg.departureTime, cbpHours.open, cbpHours.close)) {
       issues.push(`Departure time ${leg.departureTime} is outside CBP hours (${cbpHours.open}–${cbpHours.close})`);
     }
     if (cbpHours.notes) notes.push(`CBP note: ${cbpHours.notes}`);
@@ -144,16 +148,16 @@ export function evaluateLegFeasibility(
   // Airport operating hours check
   const hrs = leg.airportHoursResult;
   if (hrs?.success) {
-    if (hrs.arrivalOutsideHours) {
+    if (checkArrival && hrs.arrivalOutsideHours) {
       issues.push(`Arrival time is outside airport operating hours${hrs.operatingHoursOpen && hrs.operatingHoursClose ? ` (${hrs.operatingHoursOpen}–${hrs.operatingHoursClose} UTC)` : ''}`);
     }
-    if (hrs.departureOutsideHours) {
+    if (checkDeparture && hrs.departureOutsideHours) {
       issues.push(`Departure time is outside airport operating hours${hrs.operatingHoursOpen && hrs.operatingHoursClose ? ` (${hrs.operatingHoursOpen}–${hrs.operatingHoursClose} UTC)` : ''}`);
     }
-    if (hrs.arrivalDuringCurfew) {
+    if (checkArrival && hrs.arrivalDuringCurfew) {
       issues.push(`Arrival falls during airport curfew${hrs.curfewStart && hrs.curfewEnd ? ` (${hrs.curfewStart}–${hrs.curfewEnd} UTC)` : ''}${hrs.curfewNotes ? ': ' + hrs.curfewNotes : ''}`);
     }
-    if (hrs.departureDuringCurfew) {
+    if (checkDeparture && hrs.departureDuringCurfew) {
       issues.push(`Departure falls during airport curfew${hrs.curfewStart && hrs.curfewEnd ? ` (${hrs.curfewStart}–${hrs.curfewEnd} UTC)` : ''}${hrs.curfewNotes ? ': ' + hrs.curfewNotes : ''}`);
     }
     // Flag NOTAMs that affect operations
