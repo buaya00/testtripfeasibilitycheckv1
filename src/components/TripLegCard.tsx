@@ -562,7 +562,7 @@ export default function TripLegCard({
             <div className={cn("rounded-lg border-2 p-4 space-y-2", feasResult.feasible ? "border-success/40 bg-success/5" : "border-destructive/40 bg-destructive/5")}>
               <div className="flex items-center gap-2">
                 {feasResult.feasible ? <CheckCircle2 className="h-4 w-4 text-success" /> : <XCircle className="h-4 w-4 text-destructive" />}
-                <span className="font-semibold text-sm">{feasResult.feasible ? "Feasible" : "Issues Detected"}</span>
+                <span className="font-semibold text-sm">{feasResult.feasible ? "Feasible" : "Flight is not feasible based on published information. Contact your service provider to validate information."}</span>
               </div>
               {feasResult.issues.map((issue, i) => (
                 <p key={i} className="flex items-start gap-2 text-xs text-destructive"><XCircle className="mt-0.5 h-3 w-3 shrink-0" />{issue}</p>
