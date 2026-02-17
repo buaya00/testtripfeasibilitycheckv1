@@ -2,13 +2,14 @@ import React, { useState, useCallback, useMemo, useEffect, useRef } from "react"
 import { format } from "date-fns";
 import {
   Plane, Loader2, Navigation, Globe, Plus, X, DollarSign,
-  CheckCircle2, XCircle, AlertTriangle, Printer, FileDown,
+  CheckCircle2, XCircle, AlertTriangle, Printer, FileDown, PawPrint,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { AIRCRAFT_CATEGORIES } from "@/data/aircraftData";
 import { COUNTRIES } from "@/data/countries";
 import { SelectGroup, SelectLabel } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -16,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import TripLegCard, { evaluateLegFeasibility } from "./TripLegCard";
 import type {
-  LegData, OverflightResult, VisaCheckResult,
+  LegData, OverflightResult, VisaCheckResult, PetCheckResult,
 } from "./tripTypes";
 import { createEmptyLeg } from "./tripTypes";
 import { generatePrintableHtml } from "./PrintableReport";
@@ -34,6 +35,11 @@ export default function FeasibilityForm() {
   const [visaNationalities, setVisaNationalities] = useState<string[]>([""]);
   const [visaResults, setVisaResults] = useState<Record<string, VisaCheckResult | null>>({});
   const [visaLoading, setVisaLoading] = useState<Record<string, boolean>>({});
+
+  // Pet travel — results keyed by ICAO code
+  const [petTypes, setPetTypes] = useState<string[]>([]);
+  const [petResults, setPetResults] = useState<Record<string, PetCheckResult | null>>({});
+  const [petLoading, setPetLoading] = useState<Record<string, boolean>>({});
 
   const updateLeg = useCallback((index: number, updates: Partial<LegData>) => {
     setLegs(prev => prev.map((leg, i) => i === index ? { ...leg, ...updates } : leg));
@@ -185,6 +191,35 @@ export default function FeasibilityForm() {
     }));
   }, [visaNationalities, destinationIcaos]);
 
+  // Pet requirements check
+  const handlePetCheck = useCallback(async () => {
+    if (petTypes.length === 0 || destinationIcaos.length === 0) return;
+
+    const loadingState: Record<string, boolean> = {};
+    destinationIcaos.forEach(icao => { loadingState[icao] = true; });
+    setPetLoading(loadingState);
+    setPetResults({});
+
+    const originIcao = legs.length > 1 ? legs[0].airportIcao : undefined;
+
+    await Promise.all(destinationIcaos.map(async (icao) => {
+      try {
+        const { data: res, error } = await supabase.functions.invoke('pet-requirements', {
+          body: { petTypes, destinationIcao: icao, originIcao },
+        });
+        if (error) {
+          setPetResults(prev => ({ ...prev, [icao]: { success: false, error: error.message } }));
+        } else {
+          setPetResults(prev => ({ ...prev, [icao]: res as PetCheckResult }));
+        }
+      } catch {
+        setPetResults(prev => ({ ...prev, [icao]: { success: false, error: 'Failed to connect' } }));
+      } finally {
+        setPetLoading(prev => ({ ...prev, [icao]: false }));
+      }
+    }));
+  }, [petTypes, destinationIcaos, legs]);
+
   // Reset
   const handleReset = () => {
     setAircraftType("");
@@ -195,6 +230,9 @@ export default function FeasibilityForm() {
     setVisaNationalities([""]);
     setVisaResults({});
     setVisaLoading({});
+    setPetTypes([]);
+    setPetResults({});
+    setPetLoading({});
   };
 
   // Compute trip totals
@@ -387,7 +425,7 @@ export default function FeasibilityForm() {
                   onClick={() => {
                     const html = generatePrintableHtml({
                       aircraftType, flightType, legs, overflightResults,
-                      visaNationalities, visaResults, totalCharges, totalOverflightCharges,
+                      visaNationalities, visaResults, totalCharges, totalOverflightCharges, petTypes, petResults,
                     });
                     const w = window.open("", "_blank");
                     if (w) { w.document.write(html); w.document.close(); }
@@ -401,7 +439,7 @@ export default function FeasibilityForm() {
                   onClick={() => {
                     const html = generatePrintableHtml({
                       aircraftType, flightType, legs, overflightResults,
-                      visaNationalities, visaResults, totalCharges, totalOverflightCharges,
+                      visaNationalities, visaResults, totalCharges, totalOverflightCharges, petTypes, petResults,
                     });
                     const w = window.open("", "_blank");
                     if (w) {
@@ -557,6 +595,99 @@ export default function FeasibilityForm() {
                       </div>
                     ))}
                     {visaResults[icao]!.error && <p className="text-xs text-destructive">{visaResults[icao]!.error}</p>}
+                  </div>
+                )}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        {/* Pet Travel Requirements */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <PawPrint className="h-4 w-4" /> Pet Travel Requirements
+            </CardTitle>
+            {destinationIcaos.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Destinations detected: {destinationIcaos.join(', ')}
+              </p>
+            )}
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="space-y-2">
+              <Label className="text-xs">Pet Types</Label>
+              <div className="flex flex-wrap gap-4">
+                {['Dog', 'Cat', 'Other'].map(type => (
+                  <div key={type} className="flex items-center gap-2">
+                    <Checkbox
+                      id={`pet-${type}`}
+                      checked={petTypes.includes(type)}
+                      onCheckedChange={(checked) => {
+                        setPetTypes(prev =>
+                          checked ? [...prev, type] : prev.filter(t => t !== type)
+                        );
+                        setPetResults({});
+                      }}
+                    />
+                    <Label htmlFor={`pet-${type}`} className="text-xs cursor-pointer">{type}</Label>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <Button type="button" variant="secondary" onClick={handlePetCheck}
+              disabled={destinationIcaos.length === 0 || petTypes.length === 0 || Object.values(petLoading).some(Boolean)}
+              className="w-full">
+              {Object.values(petLoading).some(Boolean) ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <PawPrint className="h-4 w-4 mr-1.5" />}
+              Check Pet Requirements ({destinationIcaos.length} destination{destinationIcaos.length !== 1 ? 's' : ''})
+            </Button>
+
+            {/* Results per destination */}
+            {destinationIcaos.map(icao => (
+              <div key={icao}>
+                {petLoading[icao] && (
+                  <div className="rounded-md border p-3 text-sm flex items-center gap-2 text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking pet requirements for {icao}…
+                  </div>
+                )}
+
+                {petResults[icao] && !petLoading[icao] && (
+                  <div className={cn("rounded-md border p-3 text-sm space-y-2", petResults[icao]!.success ? "border-primary/30 bg-primary/5" : "border-muted bg-muted/50")}>
+                    <div className="flex items-center gap-1.5 font-medium">
+                      <PawPrint className="h-3.5 w-3.5 text-primary" />
+                      {icao} — {petResults[icao]!.destinationCountry || 'Unknown'}
+                    </div>
+                    {petResults[icao]!.results?.map((r, i) => (
+                      <div key={i} className={cn("rounded bg-background/50 px-2 py-1.5 text-xs space-y-1",
+                        r.importAllowed === 'no' ? "border-l-2 border-l-destructive" : r.importAllowed === 'yes' ? "border-l-2 border-l-success" : "border-l-2 border-l-warning"
+                      )}>
+                        <p className="font-medium">
+                          {r.importAllowed === 'no' ? '❌' : r.importAllowed === 'yes' ? '✅' : '⚠️'} {r.petType}
+                          <span className="font-normal text-muted-foreground ml-1">
+                            — {r.importAllowed === 'no' ? 'Import not allowed' : r.importAllowed === 'yes' ? 'Import allowed' : 'Conditional'}
+                          </span>
+                        </p>
+                        {r.healthCertificate && <p><span className="font-medium">Health Certificate:</span> {r.healthCertificate}</p>}
+                        {r.vaccinations && <p><span className="font-medium">Vaccinations:</span> {r.vaccinations}</p>}
+                        {r.microchipRequired != null && <p><span className="font-medium">Microchip:</span> {r.microchipRequired ? 'Required (ISO 11784/11785)' : 'Not required'}</p>}
+                        {r.quarantine && <p><span className="font-medium">Quarantine:</span> {r.quarantine}</p>}
+                        {r.bloodTests && <p><span className="font-medium">Blood Tests:</span> {r.bloodTests}</p>}
+                        {r.importPermit && <p><span className="font-medium">Import Permit:</span> {r.importPermit}</p>}
+                        {r.leadTimeDays != null && <p><span className="font-medium">Lead Time:</span> {r.leadTimeDays} days recommended</p>}
+                        {r.breedRestrictions && <p><span className="font-medium">Breed Restrictions:</span> {r.breedRestrictions}</p>}
+                        {r.documentsRequired && <p><span className="font-medium">Documents:</span> {r.documentsRequired}</p>}
+                        {r.advanceNotification && <p><span className="font-medium">Advance Notice:</span> {r.advanceNotification}</p>}
+                        {r.privateAviationNotes && <p className="text-primary"><span className="font-medium">Private Aviation:</span> {r.privateAviationNotes}</p>}
+                        {r.estimatedFeesUsd != null && <p><span className="font-medium">Estimated Fees:</span> ~${r.estimatedFeesUsd.toLocaleString()} USD</p>}
+                        {r.preparationTimeline && <p><span className="font-medium">Timeline:</span> {r.preparationTimeline}</p>}
+                        {r.notes && <p className="text-muted-foreground italic">{r.notes}</p>}
+                      </div>
+                    ))}
+                    {petResults[icao]!.generalNotes && (
+                      <p className="text-xs text-muted-foreground italic">{petResults[icao]!.generalNotes}</p>
+                    )}
+                    {petResults[icao]!.error && <p className="text-xs text-destructive">{petResults[icao]!.error}</p>}
                   </div>
                 )}
               </div>
