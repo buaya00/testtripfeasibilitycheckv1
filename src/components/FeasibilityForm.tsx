@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import { format } from "date-fns";
 import {
   Plane, Loader2, Navigation, Globe, Plus, X, DollarSign,
@@ -57,8 +57,17 @@ export default function FeasibilityForm() {
     setLegs(prev => [...prev, createEmptyLeg()]);
   }, []);
 
+  // Refs for triggering lookup on each leg
+  const legLookupRefs = React.useRef<Record<number, (() => void) | null>>({});
+
+  const registerLegLookup = useCallback((index: number, fn: (() => void) | null) => {
+    legLookupRefs.current[index] = fn;
+  }, []);
+
   // Check feasibility for all legs
   const handleCheckAll = useCallback(() => {
+    // Trigger lookup on each leg
+    Object.values(legLookupRefs.current).forEach(fn => fn?.());
     setLegs(prev => prev.map((leg, idx) => ({
       ...leg,
       feasibilityResult: evaluateLegFeasibility(leg, aircraftType, idx, prev.length),
@@ -225,6 +234,7 @@ export default function FeasibilityForm() {
                 flightType={flightType}
                 onUpdateLeg={updateLeg}
                 onRemoveLeg={removeLeg}
+                onRegisterLookup={registerLegLookup}
               />
 
               {/* Overflight between this leg and next */}

@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { format } from "date-fns";
 import {
   CalendarIcon, CheckCircle2, XCircle, AlertTriangle, Search, Loader2,
@@ -143,10 +143,11 @@ interface TripLegCardProps {
   flightType: string;
   onUpdateLeg: (index: number, updates: Partial<LegData>) => void;
   onRemoveLeg: (index: number) => void;
+  onRegisterLookup?: (index: number, fn: (() => void) | null) => void;
 }
 
 export default function TripLegCard({
-  leg, legIndex, totalLegs, aircraftType, flightType, onUpdateLeg, onRemoveLeg,
+  leg, legIndex, totalLegs, aircraftType, flightType, onUpdateLeg, onRemoveLeg, onRegisterLookup,
 }: TripLegCardProps) {
   const [expanded, setExpanded] = useState(true);
   const [cbpLoading, setCbpLoading] = useState(false);
@@ -255,6 +256,12 @@ export default function TripLegCard({
     handleChargesLookup();
     handlePprLookup();
   }, [leg.airportIcao, handleCbpLookup, handleCiqLookup, handleRunwayLookup, handlePermitLookup, handleChargesLookup, handlePprLookup]);
+
+  // Register lookup function with parent
+  useEffect(() => {
+    onRegisterLookup?.(legIndex, handleLookupAll);
+    return () => onRegisterLookup?.(legIndex, null);
+  }, [legIndex, handleLookupAll, onRegisterLookup]);
 
   const feasResult = leg.feasibilityResult;
 
