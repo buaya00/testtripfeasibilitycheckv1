@@ -3,7 +3,7 @@ import { format } from "date-fns";
 import {
   Plane, Loader2, Navigation, Globe, Plus, X, DollarSign,
   CheckCircle2, XCircle, AlertTriangle, Printer, FileDown, PawPrint,
-  Clock, Ruler,
+  Clock, Ruler, RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -786,6 +786,20 @@ export default function FeasibilityForm() {
           </CardContent>
         </Card>
       </main>
+
+      {/* Floating refresh button */}
+      {legs.some(l => l.airportIcao.length === 4) && (
+        <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2">
+          <Button
+            onClick={() => { handleCheckAll(); if (legs.length > 1) handleAllOverflights(); }}
+            size="lg"
+            className="rounded-full shadow-lg h-14 w-14 p-0"
+            title="Refresh all lookups"
+          >
+            <RefreshCw className="h-6 w-6" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
