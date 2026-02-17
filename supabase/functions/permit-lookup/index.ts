@@ -38,8 +38,10 @@ Consider:
 - Any special requirements (e.g. diplomatic clearance, restricted airspace)
 - Whether the country is part of agreements that simplify permits (e.g. EU/EASA for intra-EU flights)
 
-${flightType ? `Flight type: ${flightType}` : 'Assume private/general aviation flight.'}
-${aircraftRegistration ? `Aircraft registration prefix: ${aircraftRegistration}` : ''}`;
+${flightType === 'private' ? 'Flight type: Private / general aviation (non-commercial).' : flightType === 'non-scheduled-commercial' ? 'Flight type: Non-scheduled commercial (charter / air taxi).' : flightType === 'commercial' ? 'Flight type: Scheduled commercial airline service.' : 'Assume private/general aviation flight.'}
+${aircraftRegistration ? `Aircraft registration prefix: ${aircraftRegistration}` : ''}
+
+IMPORTANT: Different flight types often have different permit requirements. For example, private flights may need a landing permit while scheduled commercial flights may not (or vice versa). Be specific about how the flight type affects the permit requirement.`;
 
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',

@@ -20,6 +20,7 @@ import { Separator } from "@/components/ui/separator";
 interface FeasibilityData {
   aircraftType: string;
   airportIcao: string;
+  flightType: string;
   arrivalDate: Date | undefined;
   arrivalTime: string;
   departureDate: Date | undefined;
@@ -227,6 +228,7 @@ export default function FeasibilityForm() {
   const [data, setData] = useState<FeasibilityData>({
     aircraftType: "",
     airportIcao: "",
+    flightType: "",
     arrivalDate: undefined,
     arrivalTime: "",
     departureDate: undefined,
@@ -298,7 +300,7 @@ export default function FeasibilityForm() {
     setPermitResult(null);
     try {
       const { data: res, error } = await supabase.functions.invoke('permit-lookup', {
-        body: { icao: data.airportIcao },
+        body: { icao: data.airportIcao, flightType: data.flightType || undefined, aircraftRegistration: undefined },
       });
       if (error) {
         setPermitResult({ success: false, icao: data.airportIcao, error: error.message });
@@ -315,7 +317,7 @@ export default function FeasibilityForm() {
     } finally {
       setPermitLoading(false);
     }
-  }, [data.airportIcao]);
+  }, [data.airportIcao, data.flightType]);
 
   const handleCiqLookup = useCallback(async () => {
     if (data.airportIcao.length !== 4) return;
@@ -391,6 +393,7 @@ export default function FeasibilityForm() {
     setData({
       aircraftType: "",
       airportIcao: "",
+      flightType: "",
       arrivalDate: undefined,
       arrivalTime: "",
       departureDate: undefined,
@@ -460,6 +463,24 @@ export default function FeasibilityForm() {
                   Takeoff distance required: ~{AIRCRAFT_RUNWAY_REQ[data.aircraftType].toLocaleString()} ft
                 </p>
               )}
+            </div>
+
+            {/* Flight Type */}
+            <div className="space-y-2">
+              <Label htmlFor="flightType">Flight Type</Label>
+              <Select
+                value={data.flightType}
+                onValueChange={(v) => setData({ ...data, flightType: v })}
+              >
+                <SelectTrigger id="flightType">
+                  <SelectValue placeholder="Select flight type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="private">Private (Non-Commercial)</SelectItem>
+                  <SelectItem value="non-scheduled-commercial">Non-Scheduled Commercial</SelectItem>
+                  <SelectItem value="commercial">Commercial (Scheduled)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Airport ICAO */}
