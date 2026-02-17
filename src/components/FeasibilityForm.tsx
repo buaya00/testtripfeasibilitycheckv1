@@ -31,6 +31,14 @@ interface FeasibilityResult {
   notes: string[];
 }
 
+interface OperatingHours {
+  open: string;
+  close: string;
+  days: string;
+  notes: string;
+  raw: string;
+}
+
 interface CbpResult {
   success: boolean;
   found: boolean;
@@ -40,11 +48,26 @@ interface CbpResult {
   detailUrl: string | null;
   pdfUrl: string | null;
   message: string;
-  details: { content?: string; serviceHours?: string } | null;
+  operatingHours: OperatingHours | null;
   error?: string;
 }
 
-function evaluateFeasibility(data: FeasibilityData): FeasibilityResult {
+function timeToMinutes(time: string): number {
+  const [h, m] = time.split(':').map(Number);
+  return h * 60 + m;
+}
+
+function isTimeInRange(time: string, open: string, close: string): boolean {
+  if (!time || !open || !close) return true; // can't check, don't flag
+  const t = timeToMinutes(time);
+  const o = timeToMinutes(open);
+  const c = timeToMinutes(close);
+  if (c > o) return t >= o && t <= c;
+  // overnight range (e.g. 22:00 - 06:00)
+  return t >= o || t <= c;
+}
+
+function evaluateFeasibility(data: FeasibilityData, cbpHours: OperatingHours | null): FeasibilityResult {
   const issues: string[] = [];
   const notes: string[] = [];
 
@@ -63,6 +86,19 @@ function evaluateFeasibility(data: FeasibilityData): FeasibilityResult {
   if (data.permitRequired) notes.push("Landing permit must be obtained prior to ops");
   if (data.pprRequired) notes.push("Prior Permission Required — contact airport ops");
   if (!data.customsAvailable) issues.push("Customs not available at this airport");
+
+  // Check times against CBP operating hours
+  if (cbpHours && cbpHours.open && cbpHours.close && data.customsAvailable) {
+    if (data.arrivalTime && !isTimeInRange(data.arrivalTime, cbpHours.open, cbpHours.close)) {
+      issues.push(`Arrival time ${data.arrivalTime} is outside CBP hours (${cbpHours.open}–${cbpHours.close})`);
+    }
+    if (data.departureTime && !isTimeInRange(data.departureTime, cbpHours.open, cbpHours.close)) {
+      issues.push(`Departure time ${data.departureTime} is outside CBP hours (${cbpHours.open}–${cbpHours.close})`);
+    }
+    if (cbpHours.notes) {
+      notes.push(`CBP note: ${cbpHours.notes}`);
+    }
+  }
 
   if (data.customsAvailable && (data.permitRequired || data.pprRequired)) {
     notes.push("Allow additional lead time for permit/PPR processing");
@@ -120,7 +156,7 @@ export default function FeasibilityForm() {
         body: { icao: data.airportIcao },
       });
       if (error) {
-        setCbpResult({ success: false, found: false, icao: data.airportIcao, airportName: null, customsAvailable: false, detailUrl: null, pdfUrl: null, message: '', details: null, error: error.message });
+        setCbpResult({ success: false, found: false, icao: data.airportIcao, airportName: null, customsAvailable: false, detailUrl: null, pdfUrl: null, message: '', operatingHours: null, error: error.message });
       } else {
         setCbpResult(res as CbpResult);
         if (res?.found !== undefined) {
@@ -128,14 +164,14 @@ export default function FeasibilityForm() {
         }
       }
     } catch (e) {
-      setCbpResult({ success: false, found: false, icao: data.airportIcao, airportName: null, customsAvailable: false, detailUrl: null, pdfUrl: null, message: '', details: null, error: 'Failed to connect' });
+      setCbpResult({ success: false, found: false, icao: data.airportIcao, airportName: null, customsAvailable: false, detailUrl: null, pdfUrl: null, message: '', operatingHours: null, error: 'Failed to connect' });
     } finally {
       setCbpLoading(false);
     }
   }, [data.airportIcao]);
 
   const handleCheck = () => {
-    setResult(evaluateFeasibility(data));
+    setResult(evaluateFeasibility(data, cbpResult?.operatingHours ?? null));
   };
 
   const handleReset = () => {
@@ -240,20 +276,32 @@ export default function FeasibilityForm() {
                       ? `${cbpResult.airportName} (${cbpResult.icao})`
                       : cbpResult.icao}
                   </div>
-                  <p className="text-muted-foreground text-xs">{cbpResult.message}</p>
-                  {cbpResult.detailUrl && (
-                    <a
-                      href={cbpResult.detailUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                    >
-                      View CBP Fact Sheet <ExternalLink className="h-3 w-3" />
-                    </a>
-                  )}
-                  {cbpResult.error && (
-                    <p className="text-xs text-destructive">{cbpResult.error}</p>
-                  )}
+                   <p className="text-muted-foreground text-xs">{cbpResult.message}</p>
+                   {cbpResult.operatingHours && (
+                     <div className="rounded bg-background/50 px-2 py-1.5 text-xs space-y-0.5">
+                       <p className="font-medium">CBP Operating Hours:</p>
+                       <p>{cbpResult.operatingHours.open}–{cbpResult.operatingHours.close} ({cbpResult.operatingHours.days})</p>
+                       {cbpResult.operatingHours.notes && (
+                         <p className="text-muted-foreground italic">{cbpResult.operatingHours.notes}</p>
+                       )}
+                       {cbpResult.operatingHours.raw && (
+                         <p className="text-muted-foreground">Source: "{cbpResult.operatingHours.raw}"</p>
+                       )}
+                     </div>
+                   )}
+                   {cbpResult.detailUrl && (
+                     <a
+                       href={cbpResult.detailUrl}
+                       target="_blank"
+                       rel="noopener noreferrer"
+                       className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                     >
+                       View CBP Fact Sheet <ExternalLink className="h-3 w-3" />
+                     </a>
+                   )}
+                   {cbpResult.error && (
+                     <p className="text-xs text-destructive">{cbpResult.error}</p>
+                   )}
                 </div>
               )}
             </div>
