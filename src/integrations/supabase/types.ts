@@ -14,7 +14,169 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      ground_handling_line_items: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          notes: string | null
+          quantity: number
+          quote_id: string
+          service_category: string
+          subtotal: number | null
+          unit: string | null
+          unit_price: number
+          vat_rate: number
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          id?: string
+          notes?: string | null
+          quantity?: number
+          quote_id: string
+          service_category: string
+          subtotal?: number | null
+          unit?: string | null
+          unit_price?: number
+          vat_rate?: number
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          notes?: string | null
+          quantity?: number
+          quote_id?: string
+          service_category?: string
+          subtotal?: number | null
+          unit?: string | null
+          unit_price?: number
+          vat_rate?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ground_handling_line_items_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "ground_handling_quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ground_handling_providers: {
+        Row: {
+          country: string | null
+          created_at: string
+          icao: string | null
+          id: string
+          name: string
+          notes: string | null
+          updated_at: string
+          website: string | null
+        }
+        Insert: {
+          country?: string | null
+          created_at?: string
+          icao?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          updated_at?: string
+          website?: string | null
+        }
+        Update: {
+          country?: string | null
+          created_at?: string
+          icao?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          updated_at?: string
+          website?: string | null
+        }
+        Relationships: []
+      }
+      ground_handling_quotes: {
+        Row: {
+          aircraft_registration: string | null
+          aircraft_type: string | null
+          airport_name: string | null
+          arrival_date: string | null
+          arrival_time: string | null
+          country: string | null
+          created_at: string
+          currency: string
+          departure_date: string | null
+          departure_time: string | null
+          grand_total: number | null
+          icao: string
+          id: string
+          mtow_kg: number | null
+          notes: string | null
+          provider_id: string | null
+          quote_date: string | null
+          quote_reference: string | null
+          subtotal: number | null
+          updated_at: string
+          vat_total: number | null
+        }
+        Insert: {
+          aircraft_registration?: string | null
+          aircraft_type?: string | null
+          airport_name?: string | null
+          arrival_date?: string | null
+          arrival_time?: string | null
+          country?: string | null
+          created_at?: string
+          currency?: string
+          departure_date?: string | null
+          departure_time?: string | null
+          grand_total?: number | null
+          icao: string
+          id?: string
+          mtow_kg?: number | null
+          notes?: string | null
+          provider_id?: string | null
+          quote_date?: string | null
+          quote_reference?: string | null
+          subtotal?: number | null
+          updated_at?: string
+          vat_total?: number | null
+        }
+        Update: {
+          aircraft_registration?: string | null
+          aircraft_type?: string | null
+          airport_name?: string | null
+          arrival_date?: string | null
+          arrival_time?: string | null
+          country?: string | null
+          created_at?: string
+          currency?: string
+          departure_date?: string | null
+          departure_time?: string | null
+          grand_total?: number | null
+          icao?: string
+          id?: string
+          mtow_kg?: number | null
+          notes?: string | null
+          provider_id?: string | null
+          quote_date?: string | null
+          quote_reference?: string | null
+          subtotal?: number | null
+          updated_at?: string
+          vat_total?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ground_handling_quotes_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "ground_handling_providers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
