@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
-import { AIRCRAFT_RUNWAY_REQ } from "@/data/aircraftData";
+import { AIRCRAFT_RUNWAY_REQ, AIRCRAFT_MTOW_KG, getMtowCategory } from "@/data/aircraftData";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
@@ -343,10 +343,32 @@ export default function TripLegCard({
     currency: string;
     grand_total: number | null;
     quote_date: string | null;
-    line_items: { service_category: string; description: string; quantity: number; unit_price: number; vat_rate: number; subtotal: number }[];
+    line_items: { service_category: string; description: string; quantity: number; unit_price: number; vat_rate: number; subtotal: number; unit?: string | null }[];
   }
   const [groundHandlingQuotes, setGroundHandlingQuotes] = useState<GroundHandlingQuote[]>([]);
   const [ghLoading, setGhLoading] = useState(false);
+
+  // Determine MTOW category for the selected aircraft
+  const mtowKg = aircraftType ? AIRCRAFT_MTOW_KG[aircraftType] : undefined;
+  const mtowCat = mtowKg ? getMtowCategory(mtowKg) : undefined;
+
+  // Filter line items to only show the applicable MTOW category (+ non-categorized items)
+  const filterLineItemsByMtow = (items: GroundHandlingQuote['line_items']): GroundHandlingQuote['line_items'] => {
+    if (!mtowCat) return items; // No aircraft selected, show all
+    const catPattern = /Cat ([A-I]) \(MTOW/;
+    return items.filter(item => {
+      const match = item.description.match(catPattern);
+      if (!match) return true; // Non-categorized item, always show
+      return match[1] === mtowCat.category; // Only show matching category
+    }).map(item => {
+      // For Cat I (per-ton rate), calculate actual cost
+      if (mtowCat.category === 'I' && item.description.includes('Cat I')) {
+        const actualPrice = item.unit_price * mtowCat.mtowTonnes;
+        return { ...item, subtotal: actualPrice };
+      }
+      return item;
+    });
+  };
 
   useEffect(() => {
     if (leg.airportIcao.length !== 4) { setGroundHandlingQuotes([]); return; }
@@ -372,7 +394,7 @@ export default function TripLegCard({
         const quoteIds = quotes.map(q => q.id);
         const { data: items } = await supabase
           .from('ground_handling_line_items')
-          .select('quote_id, service_category, description, quantity, unit_price, vat_rate, subtotal')
+          .select('quote_id, service_category, description, quantity, unit_price, vat_rate, subtotal, unit')
           .in('quote_id', quoteIds);
 
         const result: GroundHandlingQuote[] = quotes.map(q => ({
@@ -683,18 +705,26 @@ export default function TripLegCard({
 
             {/* Ground Handling (from invoice database) */}
             {ghLoading && <div className="rounded-md border p-3 text-sm flex items-center gap-2 text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Loading ground handling data…</div>}
-            {groundHandlingQuotes.length > 0 && !ghLoading && groundHandlingQuotes.map((ghq) => (
+            {groundHandlingQuotes.length > 0 && !ghLoading && groundHandlingQuotes.map((ghq) => {
+              const filteredItems = filterLineItemsByMtow(ghq.line_items);
+              if (filteredItems.length === 0) return null;
+              // Calculate total from filtered items
+              const filteredTotal = filteredItems.reduce((sum, item) => sum + (item.subtotal ?? 0), 0);
+              return (
               <div key={ghq.id} className="rounded-md border border-accent/30 bg-accent/5 p-3 text-sm space-y-1.5">
                 <div className="flex items-center gap-1.5 font-medium">
                   <FileText className="h-3.5 w-3.5 text-accent-foreground" />
                   Ground Handling — {ghq.provider_name}
-                  {ghq.aircraft_type && <span className="text-xs text-muted-foreground font-normal ml-1">({ghq.aircraft_type})</span>}
                 </div>
-                {ghq.quote_date && <p className="text-[10px] text-muted-foreground">Quote date: {ghq.quote_date}</p>}
+                {mtowCat && (
+                  <p className="text-[10px] text-muted-foreground">
+                    Aircraft: {aircraftType} — MTOW {mtowCat.mtowTonnes.toFixed(1)}t — Category {mtowCat.category} ({mtowCat.label})
+                  </p>
+                )}
+                {ghq.quote_date && <p className="text-[10px] text-muted-foreground">Tariff effective: {ghq.quote_date}</p>}
                 <div className="rounded bg-background/50 px-2 py-1.5 text-xs space-y-0.5">
-                  {/* Group by category */}
                   {Object.entries(
-                    ghq.line_items.reduce<Record<string, typeof ghq.line_items>>((acc, item) => {
+                    filteredItems.reduce<Record<string, typeof filteredItems>>((acc, item) => {
                       (acc[item.service_category] ??= []).push(item);
                       return acc;
                     }, {})
@@ -703,29 +733,28 @@ export default function TripLegCard({
                       <p className="font-medium text-muted-foreground pt-1 first:pt-0">{cat}</p>
                       {items.map((item, i) => (
                         <div key={i} className="grid grid-cols-[1fr_auto] gap-x-4">
-                          <span>{item.description}{item.quantity > 1 ? ` ×${item.quantity}` : ''}</span>
+                          <span>{item.description.replace(/ - Cat [A-I] \(MTOW [\d\-t+]+\)/, '')}{item.quantity > 1 ? ` ×${item.quantity}` : ''}{item.unit ? ` (${item.unit})` : ''}</span>
                           <span className="text-right font-mono">
                             {ghq.currency === 'USD' ? '$' : ghq.currency === 'EUR' ? '€' : ghq.currency === 'GBP' ? '£' : ghq.currency + ' '}
-                            {item.subtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            {(item.subtotal ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             {item.vat_rate > 0 && <span className="text-muted-foreground ml-1 text-[10px]">+{item.vat_rate}%</span>}
                           </span>
                         </div>
                       ))}
                     </div>
                   ))}
-                  {ghq.grand_total != null && (
-                    <div className="pt-1 border-t mt-1 flex justify-between font-medium">
-                      <span>Total (incl. VAT):</span>
-                      <span className="font-mono text-accent-foreground">
-                        {ghq.currency === 'USD' ? '$' : ghq.currency === 'EUR' ? '€' : ghq.currency === 'GBP' ? '£' : ghq.currency + ' '}
-                        {ghq.grand_total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </span>
-                    </div>
-                  )}
+                  <div className="pt-1 border-t mt-1 flex justify-between font-medium">
+                    <span>Estimated Total (excl. pax fees):</span>
+                    <span className="font-mono text-accent-foreground">
+                      {ghq.currency === 'USD' ? '$' : ghq.currency === 'EUR' ? '€' : ghq.currency === 'GBP' ? '£' : ghq.currency + ' '}
+                      {filteredTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
                 </div>
-                <p className="text-[10px] text-muted-foreground italic">Source: uploaded invoice</p>
+                <p className="text-[10px] text-muted-foreground italic">Source: TAG Bologna tariff schedule</p>
               </div>
-            ))}
+              );
+            })}
             {hoursLoading && <div className="rounded-md border p-3 text-sm flex items-center gap-2 text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Checking airport hours & NOTAMs…</div>}
             {leg.airportHoursResult && !hoursLoading && (
               <div className={cn("rounded-md border p-3 text-sm space-y-1.5",
