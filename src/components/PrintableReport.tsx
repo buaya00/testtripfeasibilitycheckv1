@@ -1,5 +1,6 @@
 import { format } from "date-fns";
 import type { LegData, OverflightResult, VisaCheckResult, PetCheckResult } from "./tripTypes";
+import type { FlightLegCalculation } from "@/lib/flightCalculations";
 
 interface PrintableReportProps {
   aircraftType: string;
@@ -13,6 +14,7 @@ interface PrintableReportProps {
   petTypes: string[];
   petResults: Record<string, PetCheckResult | null>;
   logoDataUrl?: string;
+  flightCalcs?: Record<number, FlightLegCalculation>;
 }
 
 export function generatePrintableHtml({
@@ -27,6 +29,7 @@ export function generatePrintableHtml({
   petTypes,
   petResults,
   logoDataUrl,
+  flightCalcs,
 }: PrintableReportProps): string {
   const now = format(new Date(), "dd MMM yyyy HH:mm");
   const allFeasible = legs.every(l => l.feasibilityResult?.feasible !== false);
@@ -195,25 +198,37 @@ export function generatePrintableHtml({
     `;
   }
 
-  // Overflight sections
-  let overflightHtml = "";
+  // Flight info & overflight sections
+  let flightAndOverflightHtml = "";
   for (let i = 0; i < legs.length - 1; i++) {
+    const fc = flightCalcs?.[i];
     const r = overflightResults[i];
-    if (!r?.success) continue;
-    overflightHtml += `<div class="result-box">
-      <p class="result-title">Overflight: ${esc(legs[i].airportIcao)} → ${esc(legs[i + 1].airportIcao)}</p>
-      ${r.routeSummary ? `<p>${esc(r.routeSummary)}</p>` : ""}
-      ${r.totalPermitsNeeded != null ? `<p>${r.totalPermitsNeeded === 0 ? "✅ No permits required" : `⚠️ ${r.totalPermitsNeeded} permit(s) required`}</p>` : ""}
-      ${r.totalOverflightChargesUsd != null ? `<p>Overflight charges: $${r.totalOverflightChargesUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })} USD</p>` : ""}
-      ${r.countries ? r.countries.map(c => `
-        <div class="country-row ${c.overflightPermitRequired === "yes" ? "country-warn" : "country-ok"}">
-          <p><strong>${c.overflightPermitRequired === "yes" ? "⚠️" : "✅"} ${esc(c.country)}</strong> — ${c.overflightPermitRequired === "yes" ? "Permit required" : c.overflightPermitRequired === "no" ? "No permit" : "Conditional"}</p>
-          ${c.leadTimeDays != null ? `<p>Lead time: ${c.leadTimeDays}d</p>` : ""}
-          ${c.overflightChargeUsd != null ? `<p>Charge: ~$${c.overflightChargeUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })} USD</p>` : ""}
-          ${c.notes ? `<p class="note">${esc(c.notes)}</p>` : ""}
-        </div>
-      `).join("") : ""}
-    </div>`;
+
+    if (fc) {
+      flightAndOverflightHtml += `<div class="result-box" style="background:${!fc.withinRange ? '#fce4ec' : '#f5f7fa'};">
+        <p class="result-title">✈ ${esc(legs[i].airportIcao)} → ${esc(legs[i + 1].airportIcao)}</p>
+        <p><strong>Distance:</strong> ${fc.distanceNm.toLocaleString()} nm
+        ${fc.cruiseSpeedKtas ? ` &nbsp;|&nbsp; <strong>Est. Flight Time:</strong> ${fc.flightTimeFormatted} @ ${fc.cruiseSpeedKtas} KTAS` : ''}
+        ${fc.rangeNm != null ? ` &nbsp;|&nbsp; <strong>Range:</strong> ${!fc.withinRange ? '❌ Exceeds' : '✅ Within'} (${fc.rangeNm.toLocaleString()} nm max)` : ''}</p>
+      </div>`;
+    }
+
+    if (r?.success) {
+      flightAndOverflightHtml += `<div class="result-box">
+        <p class="result-title">Overflight: ${esc(legs[i].airportIcao)} → ${esc(legs[i + 1].airportIcao)}</p>
+        ${r.routeSummary ? `<p>${esc(r.routeSummary)}</p>` : ""}
+        ${r.totalPermitsNeeded != null ? `<p>${r.totalPermitsNeeded === 0 ? "✅ No permits required" : `⚠️ ${r.totalPermitsNeeded} permit(s) required`}</p>` : ""}
+        ${r.totalOverflightChargesUsd != null ? `<p>Overflight charges: $${r.totalOverflightChargesUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })} USD</p>` : ""}
+        ${r.countries ? r.countries.map(c => `
+          <div class="country-row ${c.overflightPermitRequired === "yes" ? "country-warn" : "country-ok"}">
+            <p><strong>${c.overflightPermitRequired === "yes" ? "⚠️" : "✅"} ${esc(c.country)}</strong> — ${c.overflightPermitRequired === "yes" ? "Permit required" : c.overflightPermitRequired === "no" ? "No permit" : "Conditional"}</p>
+            ${c.leadTimeDays != null ? `<p>Lead time: ${c.leadTimeDays}d</p>` : ""}
+            ${c.overflightChargeUsd != null ? `<p>Charge: ~$${c.overflightChargeUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })} USD</p>` : ""}
+            ${c.notes ? `<p class="note">${esc(c.notes)}</p>` : ""}
+          </div>
+        `).join("") : ""}
+      </div>`;
+    }
   }
 
   // Visa section
@@ -238,17 +253,29 @@ export function generatePrintableHtml({
     }
   }
 
-  // Cost summary
-  let costHtml = "";
-  if (totalCharges > 0 || totalOverflightCharges > 0) {
-    costHtml = `<div class="cost-summary">
-      <h3>Trip Cost Summary</h3>
+  // Flight & cost summary
+  const totalDistanceNm = flightCalcs ? Object.values(flightCalcs).reduce((s, c) => s + c.distanceNm, 0) : 0;
+  const totalFlightTimeMin = flightCalcs ? Object.values(flightCalcs).reduce((s, c) => s + c.flightTimeMinutes, 0) : 0;
+
+  let summaryHtml = "";
+  if (totalDistanceNm > 0 || totalCharges > 0 || totalOverflightCharges > 0) {
+    summaryHtml = `<div class="cost-summary">`;
+    if (totalDistanceNm > 0) {
+      summaryHtml += `<h3>Flight Summary</h3>
+      <table class="charges-table">
+        <tr><td>Total distance</td><td class="amount">${totalDistanceNm.toLocaleString()} nm</td></tr>
+        ${totalFlightTimeMin > 0 ? `<tr><td>Est. total flight time</td><td class="amount">${Math.floor(totalFlightTimeMin / 60)}h ${totalFlightTimeMin % 60}m</td></tr>` : ''}
+      </table>`;
+    }
+    if (totalCharges > 0 || totalOverflightCharges > 0) {
+      summaryHtml += `<h3 style="margin-top:12px;">Trip Cost Summary</h3>
       <table class="charges-table">
         ${totalCharges > 0 ? `<tr><td>Airport charges (${legs.length} leg${legs.length > 1 ? "s" : ""})</td><td class="amount">$${totalCharges.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td></tr>` : ""}
         ${totalOverflightCharges > 0 ? `<tr><td>Overflight charges</td><td class="amount">$${totalOverflightCharges.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td></tr>` : ""}
         <tr class="total-row"><td><strong>Estimated Total</strong></td><td class="amount"><strong>$${(totalCharges + totalOverflightCharges).toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong></td></tr>
-      </table>
-    </div>`;
+      </table>`;
+    }
+    summaryHtml += `</div>`;
   }
 
   // Pet travel section
@@ -463,13 +490,13 @@ export function generatePrintableHtml({
   <h2>Trip Legs</h2>
   ${legs.map((l, i) => renderLeg(l, i)).join("")}
 
-  ${overflightHtml ? `<h2>Overflight Permits</h2>${overflightHtml}` : ""}
+  ${flightAndOverflightHtml ? `<h2>Flight Routes & Overflight Permits</h2>${flightAndOverflightHtml}` : ""}
 
   ${visaHtml}
 
   ${petHtml}
 
-  ${costHtml}
+  ${summaryHtml}
 
   <div class="footer">
     Generated by Airport Ops Feasibility Tool — ${now} UTC<br>
