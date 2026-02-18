@@ -281,7 +281,14 @@ export default function FeasibilityForm() {
   );
   const totalAegFees = legs.reduce((sum, leg) => {
     const overflightResult = overflightResults[legs.indexOf(leg)] ?? null;
-    const overflightPermitsNeeded = overflightResult?.totalPermitsNeeded ?? 0;
+    const originCountry = overflightResult?.originCountry ?? null;
+    const destinationCountry = overflightResult?.destinationCountry ?? null;
+    const overflightPermitsNeeded = overflightResult?.countries?.filter(
+      c =>
+        (c.overflightPermitRequired === 'yes' || c.overflightPermitRequired === 'conditional') &&
+        c.country !== originCountry &&
+        c.country !== destinationCountry
+    ).length ?? 0;
     const predefined = (leg.aegServices || [])
       .filter(s => s.selected)
       .reduce((s, svc) => {
