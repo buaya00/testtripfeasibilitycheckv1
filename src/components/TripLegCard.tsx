@@ -215,6 +215,16 @@ export default function TripLegCard({
 
   const update = (updates: Partial<LegData>) => onUpdateLeg(legIndex, updates);
 
+  // Ensure aegServices is initialised (handles legs created before this field existed)
+  useEffect(() => {
+    if (!leg.aegServices || leg.aegServices.length === 0) {
+      import("./tripTypes").then(({ createDefaultAegServices }) => {
+        update({ aegServices: createDefaultAegServices(), aegAdHocServices: leg.aegAdHocServices ?? [] });
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [legIndex]);
+
   const handleCbpLookup = useCallback(async () => {
     if (leg.airportIcao.length !== 4) return;
     setCbpLoading(true);
