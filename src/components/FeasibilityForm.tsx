@@ -344,11 +344,6 @@ export default function FeasibilityForm() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">Trip Legs</h2>
-            <div className="flex gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={addLeg}>
-                <Plus className="h-4 w-4 mr-1" /> Add Leg
-              </Button>
-            </div>
           </div>
 
           {legs.map((leg, idx) => (
@@ -467,6 +462,19 @@ export default function FeasibilityForm() {
                   )}
                 </div>
               )}
+
+              {/* Add Leg button after each leg */}
+              <div className="flex justify-center mt-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addLeg}
+                  className="text-xs border-dashed"
+                >
+                  <Plus className="h-3.5 w-3.5 mr-1" /> Add Leg
+                </Button>
+              </div>
             </div>
           ))}
         </div>
