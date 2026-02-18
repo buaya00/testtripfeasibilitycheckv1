@@ -27,58 +27,117 @@ Deno.serve(async (req) => {
     }
 
     const icaoPrefix = icao.substring(0, 2);
+    const flightTypeLabel = flightType === 'private'
+      ? 'Private / general aviation (non-commercial, owner/operator flown)'
+      : flightType === 'non-scheduled-commercial'
+        ? 'Non-scheduled commercial (charter / air taxi — operated for hire)'
+        : flightType === 'commercial'
+          ? 'Scheduled commercial airline service'
+          : 'Private / general aviation (assume non-commercial)';
 
-    const prompt = `Given the ICAO airport code "${icao}" (prefix "${icaoPrefix}"), determine the landing permit requirements for a general aviation / private jet flight arriving at this airport.
+    const prompt = `You are an expert aviation regulatory consultant. Given the ICAO airport code "${icao}" (prefix "${icaoPrefix}"), provide a comprehensive analysis of ALL permit and regulatory requirements for the following flight:
 
-Consider:
-- The country this ICAO prefix belongs to
-- Whether foreign-registered private aircraft typically need a landing permit
-- Whether overflight permits are also required
-- Typical lead time for obtaining permits
-- Any special requirements (e.g. diplomatic clearance, restricted airspace)
-- Whether the country is part of agreements that simplify permits (e.g. EU/EASA for intra-EU flights)
-
-${flightType === 'private' ? 'Flight type: Private / general aviation (non-commercial).' : flightType === 'non-scheduled-commercial' ? 'Flight type: Non-scheduled commercial (charter / air taxi).' : flightType === 'commercial' ? 'Flight type: Scheduled commercial airline service.' : 'Assume private/general aviation flight.'}
+Flight type: ${flightTypeLabel}
 ${aircraftRegistration ? `Aircraft registration prefix: ${aircraftRegistration}` : ''}
 
-IMPORTANT: Different flight types often have different permit requirements. For example, private flights may need a landing permit while scheduled commercial flights may not (or vice versa). Be specific about how the flight type affects the permit requirement.`;
+Provide an in-depth analysis covering ALL of the following areas:
+
+1. LANDING PERMIT
+   - Is a landing permit required? (yes/no/conditional)
+   - Type of permit (e.g. diplomatic clearance, landing permit, blanket permit, exemption)
+   - Issuing authority (full name of CAA or ministry)
+   - Lead time in business days
+   - Conditions under which permit is/isn't needed
+
+2. THIRD COUNTRY OPERATOR (TCO) AUTHORIZATION — CRITICAL FOR EU & UK
+   - For flights INTO EU/EASA states: Non-EU registered operators (aircraft not registered in an EASA member state) require a TCO Authorization issued by EASA. This applies to commercial and non-scheduled commercial operations. Private flights may be exempt.
+   - For flights INTO UK: Post-Brexit, non-UK registered operators need a UK TCO Authorization from the UK CAA for commercial operations.
+   - Is TCO authorization required for this specific flight type and aircraft registration?
+   - Lead time (TCO applications typically take 3–6 months for initial approval)
+   - Note if the aircraft registration prefix suggests TCO may apply (e.g. N-reg in EU, VP-B in UK, etc.)
+
+3. BILATERAL AIR SERVICE AGREEMENT (ASA / BASA)
+   - Does the country have a bilateral air services agreement that affects permit requirements?
+   - Are there Open Skies agreements that simplify or eliminate permits?
+   - Any multilateral agreements (e.g. intra-EU freedom, ASEAN Open Skies, GCC)
+   - How does the ASA affect this specific flight type?
+
+4. CHARTER / NON-SCHEDULED COMMERCIAL SPECIFIC REQUIREMENTS
+   - Many countries require additional authorizations specifically for charter flights beyond a standard landing permit:
+     * Singapore: Series permit or charter permit from CAAS — can take 4–8 weeks
+     * China: CAAC approval for each charter flight, 7–14 days lead time
+     * India: DGCA charter permit, 3–7 days
+     * Brazil: ANAC non-scheduled flight authorization
+     * Russia/CIS: Multiple approvals needed
+     * Gulf states (UAE, Saudi, Qatar, Bahrain): Permit from GCAA/GACA/QCAA required
+   - Is a separate charter/non-scheduled commercial permit required beyond the landing permit?
+   - Lead time specifically for charter permits
+   - Which authority issues charter permits
+
+5. REGULATORY WARNINGS & SPECIAL SITUATIONS
+   - Any sanctions, restrictions, or political complications
+   - Curfews or noise restrictions at this specific airport
+   - Cabotage rules (operating between points within the same country)
+   - Specific airport slot restrictions (coordinated airports)
+   - Any documentation requirements (Air Operator Certificate acceptance, insurance minimums, etc.)
+   - Countries where operations are practically very difficult (high bureaucratic burden)
+
+Be specific and accurate. Use your knowledge of ICAO country prefixes:
+- EG = UK, EH = Netherlands, LF = France, ED = Germany, LE = Spain, LI = Italy (EASA members — TCO relevant for non-EASA operators)
+- WS = Singapore (charter permits are notoriously complex)
+- ZB/ZH/ZL/ZS/ZU/ZW/ZY/ZG = China (CAAC approval required)
+- VT = India, PP/PT/SW = Brazil, UU/UD/UK = Russia/CIS
+- OM = UAE, OE = Saudi Arabia, OT = Qatar, OB = Bahrain
+
+For the specific flight type "${flightTypeLabel}", be explicit about whether each requirement applies.`;
 
     const requestBody = JSON.stringify({
-        model: 'google/gemini-3-flash-preview',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an aviation regulatory expert. Extract landing permit requirements for airports based on their ICAO code and country. Return structured data via the provided tool.',
-          },
-          { role: 'user', content: prompt },
-        ],
-        tools: [
-          {
-            type: 'function',
-            function: {
-              name: 'extract_permit_info',
-              description: 'Extract structured landing permit information for an airport/country.',
-              parameters: {
-                type: 'object',
-                properties: {
-                  country: { type: 'string', description: 'Country name where the airport is located' },
-                  permitRequired: { type: 'string', enum: ['yes', 'no', 'conditional'], description: 'Whether a landing permit is required' },
-                  permitType: { type: 'string', description: 'Type of permit needed (e.g. landing permit, overflight permit, blanket permit)' },
-                  leadTimeDays: { type: 'number', description: 'Typical lead time in business days to obtain the permit' },
-                  issuingAuthority: { type: 'string', description: 'Authority that issues the permit (e.g. CAA name)' },
-                  conditions: { type: 'string', description: 'Conditions under which a permit is or is not required' },
-                  overflightPermit: { type: 'string', enum: ['yes', 'no', 'conditional'], description: 'Whether an overflight permit is also needed' },
-                  notes: { type: 'string', description: 'Additional important notes about permits for this country/airport' },
-                  confidence: { type: 'string', enum: ['high', 'medium', 'low'], description: 'Confidence level in the information provided' },
-                },
-                required: ['country', 'permitRequired', 'confidence'],
-                additionalProperties: false,
+      model: 'google/gemini-2.5-flash',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a precise aviation regulatory expert with deep knowledge of international permit requirements, TCO authorizations, bilateral air service agreements, and country-specific charter regulations. Return structured data via the provided tool. Be specific, accurate, and comprehensive — operators depend on this information for safety-critical decisions.',
+        },
+        { role: 'user', content: prompt },
+      ],
+      tools: [
+        {
+          type: 'function',
+          function: {
+            name: 'extract_permit_info',
+            description: 'Extract comprehensive landing permit and regulatory information for an airport/country.',
+            parameters: {
+              type: 'object',
+              properties: {
+                country: { type: 'string', description: 'Country name where the airport is located' },
+                permitRequired: { type: 'string', enum: ['yes', 'no', 'conditional'], description: 'Whether a standard landing permit is required' },
+                permitType: { type: 'string', description: 'Type of permit needed (e.g. landing permit, diplomatic clearance, blanket permit, exemption)' },
+                leadTimeDays: { type: 'number', description: 'Typical lead time in business days to obtain the standard landing permit' },
+                issuingAuthority: { type: 'string', description: 'Full name of authority that issues the landing permit (e.g. Civil Aviation Authority of Singapore)' },
+                conditions: { type: 'string', description: 'Conditions under which a permit is or is not required' },
+                overflightPermit: { type: 'string', enum: ['yes', 'no', 'conditional'], description: 'Whether an overflight permit is also needed' },
+                tcoRequired: { type: 'string', enum: ['yes', 'no', 'conditional', 'not_applicable'], description: 'Whether Third Country Operator (TCO) authorization is required (relevant for EU/UK destinations with non-EASA/non-UK registered aircraft on commercial operations)' },
+                tcoAuthority: { type: 'string', description: 'Authority issuing TCO authorization (e.g. EASA for EU, UK CAA for UK)' },
+                tcoLeadTimeDays: { type: 'number', description: 'Lead time for TCO authorization in days (typically 90-180 days for initial approval)' },
+                tcoNotes: { type: 'string', description: 'Important notes about TCO requirements, including which flight types are exempt (e.g. private flights exempt from TCO)' },
+                bilateralAgreement: { type: 'string', description: 'Relevant bilateral or multilateral air service agreements affecting permit requirements (e.g. Open Skies agreement with US, intra-EU rights, ASEAN Open Skies)' },
+                bilateralImpact: { type: 'string', description: 'How the bilateral agreement affects permit requirements for this flight type' },
+                charterPermitRequired: { type: 'string', enum: ['yes', 'no', 'conditional', 'not_applicable'], description: 'Whether an additional charter/non-scheduled commercial permit is required beyond the standard landing permit' },
+                charterPermitAuthority: { type: 'string', description: 'Authority issuing charter permits (may differ from landing permit authority)' },
+                charterLeadTimeDays: { type: 'number', description: 'Lead time specifically for charter permits in business days' },
+                charterPermitNotes: { type: 'string', description: 'Details about charter permit process, complexity, and any known difficulties (e.g. Singapore series permits, China CAAC approvals)' },
+                regulatoryWarnings: { type: 'array', items: { type: 'string' }, description: 'List of important regulatory warnings, special situations, sanctions, documentation requirements, slot restrictions, cabotage rules, or operational complications specific to this country/airport' },
+                notes: { type: 'string', description: 'Additional important notes about permits for this country/airport, including practical advice for operators' },
+                confidence: { type: 'string', enum: ['high', 'medium', 'low'], description: 'Confidence level in the information provided' },
               },
+              required: ['country', 'permitRequired', 'confidence'],
+              additionalProperties: false,
             },
           },
-        ],
-        tool_choice: { type: 'function', function: { name: 'extract_permit_info' } },
-      });
+        },
+      ],
+      tool_choice: { type: 'function', function: { name: 'extract_permit_info' } },
+    });
 
     let permitInfo = null;
     const maxRetries = 3;
