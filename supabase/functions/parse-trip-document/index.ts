@@ -23,7 +23,10 @@ Deno.serve(async (req) => {
 
     const fileText = await file.text();
 
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") ?? "";
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) {
+      throw new Error("LOVABLE_API_KEY is not configured");
+    }
 
     const prompt = `You are an aviation trip scheduler parser. Extract the trip itinerary from the following document text.
 
@@ -59,29 +62,29 @@ Return ONLY a JSON object in this exact format, nothing else:
 Document text:
 ${fileText.slice(0, 8000)}`;
 
-    const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: 0.1,
-            responseMimeType: "application/json",
-          },
-        }),
-      }
-    );
+    const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.1,
+      }),
+    });
 
-    if (!geminiRes.ok) {
-      const errText = await geminiRes.text();
-      throw new Error(`Gemini API error: ${errText}`);
+    if (!aiRes.ok) {
+      const errText = await aiRes.text();
+      throw new Error(`AI gateway error: ${errText}`);
     }
 
-    const geminiData = await geminiRes.json();
-    const rawText =
-      geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
+    const aiData = await aiRes.json();
+    const rawText = aiData?.choices?.[0]?.message?.content ?? "{}";
+
+    // Strip markdown code fences if present
+    const cleaned = rawText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
 
     let parsed: { legs: Array<{
       icao: string;
@@ -92,7 +95,7 @@ ${fileText.slice(0, 8000)}`;
     }>; notes?: string };
 
     try {
-      parsed = JSON.parse(rawText);
+      parsed = JSON.parse(cleaned);
     } catch {
       parsed = { legs: [] };
     }
