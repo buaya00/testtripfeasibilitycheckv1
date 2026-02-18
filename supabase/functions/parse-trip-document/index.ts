@@ -28,32 +28,58 @@ Deno.serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    const prompt = `You are an aviation trip itinerary parser. Extract the trip schedule from the document below.
+    const prompt = `You are an aviation trip itinerary parser. Extract the FULL trip schedule from the document below.
 
 ICAO codes are always exactly 4 uppercase letters (e.g. KAUS, GMMX, HRYR, HTKJ, EGGW, KJFK, EGLL).
 
-The document may use a columnar/tabular format like this:
+VERY COMMON DOCUMENT FORMAT — read line by line, ignoring blank lines:
 
-  DATE
+  DATE_OF_DEPARTURE (e.g. 2/2/2026)
   ORIGIN_ICAO
   DEPARTURE_TIME
-  ARRIVAL_TIME (may have "+1" meaning next day)
+  ARRIVAL_TIME (may have "+1" meaning next calendar day)
   DESTINATION_ICAO
+  DATE_OF_NEXT_DEPARTURE (e.g. 2/5/2026)
+  ORIGIN_ICAO (same as previous destination)
+  DEPARTURE_TIME
+  ARRIVAL_TIME
+  DESTINATION_ICAO
+  ... and so on
 
-Or any other schedule format. Parse intelligently.
+EXAMPLE — this input:
+  2/2/2026
+  KAUS
+  2100
+  1233 (+1)
+  GMMX
+  2/5/2026
+  GMMX
+  700
+  1400
+  HRYR
+  2/8/2026
+  HRYR
+  900
+  1003
+  HTKJ
+
+Should produce legs: KAUS (departs 2026-02-02 21:00), GMMX (arrives 2026-02-03 12:33, departs 2026-02-05 07:00), HRYR (arrives 2026-02-05 14:00, departs 2026-02-08 09:00), HTKJ (arrives 2026-02-08 10:03)
 
 TIME FORMAT RULES:
-- Times may be written without colons: 2100 = 21:00, 700 = 07:00, 1233 = 12:33
+- Times have NO colon: 2100 = 21:00, 700 = 07:00, 1233 = 12:33, 1003 = 10:03
 - Always output times in HH:MM 24-hour format
-- "(+1)" after an arrival time means the arrival is the next calendar day — adjust the arrivalDate accordingly
-- If no explicit date is given for a leg, infer it from context
+- "(+1)" after an arrival time means arrival is the NEXT calendar day — add 1 day to the departure date
+- Dates like "2/5/2026" mean February 5, 2026 → ISO format 2026-02-05
 
-OUTPUT RULES:
-- Each airport stop = one leg entry
-- Include arrivalDate/arrivalTime if the aircraft arrives at that airport
-- Include departureDate/departureTime if the aircraft departs from that airport
-- The first stop typically only has departure info; the last stop typically only has arrival info
-- Skip any stop where you cannot find a valid 4-letter ICAO code
+PARSING RULES:
+- Each unique airport stop = one leg entry
+- The ICAO at the start of a block is the ORIGIN; the ICAO at the end is the DESTINATION
+- The destination of one leg becomes the origin of the next (they share arrival/departure info)
+- The VERY FIRST airport only has departureDate/departureTime (no arrival)
+- The VERY LAST airport only has arrivalDate/arrivalTime (no departure)
+- ALL intermediate airports have BOTH arrival AND departure info
+- Extract ALL legs — do not stop after the first two
+- Skip any token that is NOT a valid 4-letter ICAO code
 
 Return ONLY a JSON object in this exact format, nothing else:
 {
@@ -71,12 +97,19 @@ Return ONLY a JSON object in this exact format, nothing else:
       "arrivalTime": "12:33",
       "departureDate": "2026-02-05",
       "departureTime": "07:00"
+    },
+    {
+      "icao": "HRYR",
+      "arrivalDate": "2026-02-05",
+      "arrivalTime": "14:00",
+      "departureDate": "2026-02-08",
+      "departureTime": "09:00"
     }
   ],
   "notes": "Brief description of what was parsed"
 }
 
-Use null for missing date/time fields (not empty string).
+Use null for missing date/time fields (not empty string). Extract EVERY leg in the document.
 
 Document text:
 ${fileText.slice(0, 8000)}`;
