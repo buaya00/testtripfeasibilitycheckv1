@@ -28,36 +28,55 @@ Deno.serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    const prompt = `You are an aviation trip scheduler parser. Extract the trip itinerary from the following document text.
+    const prompt = `You are an aviation trip itinerary parser. Extract the trip schedule from the document below.
 
-For each stop/leg in the schedule, extract ONLY:
-1. Airport ICAO code (4 uppercase letters, e.g. KJFK, EGLL, YSSY) - required
-2. Arrival date (ISO format YYYY-MM-DD) - if provided
-3. Arrival time UTC (HH:MM 24h format) - if provided
-4. Departure date (ISO format YYYY-MM-DD) - if provided
-5. Departure time UTC (HH:MM 24h format) - if provided
+ICAO codes are always exactly 4 uppercase letters (e.g. KAUS, GMMX, HRYR, HTKJ, EGGW, KJFK, EGLL).
 
-Rules:
-- Each unique stop is a "leg" in the array
-- If times are in local time, try to convert to UTC if timezone is mentioned; otherwise keep as-is
-- Round times to nearest :00 or :30 (e.g. 14:23 → 14:00 or 14:30)
-- If an ICAO code is not clearly identifiable, skip that stop
-- Return ONLY valid ICAO codes (4 uppercase letters)
-- Do NOT include airport names, only ICAO codes
+The document may use a columnar/tabular format like this:
+
+  DATE
+  ORIGIN_ICAO
+  DEPARTURE_TIME
+  ARRIVAL_TIME (may have "+1" meaning next day)
+  DESTINATION_ICAO
+
+Or any other schedule format. Parse intelligently.
+
+TIME FORMAT RULES:
+- Times may be written without colons: 2100 = 21:00, 700 = 07:00, 1233 = 12:33
+- Always output times in HH:MM 24-hour format
+- "(+1)" after an arrival time means the arrival is the next calendar day — adjust the arrivalDate accordingly
+- If no explicit date is given for a leg, infer it from context
+
+OUTPUT RULES:
+- Each airport stop = one leg entry
+- Include arrivalDate/arrivalTime if the aircraft arrives at that airport
+- Include departureDate/departureTime if the aircraft departs from that airport
+- The first stop typically only has departure info; the last stop typically only has arrival info
+- Skip any stop where you cannot find a valid 4-letter ICAO code
 
 Return ONLY a JSON object in this exact format, nothing else:
 {
   "legs": [
     {
-      "icao": "KJFK",
-      "arrivalDate": "2024-03-15",
-      "arrivalTime": "14:00",
-      "departureDate": "2024-03-16",
-      "departureTime": "09:30"
+      "icao": "KAUS",
+      "arrivalDate": null,
+      "arrivalTime": null,
+      "departureDate": "2026-02-02",
+      "departureTime": "21:00"
+    },
+    {
+      "icao": "GMMX",
+      "arrivalDate": "2026-02-03",
+      "arrivalTime": "12:33",
+      "departureDate": "2026-02-05",
+      "departureTime": "07:00"
     }
   ],
-  "notes": "Any relevant extraction notes"
+  "notes": "Brief description of what was parsed"
 }
+
+Use null for missing date/time fields (not empty string).
 
 Document text:
 ${fileText.slice(0, 8000)}`;
@@ -84,15 +103,21 @@ ${fileText.slice(0, 8000)}`;
     const rawText = aiData?.choices?.[0]?.message?.content ?? "{}";
 
     // Strip markdown code fences if present
-    const cleaned = rawText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+    const cleaned = rawText
+      .replace(/^```(?:json)?\s*/i, "")
+      .replace(/\s*```$/i, "")
+      .trim();
 
-    let parsed: { legs: Array<{
-      icao: string;
-      arrivalDate?: string;
-      arrivalTime?: string;
-      departureDate?: string;
-      departureTime?: string;
-    }>; notes?: string };
+    let parsed: {
+      legs: Array<{
+        icao: string;
+        arrivalDate?: string | null;
+        arrivalTime?: string | null;
+        departureDate?: string | null;
+        departureTime?: string | null;
+      }>;
+      notes?: string;
+    };
 
     try {
       parsed = JSON.parse(cleaned);
@@ -100,10 +125,12 @@ ${fileText.slice(0, 8000)}`;
       parsed = { legs: [] };
     }
 
-    // Validate ICAO codes
+    // Validate ICAO codes (exactly 4 uppercase letters)
     const validLegs = (parsed.legs || []).filter(
       (l) => l.icao && /^[A-Z]{4}$/.test(l.icao)
     );
+
+    console.log(`Parsed ${validLegs.length} valid legs from document. Notes: ${parsed.notes}`);
 
     return new Response(
       JSON.stringify({ success: true, legs: validLegs, notes: parsed.notes }),
