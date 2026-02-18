@@ -53,6 +53,21 @@ export interface PermitResult {
   issuingAuthority?: string;
   conditions?: string;
   overflightPermit?: 'yes' | 'no' | 'conditional';
+  // TCO (Third Country Operator) authorization
+  tcoRequired?: 'yes' | 'no' | 'conditional' | 'not_applicable';
+  tcoAuthority?: string;
+  tcoLeadTimeDays?: number;
+  tcoNotes?: string;
+  // Bilateral/multilateral air service agreements
+  bilateralAgreement?: string;
+  bilateralImpact?: string;
+  // Charter / non-scheduled commercial specific permits
+  charterPermitRequired?: 'yes' | 'no' | 'conditional' | 'not_applicable';
+  charterPermitAuthority?: string;
+  charterLeadTimeDays?: number;
+  charterPermitNotes?: string;
+  // Regulatory warnings
+  regulatoryWarnings?: string[];
   notes?: string;
   confidence?: 'high' | 'medium' | 'low';
   error?: string;

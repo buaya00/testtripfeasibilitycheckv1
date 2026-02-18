@@ -650,25 +650,90 @@ export default function TripLegCard({
             {/* Permit */}
             {permitLoading && <div className="rounded-md border p-3 text-sm flex items-center gap-2 text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Permit lookup…</div>}
             {leg.permitResult && !permitLoading && (
-              <div className={cn("rounded-md border p-3 text-sm space-y-1.5",
+              <div className={cn("rounded-md border p-3 text-sm space-y-2",
                 leg.permitResult.permitRequired === 'no' ? "border-success/30 bg-success/5" : leg.permitResult.permitRequired === 'yes' ? "border-warning/30 bg-warning/5" : "border-muted bg-muted/50"
               )}>
                 <div className="flex items-center gap-1.5 font-medium">
                   <Shield className="h-3.5 w-3.5 text-primary" />
-                  Landing Permit — {leg.permitResult.country || leg.permitResult.icao}
+                  Permit Requirements — {leg.permitResult.country || leg.permitResult.icao}
                 </div>
-                <p className="text-xs font-medium">
-                  {leg.permitResult.permitRequired === 'yes' && '⚠️ Landing permit required'}
-                  {leg.permitResult.permitRequired === 'no' && '✅ No landing permit required'}
-                  {leg.permitResult.permitRequired === 'conditional' && '⚠️ Conditionally required'}
-                </p>
+
+                {/* Landing Permit */}
                 <div className="rounded bg-background/50 px-2 py-1.5 text-xs space-y-0.5">
+                  <p className="font-semibold text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Landing Permit</p>
+                  <p className="font-medium">
+                    {leg.permitResult.permitRequired === 'yes' && '⚠️ Required'}
+                    {leg.permitResult.permitRequired === 'no' && '✅ Not required'}
+                    {leg.permitResult.permitRequired === 'conditional' && '⚠️ Conditionally required'}
+                  </p>
                   {leg.permitResult.permitType && <p><span className="font-medium">Type:</span> {leg.permitResult.permitType}</p>}
-                  {leg.permitResult.leadTimeDays != null && <p><span className="font-medium">Lead time:</span> {leg.permitResult.leadTimeDays} days</p>}
+                  {leg.permitResult.leadTimeDays != null && <p><span className="font-medium">Lead time:</span> {leg.permitResult.leadTimeDays} business days</p>}
                   {leg.permitResult.issuingAuthority && <p><span className="font-medium">Authority:</span> {leg.permitResult.issuingAuthority}</p>}
                   {leg.permitResult.conditions && <p><span className="font-medium">Conditions:</span> {leg.permitResult.conditions}</p>}
-                  {leg.permitResult.notes && <p className="text-muted-foreground italic">{leg.permitResult.notes}</p>}
                 </div>
+
+                {/* TCO Authorization */}
+                {leg.permitResult.tcoRequired && leg.permitResult.tcoRequired !== 'not_applicable' && (
+                  <div className={cn("rounded px-2 py-1.5 text-xs space-y-0.5",
+                    leg.permitResult.tcoRequired === 'yes' ? "bg-destructive/10 border border-destructive/20" : leg.permitResult.tcoRequired === 'conditional' ? "bg-warning/10 border border-warning/20" : "bg-success/10 border border-success/20"
+                  )}>
+                    <p className="font-semibold text-[10px] uppercase tracking-wide text-muted-foreground mb-1">TCO Authorization (Third Country Operator)</p>
+                    <p className="font-medium">
+                      {leg.permitResult.tcoRequired === 'yes' && '🔴 TCO authorization required'}
+                      {leg.permitResult.tcoRequired === 'no' && '✅ TCO not required'}
+                      {leg.permitResult.tcoRequired === 'conditional' && '⚠️ TCO conditionally required'}
+                    </p>
+                    {leg.permitResult.tcoAuthority && <p><span className="font-medium">Issued by:</span> {leg.permitResult.tcoAuthority}</p>}
+                    {leg.permitResult.tcoLeadTimeDays != null && <p><span className="font-medium">Lead time:</span> {leg.permitResult.tcoLeadTimeDays} days (initial approval)</p>}
+                    {leg.permitResult.tcoNotes && <p className="text-muted-foreground italic">{leg.permitResult.tcoNotes}</p>}
+                  </div>
+                )}
+
+                {/* Bilateral Agreements */}
+                {leg.permitResult.bilateralAgreement && (
+                  <div className="rounded bg-background/50 px-2 py-1.5 text-xs space-y-0.5">
+                    <p className="font-semibold text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Air Service Agreement</p>
+                    <p><span className="font-medium">Agreement:</span> {leg.permitResult.bilateralAgreement}</p>
+                    {leg.permitResult.bilateralImpact && <p className="text-muted-foreground italic">{leg.permitResult.bilateralImpact}</p>}
+                  </div>
+                )}
+
+                {/* Charter Permit */}
+                {leg.permitResult.charterPermitRequired && leg.permitResult.charterPermitRequired !== 'not_applicable' && (
+                  <div className={cn("rounded px-2 py-1.5 text-xs space-y-0.5",
+                    leg.permitResult.charterPermitRequired === 'yes' ? "bg-warning/10 border border-warning/20" : leg.permitResult.charterPermitRequired === 'conditional' ? "bg-warning/5 border border-warning/20" : "bg-success/10 border border-success/20"
+                  )}>
+                    <p className="font-semibold text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Charter / Non-Scheduled Permit</p>
+                    <p className="font-medium">
+                      {leg.permitResult.charterPermitRequired === 'yes' && '⚠️ Charter permit required'}
+                      {leg.permitResult.charterPermitRequired === 'no' && '✅ No charter permit required'}
+                      {leg.permitResult.charterPermitRequired === 'conditional' && '⚠️ Charter permit conditionally required'}
+                    </p>
+                    {leg.permitResult.charterPermitAuthority && <p><span className="font-medium">Authority:</span> {leg.permitResult.charterPermitAuthority}</p>}
+                    {leg.permitResult.charterLeadTimeDays != null && <p><span className="font-medium">Lead time:</span> {leg.permitResult.charterLeadTimeDays} business days</p>}
+                    {leg.permitResult.charterPermitNotes && <p className="text-muted-foreground italic">{leg.permitResult.charterPermitNotes}</p>}
+                  </div>
+                )}
+
+                {/* Regulatory Warnings */}
+                {leg.permitResult.regulatoryWarnings && leg.permitResult.regulatoryWarnings.length > 0 && (
+                  <div className="rounded bg-destructive/5 border border-destructive/20 px-2 py-1.5 text-xs space-y-0.5">
+                    <p className="font-semibold text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Regulatory Warnings</p>
+                    {leg.permitResult.regulatoryWarnings.map((warning, i) => (
+                      <p key={i} className="text-destructive/90">⚠ {warning}</p>
+                    ))}
+                  </div>
+                )}
+
+                {/* General Notes */}
+                {leg.permitResult.notes && (
+                  <p className="text-xs text-muted-foreground italic px-1">{leg.permitResult.notes}</p>
+                )}
+
+                {/* Confidence */}
+                {leg.permitResult.confidence && (
+                  <p className="text-[10px] text-muted-foreground">Confidence: {leg.permitResult.confidence}</p>
+                )}
               </div>
             )}
 
