@@ -3,7 +3,7 @@ import { format } from "date-fns";
 import {
   CalendarIcon, CheckCircle2, XCircle, AlertTriangle, Search, Loader2,
   ExternalLink, Ruler, Shield, DollarSign, Clock, ChevronDown, ChevronUp,
-  FileText,
+  FileText, Plus, Trash2, Tag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,11 +16,16 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import type {
   LegData, CbpResult, RunwayResult, PermitResult, CiqResult,
   ChargesResult, PprResult, FeasibilityResult, OperatingHours,
-  AirportHoursResult,
+  AirportHoursResult, AegAdHocService,
 } from "./tripTypes";
+
+// ── Feature flag: set to true to show AEG Set Up Fees section ──
+const SHOW_AEG_FEES = true;
 
 // ── Constants ──────────────────────────────────────────────
 const TIMES = Array.from({ length: 48 }, (_, i) => {
@@ -941,6 +946,147 @@ export default function TripLegCard({
               </div>
             )}
           </div>
+
+          {/* AEG Set Up Fees */}
+          {SHOW_AEG_FEES && (() => {
+            const selectedPredefined = (leg.aegServices || []).filter(s => s.selected);
+            const adHocItems = (leg.aegAdHocServices || []);
+            const predefinedTotal = selectedPredefined.reduce((sum, s) => sum + s.costUsd, 0);
+            const adHocTotal = adHocItems.reduce((sum, s) => {
+              const v = parseFloat(String(s.costUsd));
+              return sum + (isNaN(v) ? 0 : v);
+            }, 0);
+            const aegTotal = predefinedTotal + adHocTotal;
+
+            const toggleService = (id: string, checked: boolean) => {
+              update({
+                aegServices: (leg.aegServices || []).map(s => s.id === id ? { ...s, selected: checked } : s),
+              });
+            };
+
+            const addAdHoc = () => {
+              update({
+                aegAdHocServices: [
+                  ...(leg.aegAdHocServices || []),
+                  { id: crypto.randomUUID(), name: '', costUsd: '', notes: '' },
+                ],
+              });
+            };
+
+            const updateAdHoc = (id: string, changes: Partial<AegAdHocService>) => {
+              update({
+                aegAdHocServices: (leg.aegAdHocServices || []).map(s => s.id === id ? { ...s, ...changes } : s),
+              });
+            };
+
+            const removeAdHoc = (id: string) => {
+              update({
+                aegAdHocServices: (leg.aegAdHocServices || []).filter(s => s.id !== id),
+              });
+            };
+
+            return (
+              <div className="rounded-md border border-primary/20 bg-primary/5 p-3 text-sm space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 font-medium">
+                    <Tag className="h-3.5 w-3.5 text-primary" />
+                    AEG Set Up Fees
+                  </div>
+                  {aegTotal > 0 && (
+                    <span className="text-xs font-mono font-semibold text-primary">
+                      ${aegTotal.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    </span>
+                  )}
+                </div>
+
+                {/* Predefined services */}
+                <div className="grid grid-cols-1 gap-1.5">
+                  {(leg.aegServices || []).map(service => (
+                    <label key={service.id} className="flex items-center justify-between gap-2 cursor-pointer rounded px-2 py-1.5 hover:bg-primary/10 transition-colors">
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          checked={service.selected}
+                          onCheckedChange={(checked) => toggleService(service.id, checked === true)}
+                        />
+                        <span className={cn("text-xs", service.selected ? "text-foreground font-medium" : "text-muted-foreground")}>
+                          {service.name}
+                        </span>
+                      </div>
+                      <span className={cn("text-xs font-mono", service.selected ? "text-foreground" : "text-muted-foreground/60")}>
+                        ${service.costUsd}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+
+                {/* Ad-hoc services */}
+                {adHocItems.length > 0 && (
+                  <div className="space-y-2 pt-1 border-t">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Ad-hoc Services</p>
+                    {adHocItems.map(item => (
+                      <div key={item.id} className="rounded border bg-background/60 p-2 space-y-1.5">
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="Service name"
+                            value={item.name}
+                            onChange={e => updateAdHoc(item.id, { name: e.target.value })}
+                            className="h-7 text-xs flex-1"
+                          />
+                          <div className="relative w-24 shrink-0">
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">$</span>
+                            <Input
+                              placeholder="0"
+                              type="number"
+                              min="0"
+                              value={item.costUsd}
+                              onChange={e => updateAdHoc(item.id, { costUsd: e.target.value })}
+                              className="h-7 text-xs pl-5 font-mono"
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 shrink-0 text-destructive hover:text-destructive"
+                            onClick={() => removeAdHoc(item.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                        <Textarea
+                          placeholder="Notes (optional)"
+                          value={item.notes}
+                          onChange={e => updateAdHoc(item.id, { notes: e.target.value })}
+                          className="min-h-[44px] text-xs resize-none"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full h-7 text-xs gap-1.5"
+                  onClick={addAdHoc}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Add Ad-hoc Service
+                </Button>
+
+                {/* Total */}
+                {aegTotal > 0 && (
+                  <div className="pt-2 border-t flex justify-between items-center text-xs font-medium">
+                    <span>AEG Set Up Total:</span>
+                    <span className="font-mono text-primary text-sm">
+                      ${aegTotal.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    </span>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Feasibility Result */}
           {feasResult && (
