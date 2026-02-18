@@ -298,7 +298,7 @@ export default function FeasibilityForm() {
         </div>
       </header>
 
-      <main className="container mx-auto max-w-3xl px-6 py-8 space-y-6">
+      <main className="container mx-auto max-w-3xl px-6 py-8 pb-32 space-y-6">
         {/* Shared Trip Config */}
         <Card>
           <CardHeader className="pb-4">
@@ -479,62 +479,10 @@ export default function FeasibilityForm() {
           ))}
         </div>
 
-        {/* Actions */}
-        <Card>
-          <CardContent className="pt-6 space-y-4">
-            <div className="flex gap-3">
-              <Button onClick={handleCheckAll} className="flex-1">
-                Check All Legs
-              </Button>
-              {legs.length > 1 && (
-                <Button variant="secondary" onClick={handleAllOverflights} className="flex-1">
-                  <Navigation className="h-4 w-4 mr-1.5" /> All Overflight Permits
-                </Button>
-              )}
-              <Button variant="outline" onClick={handleReset}>
-                Reset
-              </Button>
-            </div>
-
-            {anyChecked && (
-              <div className="flex gap-3">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => {
-                    const html = generatePrintableHtml({
-                      aircraftType, flightType, legs, overflightResults,
-                      visaNationalities, visaResults, totalCharges, totalOverflightCharges, petTypes, petResults, logoDataUrl, flightCalcs,
-                    });
-                    const w = window.open("", "_blank");
-                    if (w) { w.document.write(html); w.document.close(); }
-                  }}
-                >
-                  <Printer className="h-4 w-4 mr-1.5" /> Print Report
-                </Button>
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => {
-                    const html = generatePrintableHtml({
-                      aircraftType, flightType, legs, overflightResults,
-                      visaNationalities, visaResults, totalCharges, totalOverflightCharges, petTypes, petResults, logoDataUrl, flightCalcs,
-                    });
-                    const w = window.open("", "_blank");
-                    if (w) {
-                      w.document.write(html);
-                      w.document.close();
-                      setTimeout(() => w.print(), 500);
-                    }
-                  }}
-                >
-                  <FileDown className="h-4 w-4 mr-1.5" /> Save as PDF
-                </Button>
-              </div>
-            )}
-
-            {/* Trip Summary */}
-            {(anyChecked || totalCharges > 0 || totalOverflightCharges > 0) && (
+        {/* Trip Summary */}
+        {(anyChecked || totalCharges > 0 || totalOverflightCharges > 0) && (
+          <Card>
+            <CardContent className="pt-6">
               <div className={cn("rounded-lg border-2 p-5 space-y-3",
                 allFeasible && anyChecked ? "border-success/40 bg-success/5" : anyChecked ? "border-destructive/40 bg-destructive/5" : "border-muted"
               )}>
@@ -601,9 +549,9 @@ export default function FeasibilityForm() {
                   )
                 ))}
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Visa Requirements */}
         <Card>
@@ -795,17 +743,84 @@ export default function FeasibilityForm() {
         </Card>
       </main>
 
-      {/* Floating refresh button */}
+      {/* Floating action toolbar */}
       {legs.some(l => l.airportIcao.length === 4) && (
-        <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2">
-          <Button
-            onClick={() => { handleCheckAll(); if (legs.length > 1) handleAllOverflights(); }}
-            size="lg"
-            className="rounded-full shadow-lg h-14 w-14 p-0"
-            title="Refresh all lookups"
-          >
-            <RefreshCw className="h-6 w-6" />
-          </Button>
+        <div className="fixed bottom-6 right-6 z-50">
+          <div className="flex flex-col gap-1 bg-background/95 backdrop-blur-sm border rounded-xl shadow-xl p-2 min-w-[160px]">
+            <Button
+              size="sm"
+              className="justify-start gap-2 w-full"
+              onClick={() => { handleCheckAll(); if (legs.length > 1) handleAllOverflights(); }}
+            >
+              <RefreshCw className="h-3.5 w-3.5" /> Refresh All
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="justify-start gap-2 w-full"
+              onClick={handleCheckAll}
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" /> Check All Legs
+            </Button>
+            {legs.length > 1 && (
+              <Button
+                variant="secondary"
+                size="sm"
+                className="justify-start gap-2 w-full"
+                onClick={handleAllOverflights}
+              >
+                <Navigation className="h-3.5 w-3.5" /> Overflights
+              </Button>
+            )}
+            {anyChecked && (
+              <>
+                <Separator className="my-0.5" />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="justify-start gap-2 w-full"
+                  onClick={() => {
+                    const html = generatePrintableHtml({
+                      aircraftType, flightType, legs, overflightResults,
+                      visaNationalities, visaResults, totalCharges, totalOverflightCharges, petTypes, petResults, logoDataUrl, flightCalcs,
+                    });
+                    const w = window.open("", "_blank");
+                    if (w) { w.document.write(html); w.document.close(); }
+                  }}
+                >
+                  <Printer className="h-3.5 w-3.5" /> Print Report
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="justify-start gap-2 w-full"
+                  onClick={() => {
+                    const html = generatePrintableHtml({
+                      aircraftType, flightType, legs, overflightResults,
+                      visaNationalities, visaResults, totalCharges, totalOverflightCharges, petTypes, petResults, logoDataUrl, flightCalcs,
+                    });
+                    const w = window.open("", "_blank");
+                    if (w) {
+                      w.document.write(html);
+                      w.document.close();
+                      setTimeout(() => w.print(), 500);
+                    }
+                  }}
+                >
+                  <FileDown className="h-3.5 w-3.5" /> Save as PDF
+                </Button>
+              </>
+            )}
+            <Separator className="my-0.5" />
+            <Button
+              variant="ghost"
+              size="sm"
+              className="justify-start gap-2 w-full text-muted-foreground hover:text-destructive"
+              onClick={handleReset}
+            >
+              <X className="h-3.5 w-3.5" /> Reset
+            </Button>
+          </div>
         </div>
       )}
     </div>
