@@ -21,7 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 import type {
   LegData, CbpResult, RunwayResult, PermitResult, CiqResult,
   ChargesResult, PprResult, FeasibilityResult, OperatingHours,
-  AirportHoursResult, AegAdHocService,
+  AirportHoursResult, AegAdHocService, OverflightResult,
 } from "./tripTypes";
 
 // ── Feature flag: set to true to show AEG Set Up Fees section ──
@@ -194,13 +194,14 @@ interface TripLegCardProps {
   totalLegs: number;
   aircraftType: string;
   flightType: string;
+  overflightResult?: OverflightResult | null;
   onUpdateLeg: (index: number, updates: Partial<LegData>) => void;
   onRemoveLeg: (index: number) => void;
   onRegisterLookup?: (index: number, fn: (() => void) | null) => void;
 }
 
 export default function TripLegCard({
-  leg, legIndex, totalLegs, aircraftType, flightType, onUpdateLeg, onRemoveLeg, onRegisterLookup,
+  leg, legIndex, totalLegs, aircraftType, flightType, overflightResult, onUpdateLeg, onRemoveLeg, onRegisterLookup,
 }: TripLegCardProps) {
   const [expanded, setExpanded] = useState(true);
   const [cbpLoading, setCbpLoading] = useState(false);
@@ -959,9 +960,23 @@ export default function TripLegCard({
 
           {/* AEG Set Up Fees */}
           {SHOW_AEG_FEES && (() => {
+            // Count how many overflight permits are needed for the departing sector
+            const overflightPermitsNeeded = overflightResult?.totalPermitsNeeded ?? 0;
+            const overflightCountriesNeeding = overflightResult?.countries?.filter(
+              c => c.overflightPermitRequired === 'yes' || c.overflightPermitRequired === 'conditional'
+            ) ?? [];
+
+            // Compute effective cost per service (overflight permit scales by permit count)
+            const getEffectiveCost = (service: { id: string; costUsd: number; selected: boolean }) => {
+              if (service.id === 'overflight-permit' && overflightPermitsNeeded > 1) {
+                return service.costUsd * overflightPermitsNeeded;
+              }
+              return service.costUsd;
+            };
+
             const selectedPredefined = (leg.aegServices || []).filter(s => s.selected);
             const adHocItems = (leg.aegAdHocServices || []);
-            const predefinedTotal = selectedPredefined.reduce((sum, s) => sum + s.costUsd, 0);
+            const predefinedTotal = selectedPredefined.reduce((sum, s) => sum + getEffectiveCost(s), 0);
             const adHocTotal = adHocItems.reduce((sum, s) => {
               const v = parseFloat(String(s.costUsd));
               return sum + (isNaN(v) ? 0 : v);
@@ -1011,22 +1026,58 @@ export default function TripLegCard({
 
                 {/* Predefined services */}
                 <div className="grid grid-cols-1 gap-1.5">
-                  {(leg.aegServices || []).map(service => (
-                    <label key={service.id} className="flex items-center justify-between gap-2 cursor-pointer rounded px-2 py-1.5 hover:bg-primary/10 transition-colors">
-                      <div className="flex items-center gap-2">
-                        <Checkbox
-                          checked={service.selected}
-                          onCheckedChange={(checked) => toggleService(service.id, checked === true)}
-                        />
-                        <span className={cn("text-xs", service.selected ? "text-foreground font-medium" : "text-muted-foreground")}>
-                          {service.name}
-                        </span>
-                      </div>
-                      <span className={cn("text-xs font-mono", service.selected ? "text-foreground" : "text-muted-foreground/60")}>
-                        ${service.costUsd}
-                      </span>
-                    </label>
-                  ))}
+                  {(leg.aegServices || []).map(service => {
+                    const isOverflight = service.id === 'overflight-permit';
+                    const permitsNeeded = isOverflight && overflightPermitsNeeded > 0 ? overflightPermitsNeeded : null;
+                    const effectiveCost = getEffectiveCost(service);
+
+                    return (
+                      <label key={service.id} className="flex items-start justify-between gap-2 cursor-pointer rounded px-2 py-1.5 hover:bg-primary/10 transition-colors">
+                        <div className="flex items-start gap-2">
+                          <Checkbox
+                            className="mt-0.5"
+                            checked={service.selected}
+                            onCheckedChange={(checked) => toggleService(service.id, checked === true)}
+                          />
+                          <div>
+                            <span className={cn("text-xs", service.selected ? "text-foreground font-medium" : "text-muted-foreground")}>
+                              {service.name}
+                            </span>
+                            {/* Show permit breakdown when overflight data is available */}
+                            {isOverflight && permitsNeeded !== null && (
+                              <p className="text-[10px] text-muted-foreground mt-0.5">
+                                {permitsNeeded === 0
+                                  ? 'No overflight permits required for this sector'
+                                  : permitsNeeded === 1
+                                    ? '1 permit required'
+                                    : `${permitsNeeded} permits required`}
+                                {overflightCountriesNeeding.length > 0 && (
+                                  <span className="ml-1">({overflightCountriesNeeding.map(c => c.country).join(', ')})</span>
+                                )}
+                              </p>
+                            )}
+                            {isOverflight && !overflightResult && (
+                              <p className="text-[10px] text-muted-foreground/70 mt-0.5 italic">Run overflight lookup to auto-calculate</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          {isOverflight && permitsNeeded != null && permitsNeeded > 1 ? (
+                            <div className="text-right">
+                              <span className={cn("text-xs font-mono", service.selected ? "text-foreground" : "text-muted-foreground/60")}>
+                                ${effectiveCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                              </span>
+                              <p className="text-[10px] text-muted-foreground">${service.costUsd} × {permitsNeeded}</p>
+                            </div>
+                          ) : (
+                            <span className={cn("text-xs font-mono", service.selected ? "text-foreground" : "text-muted-foreground/60")}>
+                              ${service.costUsd}
+                            </span>
+                          )}
+                        </div>
+                      </label>
+                    );
+                  })}
                 </div>
 
                 {/* Ad-hoc services */}
