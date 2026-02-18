@@ -473,8 +473,15 @@ export default function TripLegCard({
 
   const feasResult = leg.feasibilityResult;
 
+  // Determine banner color from feasibility result
+  const bannerClass = feasResult
+    ? feasResult.feasible
+      ? "bg-success/10 border-t-4 border-success rounded-lg bg-card"
+      : "bg-destructive/10 border-t-4 border-destructive rounded-lg bg-card"
+    : "rounded-lg border bg-card";
+
   return (
-    <div className="rounded-lg border bg-card">
+    <div className={bannerClass}>
       {/* Header */}
       <button
         type="button"

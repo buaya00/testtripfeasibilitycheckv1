@@ -3,7 +3,7 @@ import { format } from "date-fns";
 import {
   Plane, Loader2, Navigation, Globe, Plus, X, DollarSign,
   CheckCircle2, XCircle, AlertTriangle, Printer, FileDown, PawPrint,
-  Clock, Ruler, RefreshCw,
+  Clock, Ruler, RefreshCw, Upload,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -31,6 +31,9 @@ export default function FeasibilityForm() {
   const [aircraftType, setAircraftType] = useState("");
   const [flightType, setFlightType] = useState("");
   const [legs, setLegs] = useState<LegData[]>([createEmptyLeg()]);
+  const [uploadLoading, setUploadLoading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   // Convert logo to data URL for printable reports
   useEffect(() => {
     const img = new Image();
@@ -240,6 +243,50 @@ export default function FeasibilityForm() {
     }));
   }, [petTypes, destinationIcaos, legs]);
 
+  // Document upload — parse trip schedule from file
+  const handleDocumentUpload = useCallback(async (file: File) => {
+    setUploadLoading(true);
+    setUploadError(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const { data: res, error } = await supabase.functions.invoke("parse-trip-document", {
+        body: form,
+      });
+      if (error) throw new Error(error.message);
+      if (!res?.success) throw new Error(res?.error || "Failed to parse document");
+
+      const parsedLegs: Array<{
+        icao: string;
+        arrivalDate?: string;
+        arrivalTime?: string;
+        departureDate?: string;
+        departureTime?: string;
+      }> = res.legs || [];
+
+      if (parsedLegs.length === 0) {
+        setUploadError("No valid airport ICAO codes found in the document. Please check the file format.");
+        return;
+      }
+
+      const newLegs: LegData[] = parsedLegs.map((pl) => ({
+        ...createEmptyLeg(),
+        airportIcao: pl.icao.toUpperCase(),
+        arrivalDate: pl.arrivalDate ? new Date(pl.arrivalDate) : undefined,
+        arrivalTime: pl.arrivalTime || "",
+        departureDate: pl.departureDate ? new Date(pl.departureDate) : undefined,
+        departureTime: pl.departureTime || "",
+      }));
+
+      setLegs(newLegs);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploadLoading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }, []);
+
   // Reset
   const handleReset = () => {
     setAircraftType("");
@@ -366,9 +413,39 @@ export default function FeasibilityForm() {
 
         {/* Trip Legs */}
         <div className="space-y-4">
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".txt,.pdf,.doc,.docx,.csv,.xls,.xlsx,.md,.rtf"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) handleDocumentUpload(f);
+            }}
+          />
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">Trip Legs</h2>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploadLoading}
+              className="gap-2 text-xs"
+            >
+              {uploadLoading ? (
+                <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Parsing…</>
+              ) : (
+                <><Upload className="h-3.5 w-3.5" /> Import Schedule</>
+              )}
+            </Button>
           </div>
+          {uploadError && (
+            <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive flex items-center gap-2">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+              {uploadError}
+            </div>
+          )}
 
           {legs.map((leg, idx) => (
             <div key={leg.id}>
