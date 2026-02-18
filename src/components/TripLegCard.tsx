@@ -960,11 +960,17 @@ export default function TripLegCard({
 
           {/* AEG Set Up Fees */}
           {SHOW_AEG_FEES && (() => {
-            // Count how many overflight permits are needed for the departing sector
-            const overflightPermitsNeeded = overflightResult?.totalPermitsNeeded ?? 0;
+            // Count how many overflight permits are needed for the departing sector,
+            // excluding the departure and arrival countries (they are not overflown).
+            const originCountry = overflightResult?.originCountry ?? null;
+            const destinationCountry = overflightResult?.destinationCountry ?? null;
             const overflightCountriesNeeding = overflightResult?.countries?.filter(
-              c => c.overflightPermitRequired === 'yes' || c.overflightPermitRequired === 'conditional'
+              c =>
+                (c.overflightPermitRequired === 'yes' || c.overflightPermitRequired === 'conditional') &&
+                c.country !== originCountry &&
+                c.country !== destinationCountry
             ) ?? [];
+            const overflightPermitsNeeded = overflightCountriesNeeding.length;
 
             // Compute effective cost per service (overflight permit scales by permit count)
             const getEffectiveCost = (service: { id: string; costUsd: number; selected: boolean }) => {
