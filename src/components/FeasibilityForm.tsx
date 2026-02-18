@@ -279,6 +279,23 @@ export default function FeasibilityForm() {
   const totalOverflightCharges = Object.values(overflightResults).reduce(
     (sum, r) => sum + (r?.totalOverflightChargesUsd ?? 0), 0
   );
+  const totalAegFees = legs.reduce((sum, leg) => {
+    const overflightResult = overflightResults[legs.indexOf(leg)] ?? null;
+    const overflightPermitsNeeded = overflightResult?.totalPermitsNeeded ?? 0;
+    const predefined = (leg.aegServices || [])
+      .filter(s => s.selected)
+      .reduce((s, svc) => {
+        const cost = svc.id === 'overflight-permit' && overflightPermitsNeeded > 1
+          ? svc.costUsd * overflightPermitsNeeded
+          : svc.costUsd;
+        return s + cost;
+      }, 0);
+    const adHoc = (leg.aegAdHocServices || []).reduce((s, item) => {
+      const v = parseFloat(String(item.costUsd));
+      return s + (isNaN(v) ? 0 : v);
+    }, 0);
+    return sum + predefined + adHoc;
+  }, 0);
   const totalDistanceNm = Object.values(flightCalcs).reduce((sum, c) => sum + c.distanceNm, 0);
   const totalFlightTimeMin = Object.values(flightCalcs).reduce((sum, c) => sum + c.flightTimeMinutes, 0);
   const anyOutOfRange = Object.values(flightCalcs).some(c => !c.withinRange);
@@ -514,7 +531,7 @@ export default function FeasibilityForm() {
                   </div>
                 )}
 
-                {(totalCharges > 0 || totalOverflightCharges > 0) && (
+                {(totalCharges > 0 || totalOverflightCharges > 0 || totalAegFees > 0) && (
                   <div className="rounded bg-background/50 px-3 py-2 text-sm space-y-1">
                     <p className="font-semibold">Trip Cost Summary</p>
                     {totalCharges > 0 && (
@@ -529,10 +546,16 @@ export default function FeasibilityForm() {
                         <span className="font-mono">${totalOverflightCharges.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                       </div>
                     )}
+                    {totalAegFees > 0 && (
+                      <div className="flex justify-between">
+                        <span>AEG set up fees:</span>
+                        <span className="font-mono">${totalAegFees.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                      </div>
+                    )}
                     <Separator />
                     <div className="flex justify-between font-semibold">
                       <span>Estimated total:</span>
-                      <span className="font-mono text-primary">${(totalCharges + totalOverflightCharges).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                      <span className="font-mono text-primary">${(totalCharges + totalOverflightCharges + totalAegFees).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                     </div>
                   </div>
                 )}
