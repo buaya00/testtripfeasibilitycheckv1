@@ -70,6 +70,9 @@ export interface PermitResult {
   regulatoryWarnings?: string[];
   notes?: string;
   confidence?: 'high' | 'medium' | 'low';
+  // Perplexity grounding
+  citations?: string[];
+  groundedByPerplexity?: boolean;
   error?: string;
 }
 

@@ -746,10 +746,35 @@ export default function TripLegCard({
                   <p className="text-xs text-muted-foreground italic px-1">{leg.permitResult.notes}</p>
                 )}
 
-                {/* Confidence */}
-                {leg.permitResult.confidence && (
-                  <p className="text-[10px] text-muted-foreground">Confidence: {leg.permitResult.confidence}</p>
+                {/* Citations from Perplexity */}
+                {leg.permitResult.citations && leg.permitResult.citations.length > 0 && (
+                  <div className="rounded bg-background/50 border border-primary/10 px-2 py-1.5 text-xs space-y-1">
+                    <p className="font-semibold text-[10px] uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+                      <ExternalLink className="h-3 w-3" />
+                      Sources (real-time web search)
+                    </p>
+                    {leg.permitResult.citations.map((url, i) => (
+                      <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                        className="block text-primary hover:underline truncate text-[10px]">{url}</a>
+                    ))}
+                  </div>
                 )}
+
+                {/* Confidence + data source */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {leg.permitResult.confidence && (
+                    <p className="text-[10px] text-muted-foreground">Confidence: {leg.permitResult.confidence}</p>
+                  )}
+                  {leg.permitResult.groundedByPerplexity ? (
+                    <span className="text-[10px] bg-primary/10 text-primary rounded-full px-2 py-0.5 font-medium">
+                      ✓ Grounded by real-time search
+                    </span>
+                  ) : (
+                    <span className="text-[10px] bg-muted text-muted-foreground rounded-full px-2 py-0.5">
+                      AI estimate — verify with official sources
+                    </span>
+                  )}
+                </div>
               </div>
             )}
 
