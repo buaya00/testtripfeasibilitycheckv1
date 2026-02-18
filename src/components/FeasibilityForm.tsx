@@ -33,6 +33,7 @@ export default function FeasibilityForm() {
   const [legs, setLegs] = useState<LegData[]>([createEmptyLeg()]);
   const [uploadLoading, setUploadLoading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [checkAllError, setCheckAllError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Convert logo to data URL for printable reports
   useEffect(() => {
@@ -97,6 +98,11 @@ export default function FeasibilityForm() {
 
   // Check feasibility for all legs
   const handleCheckAll = useCallback(() => {
+    if (!aircraftType || !flightType) {
+      setCheckAllError("Please select an Aircraft Type and Flight Type before running the feasibility check.");
+      return;
+    }
+    setCheckAllError(null);
     feasibilityTriggered.current = true;
     // Trigger lookup on each leg
     Object.values(legLookupRefs.current).forEach(fn => fn?.());
@@ -105,7 +111,7 @@ export default function FeasibilityForm() {
       ...leg,
       feasibilityResult: evaluateLegFeasibility(leg, aircraftType, idx, prev.length),
     })));
-  }, [aircraftType]);
+  }, [aircraftType, flightType]);
 
   // Re-evaluate feasibility whenever lookup results change (permits, PPR, etc.)
   useEffect(() => {
@@ -381,9 +387,9 @@ export default function FeasibilityForm() {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Aircraft Type</Label>
-                <Select value={aircraftType} onValueChange={setAircraftType}>
-                  <SelectTrigger><SelectValue placeholder="Select aircraft" /></SelectTrigger>
+                <Label>Aircraft Type <span className="text-destructive">*</span></Label>
+                <Select value={aircraftType} onValueChange={(v) => { setAircraftType(v); setCheckAllError(null); }}>
+                  <SelectTrigger className={cn(!aircraftType && checkAllError ? "border-destructive ring-1 ring-destructive" : "")}><SelectValue placeholder="Select aircraft" /></SelectTrigger>
                   <SelectContent className="max-h-80">
                     {AIRCRAFT_CATEGORIES.map((cat) => (
                       <SelectGroup key={cat.label}>
@@ -397,9 +403,9 @@ export default function FeasibilityForm() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Flight Type</Label>
-                <Select value={flightType} onValueChange={setFlightType}>
-                  <SelectTrigger><SelectValue placeholder="Select flight type" /></SelectTrigger>
+                <Label>Flight Type <span className="text-destructive">*</span></Label>
+                <Select value={flightType} onValueChange={(v) => { setFlightType(v); setCheckAllError(null); }}>
+                  <SelectTrigger className={cn(!flightType && checkAllError ? "border-destructive ring-1 ring-destructive" : "")}><SelectValue placeholder="Select flight type" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="private">Private (Non-Commercial)</SelectItem>
                     <SelectItem value="non-scheduled-commercial">Non-Scheduled Commercial</SelectItem>
@@ -870,6 +876,9 @@ export default function FeasibilityForm() {
             >
               <CheckCircle2 className="h-3.5 w-3.5" /> Check All Legs
             </Button>
+            {checkAllError && (
+              <p className="text-xs text-destructive leading-snug px-1">{checkAllError}</p>
+            )}
             {legs.length > 1 && (
               <Button
                 variant="secondary"
