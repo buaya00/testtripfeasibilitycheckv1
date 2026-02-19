@@ -367,7 +367,8 @@ export default function TripLegCard({
         try { const t = await (error as any).context?.text?.(); if (t) { const p = JSON.parse(t); if (p.error) errorMsg = p.error; } } catch { /* ignore */ }
         update({ permitResult: { success: false, icao: leg.airportIcao, error: errorMsg } });
       } else {
-        update({ permitResult: res as PermitResult, ...(res?.permitRequired === 'yes' ? { permitRequired: true } : res?.permitRequired === 'no' ? { permitRequired: false } : {}) });
+        // 'conditional' means PPR/slot requirements only — no formal permit required
+        update({ permitResult: res as PermitResult, permitRequired: res?.permitRequired === 'yes' });
       }
     } catch { update({ permitResult: { success: false, icao: leg.airportIcao, error: 'Failed to connect' } }); }
     finally { setPermitLoading(false); }
