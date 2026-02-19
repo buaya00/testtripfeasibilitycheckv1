@@ -3,7 +3,7 @@ import { format } from "date-fns";
 import {
   CalendarIcon, CheckCircle2, XCircle, AlertTriangle, Search, Loader2,
   ExternalLink, Ruler, Shield, DollarSign, Clock, ChevronDown, ChevronUp,
-  FileText, Plus, Trash2, Tag,
+  FileText, Plus, Trash2, Tag, ShieldCheck, ClipboardList, Building2, Timer,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,7 +14,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
@@ -87,6 +86,7 @@ export function evaluateLegFeasibility(
 
   if (leg.permitRequired) notes.push("Landing permit must be obtained prior to ops");
   if (leg.pprRequired) notes.push("Prior Permission Required — contact airport ops");
+  if (leg.slotRequired) notes.push("Slot coordination required — book slot in advance");
   if (!leg.customsAvailable) issues.push("Customs not available at this airport");
 
   // Permit lead time check — for US airports, only add as guidance notes, not feasibility issues
@@ -327,7 +327,7 @@ export default function TripLegCard({
     try {
       const { data: res, error } = await supabase.functions.invoke('ppr-lookup', { body: { icao: leg.airportIcao, flightType: flightType || undefined, aircraftType: aircraftType || undefined } });
       if (error) { update({ pprResult: { success: false, icao: leg.airportIcao, error: error.message } }); }
-      else { update({ pprResult: res as PprResult, ...(res?.pprRequired === 'yes' ? { pprRequired: true } : res?.pprRequired === 'no' ? { pprRequired: false } : {}) }); }
+      else { update({ pprResult: res as PprResult, ...(res?.pprRequired === 'yes' ? { pprRequired: true } : res?.pprRequired === 'no' ? { pprRequired: false } : {}), ...(res?.slotRequired === true ? { slotRequired: true } : res?.slotRequired === false ? { slotRequired: false } : {}) }); }
     } catch { update({ pprResult: { success: false, icao: leg.airportIcao, error: 'Failed to connect' } }); }
     finally { setPprLoading(false); }
   }, [leg.airportIcao, flightType, aircraftType]);
@@ -638,19 +638,78 @@ export default function TripLegCard({
           </div>
 
           {/* Toggles */}
-          <div className="grid grid-cols-3 gap-2">
-            <div className="flex items-center gap-2 rounded border p-2">
-              <Switch checked={leg.permitRequired} onCheckedChange={(v) => update({ permitRequired: v })} className="scale-75" />
-              <Label className="text-xs">Permit</Label>
-            </div>
-            <div className="flex items-center gap-2 rounded border p-2">
-              <Switch checked={leg.pprRequired} onCheckedChange={(v) => update({ pprRequired: v })} className="scale-75" />
-              <Label className="text-xs">PPR</Label>
-            </div>
-            <div className="flex items-center gap-2 rounded border p-2">
-              <Switch checked={leg.customsAvailable} onCheckedChange={(v) => update({ customsAvailable: v })} className="scale-75" />
-              <Label className="text-xs">Customs</Label>
-            </div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {/* Permit */}
+            <button
+              type="button"
+              onClick={() => update({ permitRequired: !leg.permitRequired })}
+              className={cn(
+                "flex flex-col items-center gap-1.5 rounded-lg border-2 p-3 text-center transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                leg.permitRequired
+                  ? "border-warning bg-warning/10 text-warning-foreground"
+                  : "border-border bg-muted/30 text-muted-foreground hover:border-border/80 hover:bg-muted/50"
+              )}
+            >
+              <ShieldCheck className={cn("h-4 w-4", leg.permitRequired ? "text-warning" : "text-muted-foreground")} />
+              <span className="text-[11px] font-semibold leading-tight">Permit</span>
+              <span className={cn("text-[10px] leading-tight", leg.permitRequired ? "text-warning font-medium" : "text-muted-foreground")}>
+                {leg.permitRequired ? "Required" : "Not required"}
+              </span>
+            </button>
+
+            {/* PPR */}
+            <button
+              type="button"
+              onClick={() => update({ pprRequired: !leg.pprRequired })}
+              className={cn(
+                "flex flex-col items-center gap-1.5 rounded-lg border-2 p-3 text-center transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                leg.pprRequired
+                  ? "border-warning bg-warning/10 text-warning-foreground"
+                  : "border-border bg-muted/30 text-muted-foreground hover:border-border/80 hover:bg-muted/50"
+              )}
+            >
+              <ClipboardList className={cn("h-4 w-4", leg.pprRequired ? "text-warning" : "text-muted-foreground")} />
+              <span className="text-[11px] font-semibold leading-tight">PPR</span>
+              <span className={cn("text-[10px] leading-tight", leg.pprRequired ? "text-warning font-medium" : "text-muted-foreground")}>
+                {leg.pprRequired ? "Required" : "Not required"}
+              </span>
+            </button>
+
+            {/* Customs */}
+            <button
+              type="button"
+              onClick={() => update({ customsAvailable: !leg.customsAvailable })}
+              className={cn(
+                "flex flex-col items-center gap-1.5 rounded-lg border-2 p-3 text-center transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                leg.customsAvailable
+                  ? "border-success/60 bg-success/10 text-foreground"
+                  : "border-destructive/40 bg-destructive/5 text-muted-foreground hover:bg-destructive/10"
+              )}
+            >
+              <Building2 className={cn("h-4 w-4", leg.customsAvailable ? "text-success" : "text-destructive/60")} />
+              <span className="text-[11px] font-semibold leading-tight">Customs</span>
+              <span className={cn("text-[10px] leading-tight font-medium", leg.customsAvailable ? "text-success" : "text-destructive/70")}>
+                {leg.customsAvailable ? "Available" : "Not available"}
+              </span>
+            </button>
+
+            {/* Slot */}
+            <button
+              type="button"
+              onClick={() => update({ slotRequired: !leg.slotRequired })}
+              className={cn(
+                "flex flex-col items-center gap-1.5 rounded-lg border-2 p-3 text-center transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                leg.slotRequired
+                  ? "border-primary/60 bg-primary/10 text-foreground"
+                  : "border-border bg-muted/30 text-muted-foreground hover:border-border/80 hover:bg-muted/50"
+              )}
+            >
+              <Timer className={cn("h-4 w-4", leg.slotRequired ? "text-primary" : "text-muted-foreground")} />
+              <span className="text-[11px] font-semibold leading-tight">Slot</span>
+              <span className={cn("text-[10px] leading-tight", leg.slotRequired ? "text-primary font-medium" : "text-muted-foreground")}>
+                {leg.slotRequired ? "Required" : "Not required"}
+              </span>
+            </button>
           </div>
 
           {/* Lookup Results */}
