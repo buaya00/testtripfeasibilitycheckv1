@@ -35,6 +35,7 @@ export interface RunwayResult {
   found: boolean;
   icao: string;
   airportName: string | null;
+  municipality: string | null;
   latitude: number | null;
   longitude: number | null;
   runways: RunwayInfo[];

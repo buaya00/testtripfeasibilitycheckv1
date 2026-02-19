@@ -249,9 +249,9 @@ export default function TripLegCard({
     try {
       const { data: res, error } = await supabase.functions.invoke('runway-lookup', { body: { icao: leg.airportIcao } });
       if (error) {
-        update({ runwayResult: { success: false, found: false, icao: leg.airportIcao, airportName: null, latitude: null, longitude: null, runways: [], longestRunwayFt: null, message: '', error: error.message } });
+        update({ runwayResult: { success: false, found: false, icao: leg.airportIcao, airportName: null, municipality: null, latitude: null, longitude: null, runways: [], longestRunwayFt: null, message: '', error: error.message } });
       } else { update({ runwayResult: res as RunwayResult }); }
-    } catch { update({ runwayResult: { success: false, found: false, icao: leg.airportIcao, airportName: null, latitude: null, longitude: null, runways: [], longestRunwayFt: null, message: '', error: 'Failed to connect' } }); }
+    } catch { update({ runwayResult: { success: false, found: false, icao: leg.airportIcao, airportName: null, municipality: null, latitude: null, longitude: null, runways: [], longestRunwayFt: null, message: '', error: 'Failed to connect' } }); }
     finally { setRunwayLoading(false); }
   }, [leg.airportIcao]);
 
@@ -489,13 +489,18 @@ export default function TripLegCard({
         className="flex w-full items-center justify-between p-4 text-left"
         onClick={() => setExpanded(!expanded)}
       >
-        <div className="flex items-center gap-2">
-          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold shrink-0">
             {legIndex + 1}
           </span>
           <span className="font-semibold text-sm">
             {leg.airportIcao ? `Leg ${legIndex + 1} — ${leg.airportIcao}` : `Leg ${legIndex + 1}`}
           </span>
+          {leg.runwayResult?.municipality && (
+            <span className="text-xs text-muted-foreground font-normal">
+              {leg.runwayResult.municipality}
+            </span>
+          )}
           {feasResult && (
             feasResult.feasible
               ? <CheckCircle2 className="h-4 w-4 text-success" />
