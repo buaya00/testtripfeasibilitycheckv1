@@ -204,6 +204,7 @@ export default function TripLegCard({
   leg, legIndex, totalLegs, aircraftType, flightType, overflightResult, onUpdateLeg, onRemoveLeg, onRegisterLookup,
 }: TripLegCardProps) {
   const [expanded, setExpanded] = useState(true);
+  const [aegFeesExpanded, setAegFeesExpanded] = useState(false);
   const [cbpLoading, setCbpLoading] = useState(false);
   const [runwayLoading, setRunwayLoading] = useState(false);
   const [permitLoading, setPermitLoading] = useState(false);
@@ -1036,138 +1037,152 @@ export default function TripLegCard({
             };
 
             return (
-              <div className="rounded-md border border-primary/20 bg-primary/5 p-3 text-sm space-y-3">
-                <div className="flex items-center justify-between">
+              <div className="rounded-md border border-primary/20 bg-primary/5 text-sm">
+                {/* Collapsible header */}
+                <button
+                  type="button"
+                  className="w-full flex items-center justify-between p-3 hover:bg-primary/10 transition-colors rounded-md"
+                  onClick={() => setAegFeesExpanded(prev => !prev)}
+                >
                   <div className="flex items-center gap-1.5 font-medium">
                     <Tag className="h-3.5 w-3.5 text-primary" />
                     AEG Set Up Fees
                   </div>
-                  {aegTotal > 0 && (
-                    <span className="text-xs font-mono font-semibold text-primary">
-                      ${aegTotal.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                    </span>
-                  )}
-                </div>
+                  <div className="flex items-center gap-2">
+                    {aegTotal > 0 && (
+                      <span className="text-xs font-mono font-semibold text-primary">
+                        ${aegTotal.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                      </span>
+                    )}
+                    {aegFeesExpanded
+                      ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" />
+                      : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                    }
+                  </div>
+                </button>
 
-                {/* Predefined services */}
-                <div className="grid grid-cols-1 gap-1.5">
-                  {(leg.aegServices || []).map(service => {
-                    const isOverflight = service.id === 'overflight-permit';
-                    const permitsNeeded = isOverflight && overflightPermitsNeeded > 0 ? overflightPermitsNeeded : null;
-                    const effectiveCost = getEffectiveCost(service);
+                {aegFeesExpanded && (
+                  <div className="px-3 pb-3 space-y-3 border-t border-primary/10 pt-3">
+                    {/* Predefined services */}
+                    <div className="grid grid-cols-1 gap-1.5">
+                      {(leg.aegServices || []).map(service => {
+                        const isOverflight = service.id === 'overflight-permit';
+                        const permitsNeeded = isOverflight && overflightPermitsNeeded > 0 ? overflightPermitsNeeded : null;
+                        const effectiveCost = getEffectiveCost(service);
 
-                    return (
-                      <label key={service.id} className="flex items-start justify-between gap-2 cursor-pointer rounded px-2 py-1.5 hover:bg-primary/10 transition-colors">
-                        <div className="flex items-start gap-2">
-                          <Checkbox
-                            className="mt-0.5"
-                            checked={service.selected}
-                            onCheckedChange={(checked) => toggleService(service.id, checked === true)}
-                          />
-                          <div>
-                            <span className={cn("text-xs", service.selected ? "text-foreground font-medium" : "text-muted-foreground")}>
-                              {service.name}
-                            </span>
-                            {/* Show permit breakdown when overflight data is available */}
-                            {isOverflight && permitsNeeded !== null && (
-                              <p className="text-[10px] text-muted-foreground mt-0.5">
-                                {permitsNeeded === 0
-                                  ? 'No overflight permits required for this sector'
-                                  : permitsNeeded === 1
-                                    ? '1 permit required'
-                                    : `${permitsNeeded} permits required`}
-                                {overflightCountriesNeeding.length > 0 && (
-                                  <span className="ml-1">({overflightCountriesNeeding.map(c => c.country).join(', ')})</span>
+                        return (
+                          <label key={service.id} className="flex items-start justify-between gap-2 cursor-pointer rounded px-2 py-1.5 hover:bg-primary/10 transition-colors">
+                            <div className="flex items-start gap-2">
+                              <Checkbox
+                                className="mt-0.5"
+                                checked={service.selected}
+                                onCheckedChange={(checked) => toggleService(service.id, checked === true)}
+                              />
+                              <div>
+                                <span className={cn("text-xs", service.selected ? "text-foreground font-medium" : "text-muted-foreground")}>
+                                  {service.name}
+                                </span>
+                                {isOverflight && permitsNeeded !== null && (
+                                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                                    {permitsNeeded === 0
+                                      ? 'No overflight permits required for this sector'
+                                      : permitsNeeded === 1
+                                        ? '1 permit required'
+                                        : `${permitsNeeded} permits required`}
+                                    {overflightCountriesNeeding.length > 0 && (
+                                      <span className="ml-1">({overflightCountriesNeeding.map(c => c.country).join(', ')})</span>
+                                    )}
+                                  </p>
                                 )}
-                              </p>
-                            )}
-                            {isOverflight && !overflightResult && (
-                              <p className="text-[10px] text-muted-foreground/70 mt-0.5 italic">Run overflight lookup to auto-calculate</p>
-                            )}
-                          </div>
-                        </div>
-                        <div className="text-right shrink-0">
-                          {isOverflight && permitsNeeded != null && permitsNeeded > 1 ? (
-                            <div className="text-right">
-                              <span className={cn("text-xs font-mono", service.selected ? "text-foreground" : "text-muted-foreground/60")}>
-                                ${effectiveCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                              </span>
-                              <p className="text-[10px] text-muted-foreground">${service.costUsd} × {permitsNeeded}</p>
+                                {isOverflight && !overflightResult && (
+                                  <p className="text-[10px] text-muted-foreground/70 mt-0.5 italic">Run overflight lookup to auto-calculate</p>
+                                )}
+                              </div>
                             </div>
-                          ) : (
-                            <span className={cn("text-xs font-mono", service.selected ? "text-foreground" : "text-muted-foreground/60")}>
-                              ${service.costUsd}
-                            </span>
-                          )}
-                        </div>
-                      </label>
-                    );
-                  })}
-                </div>
+                            <div className="text-right shrink-0">
+                              {isOverflight && permitsNeeded != null && permitsNeeded > 1 ? (
+                                <div className="text-right">
+                                  <span className={cn("text-xs font-mono", service.selected ? "text-foreground" : "text-muted-foreground/60")}>
+                                    ${effectiveCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                  </span>
+                                  <p className="text-[10px] text-muted-foreground">${service.costUsd} × {permitsNeeded}</p>
+                                </div>
+                              ) : (
+                                <span className={cn("text-xs font-mono", service.selected ? "text-foreground" : "text-muted-foreground/60")}>
+                                  ${service.costUsd}
+                                </span>
+                              )}
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
 
-                {/* Ad-hoc services */}
-                {adHocItems.length > 0 && (
-                  <div className="space-y-2 pt-1 border-t">
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Ad-hoc Services</p>
-                    {adHocItems.map(item => (
-                      <div key={item.id} className="rounded border bg-background/60 p-2 space-y-1.5">
-                        <div className="flex gap-2">
-                          <Input
-                            placeholder="Service name"
-                            value={item.name}
-                            onChange={e => updateAdHoc(item.id, { name: e.target.value })}
-                            className="h-7 text-xs flex-1"
-                          />
-                          <div className="relative w-24 shrink-0">
-                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">$</span>
-                            <Input
-                              placeholder="0"
-                              type="number"
-                              min="0"
-                              value={item.costUsd}
-                              onChange={e => updateAdHoc(item.id, { costUsd: e.target.value })}
-                              className="h-7 text-xs pl-5 font-mono"
+                    {/* Ad-hoc services */}
+                    {adHocItems.length > 0 && (
+                      <div className="space-y-2 pt-1 border-t">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Ad-hoc Services</p>
+                        {adHocItems.map(item => (
+                          <div key={item.id} className="rounded border bg-background/60 p-2 space-y-1.5">
+                            <div className="flex gap-2">
+                              <Input
+                                placeholder="Service name"
+                                value={item.name}
+                                onChange={e => updateAdHoc(item.id, { name: e.target.value })}
+                                className="h-7 text-xs flex-1"
+                              />
+                              <div className="relative w-24 shrink-0">
+                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">$</span>
+                                <Input
+                                  placeholder="0"
+                                  type="number"
+                                  min="0"
+                                  value={item.costUsd}
+                                  onChange={e => updateAdHoc(item.id, { costUsd: e.target.value })}
+                                  className="h-7 text-xs pl-5 font-mono"
+                                />
+                              </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 shrink-0 text-destructive hover:text-destructive"
+                                onClick={() => removeAdHoc(item.id)}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                            <Textarea
+                              placeholder="Notes (optional)"
+                              value={item.notes}
+                              onChange={e => updateAdHoc(item.id, { notes: e.target.value })}
+                              className="min-h-[44px] text-xs resize-none"
                             />
                           </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 shrink-0 text-destructive hover:text-destructive"
-                            onClick={() => removeAdHoc(item.id)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                        <Textarea
-                          placeholder="Notes (optional)"
-                          value={item.notes}
-                          onChange={e => updateAdHoc(item.id, { notes: e.target.value })}
-                          className="min-h-[44px] text-xs resize-none"
-                        />
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                )}
+                    )}
 
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="w-full h-7 text-xs gap-1.5"
-                  onClick={addAdHoc}
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  Add Ad-hoc Service
-                </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full h-7 text-xs gap-1.5"
+                      onClick={addAdHoc}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add Ad-hoc Service
+                    </Button>
 
-                {/* Total */}
-                {aegTotal > 0 && (
-                  <div className="pt-2 border-t flex justify-between items-center text-xs font-medium">
-                    <span>AEG Set Up Total:</span>
-                    <span className="font-mono text-primary text-sm">
-                      ${aegTotal.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                    </span>
+                    {/* Total */}
+                    {aegTotal > 0 && (
+                      <div className="pt-2 border-t flex justify-between items-center text-xs font-medium">
+                        <span>AEG Set Up Total:</span>
+                        <span className="font-mono text-primary text-sm">
+                          ${aegTotal.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
