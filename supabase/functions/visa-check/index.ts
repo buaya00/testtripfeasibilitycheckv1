@@ -43,8 +43,8 @@ Deno.serve(async (req) => {
     if (perplexityKey) {
       try {
         const searchQuery = isAircrew
-          ? `Current visa requirements ${nationalityList} aircrew crew members entering ${destination} 2024 2025 aviation crew visa exemption`
-          : `Current visa requirements ${nationalityList} passport holders entering ${destination} 2024 2025 visa policy changes`;
+          ? `Do ${nationalityList} aircrew / flight crew members need a visa to enter ${destination} in 2025? Include any recent changes to crew visa policy, ICAO exemptions, or aviation bilateral agreements.`
+          : `Do ${nationalityList} passport holders need a visa to enter ${destination} in 2025? Include any recent visa policy changes, reinstatements, new e-visa programs, or reciprocal measures introduced in 2024 or 2025.`;
 
         const perpResponse = await fetch('https://api.perplexity.ai/chat/completions', {
           method: 'POST',
@@ -53,18 +53,18 @@ Deno.serve(async (req) => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'sonar',
+            model: 'sonar-pro',
             messages: [
               {
                 role: 'system',
-                content: 'You are a visa and immigration research assistant. Provide factual, up-to-date visa requirement information including any recent policy changes. Be specific about whether a visa is required, available on arrival, or via e-visa.',
+                content: 'You are a visa and immigration research assistant. Search for the most current visa requirements, including any policy changes announced or implemented in 2024–2025. Be explicit and specific: state clearly whether a visa IS required, available on arrival, or visa-free. Do not hedge — give a definitive current answer with sources.',
               },
               {
                 role: 'user',
                 content: searchQuery,
               },
             ],
-            search_recency_filter: 'year',
+            search_recency_filter: 'month',
           }),
         });
 
@@ -108,11 +108,11 @@ For EACH nationality, determine:
 - Whether a transit visa is needed if only transiting through${isAircrew ? ' (airside transit for crew)' : ''}${isAircrew ? '\n- Any specific aircrew exemptions or facilitation provisions (ICAO Annex 9)' : ''}`;
 
     const requestBody = {
-      model: 'google/gemini-3-flash-preview',
+      model: 'google/gemini-2.5-flash',
       messages: [
         {
           role: 'system',
-          content: `You are an aviation immigration and visa requirements expert specializing in ${isAircrew ? 'aircrew visa requirements, crew visas, and aviation facilitation agreements (ICAO Annex 9)' : 'passenger visa requirements and immigration policies'}. Use the provided research context as your primary source of truth for current visa policies. You MUST call the extract_visa_requirements tool to return structured data.`,
+          content: `You are an aviation immigration and visa requirements expert specializing in ${isAircrew ? 'aircrew visa requirements, crew visas, and aviation facilitation agreements (ICAO Annex 9)' : 'passenger visa requirements and immigration policies'}. CRITICAL: The research context provided is from a real-time web search performed TODAY and MUST override your training data. If the research says a visa IS required, you must report it as required — do NOT revert to older training data. You MUST call the extract_visa_requirements tool to return structured data.`,
         },
         { role: 'user', content: prompt },
       ],
