@@ -32,10 +32,57 @@ Deno.serve(async (req) => {
       );
     }
 
+    const perplexityKey = Deno.env.get('PERPLEXITY_API_KEY');
+
     const nationalityList = nationalities.join(', ');
     const destination = destinationCountry || `the country of airport ${destinationIcao}`;
     const personType = isAircrew ? 'aircrew members (pilots, co-pilots, cabin crew, engineers)' : 'passengers';
 
+    // ── Step 1: Ground with Perplexity real-time search ──────────────────────
+    let perplexityContext = '';
+    if (perplexityKey) {
+      try {
+        const searchQuery = isAircrew
+          ? `Current visa requirements ${nationalityList} aircrew crew members entering ${destination} 2024 2025 aviation crew visa exemption`
+          : `Current visa requirements ${nationalityList} passport holders entering ${destination} 2024 2025 visa policy changes`;
+
+        const perpResponse = await fetch('https://api.perplexity.ai/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${perplexityKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'sonar',
+            messages: [
+              {
+                role: 'system',
+                content: 'You are a visa and immigration research assistant. Provide factual, up-to-date visa requirement information including any recent policy changes. Be specific about whether a visa is required, available on arrival, or via e-visa.',
+              },
+              {
+                role: 'user',
+                content: searchQuery,
+              },
+            ],
+            search_recency_filter: 'year',
+          }),
+        });
+
+        if (perpResponse.ok) {
+          const perpData = await perpResponse.json();
+          perplexityContext = perpData.choices?.[0]?.message?.content || '';
+          console.log('Perplexity grounding successful, context length:', perplexityContext.length);
+        } else {
+          console.warn('Perplexity search failed:', perpResponse.status);
+        }
+      } catch (e) {
+        console.warn('Perplexity search error:', e);
+      }
+    } else {
+      console.warn('PERPLEXITY_API_KEY not set — falling back to model knowledge only');
+    }
+
+    // ── Step 2: Extract structured data with AI, using grounded context ───────
     const prompt = `Determine visa requirements for ${personType} with the following nationalities: ${nationalityList}.
 
 Destination: ${destination}${destinationIcao ? ` (ICAO: ${destinationIcao})` : ''}.
@@ -43,6 +90,13 @@ ${isAircrew ? `
 IMPORTANT: These are AIRCREW members operating a private or charter flight, NOT tourists or business travelers.
 Aircrew often have special visa exemptions, crew visas (C-1/D for US), or bilateral aviation agreements that give them different treatment from regular passengers.
 Consider ICAO Annex 9 facilitation provisions, crew visas, and any specific aircrew exemptions.
+` : ''}
+${perplexityContext ? `
+=== CURRENT VISA POLICY RESEARCH (use this as your primary source — it contains up-to-date information) ===
+${perplexityContext}
+===
+
+Use the above research as your authoritative source. It may include recent policy changes (e.g. visa reinstatements, new e-visa programs, reciprocal measures). Do NOT rely on outdated training data if it conflicts with the research above.
 ` : ''}
 For EACH nationality, determine:
 - Whether a visa is required to enter the destination country${isAircrew ? ' specifically for aircrew in their professional capacity' : ''}
@@ -58,7 +112,7 @@ For EACH nationality, determine:
       messages: [
         {
           role: 'system',
-          content: `You are an aviation immigration and visa requirements expert specializing in ${isAircrew ? 'aircrew visa requirements, crew visas, and aviation facilitation agreements (ICAO Annex 9)' : 'passenger visa requirements and immigration policies'}. Provide accurate visa requirement information based on current bilateral agreements and immigration policies. You MUST call the extract_visa_requirements tool to return structured data.`,
+          content: `You are an aviation immigration and visa requirements expert specializing in ${isAircrew ? 'aircrew visa requirements, crew visas, and aviation facilitation agreements (ICAO Annex 9)' : 'passenger visa requirements and immigration policies'}. Use the provided research context as your primary source of truth for current visa policies. You MUST call the extract_visa_requirements tool to return structured data.`,
         },
         { role: 'user', content: prompt },
       ],
@@ -151,7 +205,7 @@ For EACH nationality, determine:
     const visaInfo = JSON.parse(toolCall.function.arguments);
 
     return new Response(
-      JSON.stringify({ success: true, ...visaInfo }),
+      JSON.stringify({ success: true, groundedByPerplexity: !!perplexityContext, ...visaInfo }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
