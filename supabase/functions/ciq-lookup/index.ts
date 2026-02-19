@@ -48,7 +48,7 @@ Provide your best assessment based on known aviation information about this airp
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-3-flash-preview',
+        model: 'google/gemini-2.5-flash',
         messages: [
           {
             role: 'system',
@@ -92,6 +92,12 @@ Provide your best assessment based on known aviation information about this airp
         return new Response(
           JSON.stringify({ success: false, error: 'Rate limit exceeded, please try again shortly' }),
           { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      if (status === 402) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Usage limit reached. Please add credits to continue using AI lookups.' }),
+          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
       console.error('AI gateway error:', status);

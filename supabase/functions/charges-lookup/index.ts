@@ -65,7 +65,7 @@ Include:
 Be specific about what MTOW assumption you're using for the calculation.`;
 
     const requestBody = JSON.stringify({
-        model: 'google/gemini-3-flash-preview',
+        model: 'google/gemini-2.5-flash',
         messages: [
           {
             role: 'system',
@@ -135,7 +135,14 @@ Be specific about what MTOW assumption you're using for the calculation.`;
       }
 
       if (!aiResponse.ok) {
-        console.error('AI gateway error:', aiResponse.status);
+        const status = aiResponse.status;
+        if (status === 402) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Usage limit reached. Please add credits to continue using AI lookups.' }),
+            { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        console.error('AI gateway error:', status);
         if (attempt === maxRetries - 1) {
           return new Response(
             JSON.stringify({ success: false, error: 'AI lookup failed' }),
