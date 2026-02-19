@@ -179,6 +179,12 @@ For EACH nationality, determine:
             { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
+        if (status === 402) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Usage limit reached. Please add credits to continue using AI lookups.' }),
+            { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
         console.error(`AI gateway error (attempt ${attempt + 1}):`, status);
         if (attempt === 1) {
           return new Response(
