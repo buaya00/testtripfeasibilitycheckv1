@@ -689,9 +689,14 @@ export default function TripLegCard({
                   <Label className="text-xs">Arrival Date</Label>
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Button variant="outline" className={cn("w-full justify-start text-left font-normal text-xs", !leg.arrivalDate && "text-muted-foreground")}>
-                        <CalendarIcon className="mr-2 h-3.5 w-3.5" />
-                        {leg.arrivalDate ? format(leg.arrivalDate, "dd MMM yyyy") : "Select"}
+                      <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !leg.arrivalDate && "text-muted-foreground")}>
+                        <CalendarIcon className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                        {leg.arrivalDate ? (
+                          <span className="flex flex-col leading-tight">
+                            <span className="text-sm font-semibold">{format(leg.arrivalDate, "dd MMM")}</span>
+                            <span className="text-[10px] text-muted-foreground">{format(leg.arrivalDate, "yyyy")}</span>
+                          </span>
+                        ) : <span className="text-xs">Select date</span>}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
@@ -710,7 +715,7 @@ export default function TripLegCard({
                       </Select>
                     </div>
                     <div className="space-y-0.5">
-                      <span className="text-[10px] text-muted-foreground uppercase tracking-wide">{formatOffset(leg.utcOffsetHours)}</span>
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Local</span>
                       <Select
                         value={leg.arrivalTime ? utcToLocal(leg.arrivalTime, leg.utcOffsetHours) : ""}
                         onValueChange={(v) => update({ arrivalTime: localToUtc(v, leg.utcOffsetHours) })}
@@ -730,9 +735,14 @@ export default function TripLegCard({
                   <Label className="text-xs">Departure Date</Label>
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Button variant="outline" className={cn("w-full justify-start text-left font-normal text-xs", !leg.departureDate && "text-muted-foreground")}>
-                        <CalendarIcon className="mr-2 h-3.5 w-3.5" />
-                        {leg.departureDate ? format(leg.departureDate, "dd MMM yyyy") : "Select"}
+                      <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !leg.departureDate && "text-muted-foreground")}>
+                        <CalendarIcon className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                        {leg.departureDate ? (
+                          <span className="flex flex-col leading-tight">
+                            <span className="text-sm font-semibold">{format(leg.departureDate, "dd MMM")}</span>
+                            <span className="text-[10px] text-muted-foreground">{format(leg.departureDate, "yyyy")}</span>
+                          </span>
+                        ) : <span className="text-xs">Select date</span>}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
@@ -751,7 +761,7 @@ export default function TripLegCard({
                       </Select>
                     </div>
                     <div className="space-y-0.5">
-                      <span className="text-[10px] text-muted-foreground uppercase tracking-wide">{formatOffset(leg.utcOffsetHours)}</span>
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Local</span>
                       <Select
                         value={leg.departureTime ? utcToLocal(leg.departureTime, leg.utcOffsetHours) : ""}
                         onValueChange={(v) => update({ departureTime: localToUtc(v, leg.utcOffsetHours) })}
