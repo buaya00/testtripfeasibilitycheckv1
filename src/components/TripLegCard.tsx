@@ -316,8 +316,8 @@ export default function TripLegCard({
         if (!cancelled && data) {
           const updates: Partial<LegData> = {};
           if (data.municipality) updates.airportCity = data.municipality;
-          // Auto-set UTC offset from longitude if not already manually set
-          if (data.longitude != null && leg.utcOffsetHours === 0) {
+          // Always recalculate UTC offset from longitude when airport changes
+          if (data.longitude != null) {
             updates.utcOffsetHours = longitudeToUtcOffset(data.longitude);
           }
           if (Object.keys(updates).length) update(updates);
@@ -656,8 +656,14 @@ export default function TripLegCard({
                 onChange={(e) => update({
                   airportIcao: e.target.value.toUpperCase().replace(/[^A-Z]/g, ""),
                   airportCity: null,
+                  arrivalDate: undefined,
+                  arrivalTime: "",
+                  departureDate: undefined,
+                  departureTime: "",
+                  utcOffsetHours: 0,
                   cbpResult: null, runwayResult: null, permitResult: null,
                   ciqResult: null, chargesResult: null, pprResult: null,
+                  airportHoursResult: null, feasibilityResult: null,
                 })}
                 className="font-mono uppercase tracking-widest"
               />
