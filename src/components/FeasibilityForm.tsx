@@ -372,6 +372,8 @@ export default function FeasibilityForm() {
   }, [legs, aircraftType]);
 
   // Compute trip totals
+  const isFormReady = !!aircraftType && !!flightType;
+
   const totalCharges = legs.reduce((sum, l) => sum + (l.chargesResult?.totalEstimateUsd ?? 0), 0);
   const totalOverflightCharges = Object.values(overflightResults).reduce(
     (sum, r) => sum + (r?.totalOverflightChargesUsd ?? 0), 0
@@ -460,6 +462,14 @@ export default function FeasibilityForm() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Everything below is locked until aircraft + flight type are chosen */}
+        <div className={cn("space-y-6 transition-opacity duration-200", !isFormReady && "opacity-40 pointer-events-none select-none")}>
+        {!isFormReady && (
+          <p className="text-center text-sm text-muted-foreground font-medium py-2">
+            Select an Aircraft Type and Flight Type above to begin.
+          </p>
+        )}
 
         {/* Trip Legs */}
         <div className="space-y-4">
@@ -1008,6 +1018,7 @@ export default function FeasibilityForm() {
             ))}
           </CardContent>
         </Card>
+        </div> {/* end locked wrapper */}
       </main>
 
       {/* Floating action toolbar */}
