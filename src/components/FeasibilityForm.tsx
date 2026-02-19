@@ -32,7 +32,7 @@ export default function FeasibilityForm() {
   const [logoDataUrl, setLogoDataUrl] = useState<string>("");
   const [aircraftType, setAircraftType] = useState("");
   const [flightType, setFlightType] = useState("");
-  const [aircraftNationality, setAircraftNationality] = useState("");
+  const [aircraftNationality, setAircraftNationality] = useState("United States of America");
   const [legs, setLegs] = useState<LegData[]>([createEmptyLeg()]);
   const [uploadLoading, setUploadLoading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
