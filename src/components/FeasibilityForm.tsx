@@ -216,7 +216,16 @@ export default function FeasibilityForm() {
           body: { nationalities: validNationalities, destinationIcao: icao },
         });
         if (error) {
-          setVisaResults(prev => ({ ...prev, [icao]: { success: false, error: error.message } }));
+          // Try to extract the actual error message from the response body
+          let errorMsg = error.message;
+          try {
+            const bodyText = await (error as any).context?.text?.();
+            if (bodyText) {
+              const parsed = JSON.parse(bodyText);
+              if (parsed.error) errorMsg = parsed.error;
+            }
+          } catch { /* ignore parse errors */ }
+          setVisaResults(prev => ({ ...prev, [icao]: { success: false, error: errorMsg } }));
         } else {
           setVisaResults(prev => ({ ...prev, [icao]: res as VisaCheckResult }));
         }
@@ -244,7 +253,16 @@ export default function FeasibilityForm() {
           body: { nationalities: validNationalities, destinationIcao: icao, isAircrew: true },
         });
         if (error) {
-          setAircrewVisaResults(prev => ({ ...prev, [icao]: { success: false, error: error.message } }));
+          // Try to extract the actual error message from the response body
+          let errorMsg = error.message;
+          try {
+            const bodyText = await (error as any).context?.text?.();
+            if (bodyText) {
+              const parsed = JSON.parse(bodyText);
+              if (parsed.error) errorMsg = parsed.error;
+            }
+          } catch { /* ignore parse errors */ }
+          setAircrewVisaResults(prev => ({ ...prev, [icao]: { success: false, error: errorMsg } }));
         } else {
           setAircrewVisaResults(prev => ({ ...prev, [icao]: res as VisaCheckResult }));
         }

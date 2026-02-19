@@ -221,7 +221,14 @@ Be specific and accurate. For the specific flight type "${flightTypeLabel}", be 
       }
 
       if (!aiResponse.ok) {
-        console.error('AI gateway error:', aiResponse.status);
+        const status = aiResponse.status;
+        if (status === 402) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Usage limit reached. Please add credits to continue using AI lookups.' }),
+            { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        console.error('AI gateway error:', status);
         if (attempt === maxRetries - 1) {
           return new Response(
             JSON.stringify({ success: false, error: 'AI lookup failed' }),
