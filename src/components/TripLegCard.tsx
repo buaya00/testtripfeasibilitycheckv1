@@ -63,13 +63,6 @@ function formatOffset(offsetHours: number): string {
   return m === 0 ? `UTC${sign}${h}` : `UTC${sign}${h}:${String(m).padStart(2, "0")}`;
 }
 
-/** Estimate UTC offset in whole/half hours from longitude */
-function longitudeToUtcOffset(longitude: number): number {
-  const raw = longitude / 15;
-  // Round to nearest 0.5 (half-hour zones)
-  return Math.round(raw * 2) / 2;
-}
-
 function timeToMinutes(time: string): number {
   const [h, m] = time.split(':').map(Number);
   return h * 60 + m;
@@ -316,9 +309,9 @@ export default function TripLegCard({
         if (!cancelled && data) {
           const updates: Partial<LegData> = {};
           if (data.municipality) updates.airportCity = data.municipality;
-          // Always recalculate UTC offset from longitude when airport changes
-          if (data.longitude != null) {
-            updates.utcOffsetHours = longitudeToUtcOffset(data.longitude);
+          // Use real timezone offset returned by the edge function
+          if (typeof data.utcOffsetHours === 'number') {
+            updates.utcOffsetHours = data.utcOffsetHours;
           }
           if (Object.keys(updates).length) update(updates);
         }
