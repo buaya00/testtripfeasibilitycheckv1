@@ -55,11 +55,19 @@ function localToUtc(localTime: string, offsetHours: number): string {
 }
 
 function formatOffset(offsetHours: number): string {
-  const sign = offsetHours >= 0 ? "+" : "−";
+  if (isNaN(offsetHours) || offsetHours === 0) return "Local";
+  const sign = offsetHours > 0 ? "+" : "−";
   const abs = Math.abs(offsetHours);
   const h = Math.floor(abs);
   const m = Math.round((abs - h) * 60);
   return m === 0 ? `UTC${sign}${h}` : `UTC${sign}${h}:${String(m).padStart(2, "0")}`;
+}
+
+/** Estimate UTC offset in whole/half hours from longitude */
+function longitudeToUtcOffset(longitude: number): number {
+  const raw = longitude / 15;
+  // Round to nearest 0.5 (half-hour zones)
+  return Math.round(raw * 2) / 2;
 }
 
 function timeToMinutes(time: string): number {
@@ -305,8 +313,14 @@ export default function TripLegCard({
     let cancelled = false;
     supabase.functions.invoke('airport-info', { body: { icao: leg.airportIcao } })
       .then(({ data }) => {
-        if (!cancelled && data?.municipality) {
-          update({ airportCity: data.municipality });
+        if (!cancelled && data) {
+          const updates: Partial<LegData> = {};
+          if (data.municipality) updates.airportCity = data.municipality;
+          // Auto-set UTC offset from longitude if not already manually set
+          if (data.longitude != null && leg.utcOffsetHours === 0) {
+            updates.utcOffsetHours = longitudeToUtcOffset(data.longitude);
+          }
+          if (Object.keys(updates).length) update(updates);
         }
       })
       .catch(() => {/* silent */});
