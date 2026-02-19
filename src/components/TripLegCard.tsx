@@ -51,6 +51,45 @@ function isUsAirport(icao: string) {
   return icao.startsWith('K') || icao.startsWith('PA') || icao.startsWith('PH') || icao.startsWith('PG') || icao.startsWith('TJ');
 }
 
+// UK ICAO prefix: EG
+// EU member state ICAO prefixes (ICAO Doc 7910 regions)
+const UK_EU_PREFIXES = [
+  'EG',                          // United Kingdom
+  'EB',                          // Belgium
+  'ED', 'ET',                    // Germany
+  'EE',                          // Estonia
+  'EF',                          // Finland
+  'EH',                          // Netherlands
+  'EI',                          // Ireland
+  'EK',                          // Denmark
+  'EL',                          // Luxembourg
+  'EP',                          // Poland
+  'ES',                          // Sweden
+  'EV',                          // Latvia
+  'EY',                          // Lithuania
+  'LB',                          // Bulgaria
+  'LC',                          // Cyprus
+  'LD',                          // Croatia
+  'LE',                          // Spain
+  'LF',                          // France
+  'LG',                          // Greece
+  'LH',                          // Hungary
+  'LI',                          // Italy
+  'LJ',                          // Slovenia
+  'LK',                          // Czech Republic
+  'LO',                          // Austria
+  'LP',                          // Portugal
+  'LR',                          // Romania
+  'LZ',                          // Slovakia
+  'LX',                          // Gibraltar (UK)
+];
+
+function isUkOrEuAirport(icao: string): boolean {
+  if (!icao || icao.length < 2) return false;
+  const upper = icao.toUpperCase();
+  return UK_EU_PREFIXES.some(prefix => upper.startsWith(prefix));
+}
+
 export function evaluateLegFeasibility(
   leg: LegData,
   aircraftType: string,
@@ -779,8 +818,8 @@ export default function TripLegCard({
                   {leg.permitResult.conditions && <p><span className="font-medium">Conditions:</span> {leg.permitResult.conditions}</p>}
                 </div>
 
-                {/* TCO Authorization */}
-                {leg.permitResult.tcoRequired && leg.permitResult.tcoRequired !== 'not_applicable' && (
+                {/* TCO Authorization — only relevant for UK/EU destinations */}
+                {leg.permitResult.tcoRequired && leg.permitResult.tcoRequired !== 'not_applicable' && isUkOrEuAirport(leg.airportIcao) && (
                   <div className={cn("rounded px-2 py-1.5 text-xs space-y-0.5",
                     leg.permitResult.tcoRequired === 'yes' ? "bg-destructive/10 border border-destructive/20" : leg.permitResult.tcoRequired === 'conditional' ? "bg-warning/10 border border-warning/20" : "bg-success/10 border border-success/20"
                   )}>
