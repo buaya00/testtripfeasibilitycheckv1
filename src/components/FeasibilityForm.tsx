@@ -526,7 +526,7 @@ export default function FeasibilityForm() {
           )}
 
           {legs.map((leg, idx) => (
-            <div key={leg.id}>
+            <div key={leg.id} id={`leg-${idx}`}>
               <TripLegCard
                 leg={leg}
                 legIndex={idx}
@@ -538,6 +538,10 @@ export default function FeasibilityForm() {
                 onUpdateLeg={updateLeg}
                 onRemoveLeg={removeLeg}
                 onRegisterLookup={registerLegLookup}
+                onNavigateLeg={(toIndex) => {
+                  const el = document.getElementById(`leg-${toIndex}`);
+                  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }}
               />
 
               {/* Overflight between this leg and next */}
