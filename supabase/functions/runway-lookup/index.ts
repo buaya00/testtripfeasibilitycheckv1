@@ -124,8 +124,9 @@ Deno.serve(async (req) => {
       ? Math.max(...runways.map(r => r.lengthFt))
       : null;
 
-    // Also fetch airport name and coordinates from airports.csv
+    // Also fetch airport name, city, and coordinates from airports.csv
     let airportName: string | null = null;
+    let municipality: string | null = null;
     let latitude: number | null = null;
     let longitude: number | null = null;
     try {
@@ -136,6 +137,7 @@ Deno.serve(async (req) => {
         const airportHeader = parseCSVLine(airportLines[0]);
         const iAIdent = airportHeader.indexOf('ident');
         const iAName = airportHeader.indexOf('name');
+        const iAMunicipality = airportHeader.indexOf('municipality');
         const iALat = airportHeader.indexOf('latitude_deg');
         const iALon = airportHeader.indexOf('longitude_deg');
         for (let i = 1; i < airportLines.length; i++) {
@@ -145,6 +147,7 @@ Deno.serve(async (req) => {
           const fields = parseCSVLine(line);
           if (fields[iAIdent] === icao) {
             airportName = fields[iAName] || null;
+            municipality = fields[iAMunicipality] || null;
             const lat = parseFloat(fields[iALat]);
             const lon = parseFloat(fields[iALon]);
             if (!isNaN(lat)) latitude = lat;
@@ -163,6 +166,7 @@ Deno.serve(async (req) => {
         found: runways.length > 0,
         icao,
         airportName,
+        municipality,
         latitude,
         longitude,
         runways,
