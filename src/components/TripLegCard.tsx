@@ -268,10 +268,11 @@ interface TripLegCardProps {
   onUpdateLeg: (index: number, updates: Partial<LegData>) => void;
   onRemoveLeg: (index: number) => void;
   onRegisterLookup?: (index: number, fn: (() => void) | null) => void;
+  onNavigateLeg?: (toIndex: number) => void;
 }
 
 export default function TripLegCard({
-  leg, legIndex, totalLegs, aircraftType, flightType, aircraftNationality, overflightResult, onUpdateLeg, onRemoveLeg, onRegisterLookup,
+  leg, legIndex, totalLegs, aircraftType, flightType, aircraftNationality, overflightResult, onUpdateLeg, onRemoveLeg, onRegisterLookup, onNavigateLeg,
 }: TripLegCardProps) {
   const [expanded, setExpanded] = useState(true);
   const [aegFeesExpanded, setAegFeesExpanded] = useState(false);
@@ -599,12 +600,12 @@ export default function TripLegCard({
   return (
     <div className={bannerClass}>
       {/* Header */}
-      <button
-        type="button"
-        className="flex w-full items-center justify-between p-4 text-left"
-        onClick={() => setExpanded(!expanded)}
-      >
-        <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex w-full items-center justify-between p-4">
+        <button
+          type="button"
+          className="flex flex-1 items-center gap-2 flex-wrap text-left"
+          onClick={() => setExpanded(!expanded)}
+        >
           <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold shrink-0">
             {legIndex + 1}
           </span>
@@ -632,9 +633,32 @@ export default function TripLegCard({
                     : ''}
             </span>
           )}
-        </div>
-        {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-      </button>
+          {expanded ? <ChevronUp className="h-4 w-4 ml-auto" /> : <ChevronDown className="h-4 w-4 ml-auto" />}
+        </button>
+        {/* Leg navigation arrows — only shown when there are multiple legs */}
+        {totalLegs > 1 && onNavigateLeg && (
+          <div className="flex items-center gap-1 ml-3 shrink-0">
+            <button
+              type="button"
+              disabled={legIndex === 0}
+              onClick={() => onNavigateLeg(legIndex - 1)}
+              className="flex h-6 w-6 items-center justify-center rounded border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              title="Previous leg"
+            >
+              <ChevronUp className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              disabled={legIndex === totalLegs - 1}
+              onClick={() => onNavigateLeg(legIndex + 1)}
+              className="flex h-6 w-6 items-center justify-center rounded border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              title="Next leg"
+            >
+              <ChevronDown className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+      </div>
 
       {expanded && (
         <div className="border-t px-4 pb-4 pt-3 space-y-4">
