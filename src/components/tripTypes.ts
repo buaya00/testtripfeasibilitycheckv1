@@ -338,9 +338,13 @@ export interface LegData {
   /** City/municipality from fast airport-info lookup — populated as soon as 4-char ICAO is entered */
   airportCity: string | null;
   arrivalDate: Date | undefined;
+  /** Stored as UTC HH:MM */
   arrivalTime: string;
   departureDate: Date | undefined;
+  /** Stored as UTC HH:MM */
   departureTime: string;
+  /** UTC offset for local time display/entry, e.g. -5 for EST, +5.5 for IST */
+  utcOffsetHours: number;
   permitRequired: boolean;
   pprRequired: boolean;
   customsAvailable: boolean;
@@ -372,6 +376,7 @@ export function createEmptyLeg(): LegData {
     arrivalTime: "",
     departureDate: undefined,
     departureTime: "",
+    utcOffsetHours: 0,
     permitRequired: false,
     pprRequired: false,
     customsAvailable: false,

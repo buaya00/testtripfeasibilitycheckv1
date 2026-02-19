@@ -63,8 +63,21 @@ export function generatePrintableHtml({
 
     // Dates
     const dateParts: string[] = [];
-    if (showArrival && leg.arrivalDate) dateParts.push(`Arrival: ${format(leg.arrivalDate, "dd MMM yyyy")} ${leg.arrivalTime || ""}`);
-    if (showDeparture && leg.departureDate) dateParts.push(`Departure: ${format(leg.departureDate, "dd MMM yyyy")} ${leg.departureTime || ""}`);
+    const offset = leg.utcOffsetHours ?? 0;
+    const fmtOffset = (o: number) => { const s = o >= 0 ? "+" : "−"; const h = Math.floor(Math.abs(o)); const m = Math.round((Math.abs(o) - h) * 60); return m === 0 ? `UTC${s}${h}` : `UTC${s}${h}:${String(m).padStart(2, "0")}`; };
+    const utcToLocal = (t: string, o: number) => { if (!t) return ""; const [h, m] = t.split(":").map(Number); const tot = ((h * 60 + m + Math.round(o * 60)) % 1440 + 1440) % 1440; return `${String(Math.floor(tot / 60)).padStart(2, "0")}:${String(tot % 60).padStart(2, "0")}`; };
+    if (showArrival && leg.arrivalDate) {
+      const utc = leg.arrivalTime || "";
+      const lcl = utc ? utcToLocal(utc, offset) : "";
+      const timeStr = utc ? `${utc} UTC${lcl && offset !== 0 ? ` / ${lcl} ${fmtOffset(offset)}` : ""}` : "";
+      dateParts.push(`Arrival: ${format(leg.arrivalDate, "dd MMM yyyy")} ${timeStr}`);
+    }
+    if (showDeparture && leg.departureDate) {
+      const utc = leg.departureTime || "";
+      const lcl = utc ? utcToLocal(utc, offset) : "";
+      const timeStr = utc ? `${utc} UTC${lcl && offset !== 0 ? ` / ${lcl} ${fmtOffset(offset)}` : ""}` : "";
+      dateParts.push(`Departure: ${format(leg.departureDate, "dd MMM yyyy")} ${timeStr}`);
+    }
     if (dateParts.length) detailsHtml += `<p class="detail">${dateParts.join(" &nbsp;|&nbsp; ")}</p>`;
 
     // Toggles

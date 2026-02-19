@@ -27,11 +27,40 @@ import type {
 const SHOW_AEG_FEES = true;
 
 // ── Constants ──────────────────────────────────────────────
-const TIMES = Array.from({ length: 48 }, (_, i) => {
-  const h = String(Math.floor(i / 2)).padStart(2, "0");
-  const m = i % 2 === 0 ? "00" : "30";
+const TIMES = Array.from({ length: 96 }, (_, i) => {
+  const h = String(Math.floor(i / 4)).padStart(2, "0");
+  const m = ["00", "15", "30", "45"][i % 4];
   return `${h}:${m}`;
 });
+
+// ── UTC ↔ Local conversion helpers ─────────────────────────
+function utcToLocal(utcTime: string, offsetHours: number): string {
+  if (!utcTime) return "";
+  const [h, m] = utcTime.split(":").map(Number);
+  const totalMin = h * 60 + m + Math.round(offsetHours * 60);
+  const wrapped = ((totalMin % 1440) + 1440) % 1440;
+  const lh = String(Math.floor(wrapped / 60)).padStart(2, "0");
+  const lm = String(wrapped % 60).padStart(2, "0");
+  return `${lh}:${lm}`;
+}
+
+function localToUtc(localTime: string, offsetHours: number): string {
+  if (!localTime) return "";
+  const [h, m] = localTime.split(":").map(Number);
+  const totalMin = h * 60 + m - Math.round(offsetHours * 60);
+  const wrapped = ((totalMin % 1440) + 1440) % 1440;
+  const uh = String(Math.floor(wrapped / 60)).padStart(2, "0");
+  const um = String(wrapped % 60).padStart(2, "0");
+  return `${uh}:${um}`;
+}
+
+function formatOffset(offsetHours: number): string {
+  const sign = offsetHours >= 0 ? "+" : "−";
+  const abs = Math.abs(offsetHours);
+  const h = Math.floor(abs);
+  const m = Math.round((abs - h) * 60);
+  return m === 0 ? `UTC${sign}${h}` : `UTC${sign}${h}:${String(m).padStart(2, "0")}`;
+}
 
 function timeToMinutes(time: string): number {
   const [h, m] = time.split(':').map(Number);
@@ -630,6 +659,24 @@ export default function TripLegCard({
             </div>
           </div>
 
+          {/* UTC Offset */}
+          <div className="space-y-1">
+            <Label className="text-xs">Local UTC Offset</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                step="0.5"
+                min={-12}
+                max={14}
+                value={leg.utcOffsetHours}
+                onChange={(e) => update({ utcOffsetHours: parseFloat(e.target.value) || 0 })}
+                className="font-mono text-xs w-24"
+                placeholder="0"
+              />
+              <span className="text-xs text-muted-foreground">{formatOffset(leg.utcOffsetHours)}</span>
+            </div>
+          </div>
+
           {/* Arrival / Departure */}
           <div className="grid grid-cols-2 gap-4">
             {/* Arrival fields — hidden for the first leg when multi-leg */}
@@ -650,11 +697,26 @@ export default function TripLegCard({
                   </Popover>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Arrival Time (UTC)</Label>
-                  <Select value={leg.arrivalTime} onValueChange={(v) => update({ arrivalTime: v })}>
-                    <SelectTrigger className="text-xs"><SelectValue placeholder="HH:MM" /></SelectTrigger>
-                    <SelectContent>{TIMES.map((t) => <SelectItem key={`a-${t}`} value={t}>{t}</SelectItem>)}</SelectContent>
-                  </Select>
+                  <Label className="text-xs">Arrival Time</Label>
+                  <div className="space-y-1.5">
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wide">UTC</span>
+                      <Select value={leg.arrivalTime} onValueChange={(v) => update({ arrivalTime: v })}>
+                        <SelectTrigger className="text-xs h-8"><SelectValue placeholder="HH:MM" /></SelectTrigger>
+                        <SelectContent>{TIMES.map((t) => <SelectItem key={`a-utc-${t}`} value={t}>{t}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wide">{formatOffset(leg.utcOffsetHours)}</span>
+                      <Select
+                        value={leg.arrivalTime ? utcToLocal(leg.arrivalTime, leg.utcOffsetHours) : ""}
+                        onValueChange={(v) => update({ arrivalTime: localToUtc(v, leg.utcOffsetHours) })}
+                      >
+                        <SelectTrigger className="text-xs h-8"><SelectValue placeholder="HH:MM" /></SelectTrigger>
+                        <SelectContent>{TIMES.map((t) => <SelectItem key={`a-lcl-${t}`} value={t}>{t}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                 </div>
               </>
             )}
@@ -676,11 +738,26 @@ export default function TripLegCard({
                   </Popover>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Departure Time (UTC)</Label>
-                  <Select value={leg.departureTime} onValueChange={(v) => update({ departureTime: v })}>
-                    <SelectTrigger className="text-xs"><SelectValue placeholder="HH:MM" /></SelectTrigger>
-                    <SelectContent>{TIMES.map((t) => <SelectItem key={`d-${t}`} value={t}>{t}</SelectItem>)}</SelectContent>
-                  </Select>
+                  <Label className="text-xs">Departure Time</Label>
+                  <div className="space-y-1.5">
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wide">UTC</span>
+                      <Select value={leg.departureTime} onValueChange={(v) => update({ departureTime: v })}>
+                        <SelectTrigger className="text-xs h-8"><SelectValue placeholder="HH:MM" /></SelectTrigger>
+                        <SelectContent>{TIMES.map((t) => <SelectItem key={`d-utc-${t}`} value={t}>{t}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wide">{formatOffset(leg.utcOffsetHours)}</span>
+                      <Select
+                        value={leg.departureTime ? utcToLocal(leg.departureTime, leg.utcOffsetHours) : ""}
+                        onValueChange={(v) => update({ departureTime: localToUtc(v, leg.utcOffsetHours) })}
+                      >
+                        <SelectTrigger className="text-xs h-8"><SelectValue placeholder="HH:MM" /></SelectTrigger>
+                        <SelectContent>{TIMES.map((t) => <SelectItem key={`d-lcl-${t}`} value={t}>{t}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                 </div>
               </>
             )}
