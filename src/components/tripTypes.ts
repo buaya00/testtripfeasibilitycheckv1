@@ -288,6 +288,49 @@ export function createDefaultAegServices(): AegPredefinedService[] {
   return AEG_PREDEFINED_SERVICES.map(s => ({ ...s, selected: false }));
 }
 
+// ── Fuel Tankering ───────────────────────────────────────
+export interface FuelLegPrice {
+  icao: string;
+  /** Price per US gallon in USD (manual entry, placeholder for AEG Fuels API) */
+  pricePerGallonUsd: number | null;
+  /** Fuel uplifted at this stop in US gallons */
+  upliftGallons: number | null;
+  /** Note / source for this price */
+  priceNote: string;
+}
+
+export interface TankeringLeg {
+  fromIcao: string;
+  toIcao: string;
+  /** Great-circle distance in nm */
+  distanceNm: number;
+  /** Estimated block fuel for the leg in US gallons */
+  blockFuelGallons: number;
+  /** Price at departure in USD/gal */
+  priceAtDepartureUsd: number | null;
+  /** Price at destination in USD/gal */
+  priceAtDestinationUsd: number | null;
+  /** Tankering analysis */
+  analysis: TankeringAnalysis | null;
+}
+
+export interface TankeringAnalysis {
+  /** Extra fuel to tanker in US gallons */
+  tankerGallons: number;
+  /** Fuel burn penalty for carrying extra weight (gal) */
+  weightPenaltyGallons: number;
+  /** Net fuel saved at destination (gal) */
+  netFuelSavedGallons: number;
+  /** Net cost saving in USD (positive = save money by tankering) */
+  netSavingUsd: number;
+  /** Recommendation */
+  recommendation: 'tanker' | 'buy_local' | 'neutral';
+  /** Price spread per gallon */
+  spreadPerGallon: number;
+  /** Break-even price spread (below this, not worth tankering) */
+  breakEvenSpreadUsd: number;
+}
+
 export interface LegData {
   id: string;
   airportIcao: string;
@@ -299,6 +342,9 @@ export interface LegData {
   pprRequired: boolean;
   customsAvailable: boolean;
   runwayOverrideFt: string;
+  // Fuel price at this stop (for tankering analysis)
+  fuelPriceUsd: number | null;
+  fuelPriceNote: string;
   // AEG Set Up Fees
   aegServices: AegPredefinedService[];
   aegAdHocServices: AegAdHocService[];
@@ -325,6 +371,8 @@ export function createEmptyLeg(): LegData {
     pprRequired: false,
     customsAvailable: false,
     runwayOverrideFt: "",
+    fuelPriceUsd: null,
+    fuelPriceNote: "",
     aegServices: createDefaultAegServices(),
     aegAdHocServices: [],
     cbpResult: null,

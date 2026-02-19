@@ -19,6 +19,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import TripLegCard, { evaluateLegFeasibility } from "./TripLegCard";
+import FuelTankeringPanel from "./FuelTankeringPanel";
 import type {
   LegData, OverflightResult, VisaCheckResult, PetCheckResult,
 } from "./tripTypes";
@@ -324,6 +325,13 @@ export default function FeasibilityForm() {
       setUploadLoading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
+  }, []);
+
+  // Update fuel price for a specific leg
+  const handleUpdateLegFuelPrice = useCallback((legIndex: number, priceUsd: number | null, note: string) => {
+    setLegs(prev => prev.map((leg, i) =>
+      i === legIndex ? { ...leg, fuelPriceUsd: priceUsd, fuelPriceNote: note } : leg
+    ));
   }, []);
 
   // Reset
@@ -701,6 +709,16 @@ export default function FeasibilityForm() {
               </div>
             </CardContent>
           </Card>
+        )}
+
+        {/* Fuel Tankering Analysis */}
+        {legs.length >= 2 && (
+          <FuelTankeringPanel
+            legs={legs}
+            flightCalcs={flightCalcs}
+            aircraftType={aircraftType}
+            onUpdateLegFuelPrice={handleUpdateLegFuelPrice}
+          />
         )}
 
         {/* Passenger Visa Requirements */}
