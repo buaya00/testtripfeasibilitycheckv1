@@ -121,36 +121,30 @@ export default function FeasibilityForm() {
     })));
   }, [aircraftType, flightType]);
 
+  // Stable snapshot of lookup results used as a dependency (avoids hooks array-size violation)
+  const lookupSnapshot = useMemo(() => legs.map(l => [
+    l.permitResult, l.pprResult, l.cbpResult, l.runwayResult, l.ciqResult, l.airportHoursResult,
+  ].map(r => (r ? JSON.stringify({ s: (r as any).success, e: (r as any).error }) : null)).join('|')).join('||'), [legs]);
+
   // Re-evaluate feasibility whenever lookup results change (permits, PPR, etc.)
   useEffect(() => {
     if (!feasibilityTriggered.current) return;
-    // Check if any leg has a feasibilityResult already (means we've run check-all)
     const anyEvaluated = legs.some(l => l.feasibilityResult != null);
     if (!anyEvaluated) return;
 
-    // Re-evaluate with latest lookup data
     setLegs(prev => {
       const updated = prev.map((leg, idx) => ({
         ...leg,
         feasibilityResult: evaluateLegFeasibility(leg, aircraftType, idx, prev.length),
       }));
-      // Only update if results actually changed to avoid infinite loop
       const changed = updated.some((u, i) =>
         u.feasibilityResult?.feasible !== prev[i].feasibilityResult?.feasible ||
         u.feasibilityResult?.issues.length !== prev[i].feasibilityResult?.issues.length
       );
       return changed ? updated : prev;
     });
-  }, [
-    // Re-run when any lookup result changes
-    ...legs.map(l => l.permitResult),
-    ...legs.map(l => l.pprResult),
-    ...legs.map(l => l.cbpResult),
-    ...legs.map(l => l.runwayResult),
-    ...legs.map(l => l.ciqResult),
-    ...legs.map(l => l.airportHoursResult),
-    aircraftType,
-  ]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lookupSnapshot, aircraftType]);
 
   // Overflight between consecutive legs
   const handleOverflightBetweenLegs = useCallback(async (fromIdx: number) => {
