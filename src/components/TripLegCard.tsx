@@ -325,8 +325,11 @@ export default function TripLegCard({
           aircraftNationality: aircraftNationality || undefined,
         },
       });
-      if (error) { update({ permitResult: { success: false, icao: leg.airportIcao, error: error.message } }); }
-      else {
+      if (error) {
+        let errorMsg = error.message;
+        try { const t = await (error as any).context?.text?.(); if (t) { const p = JSON.parse(t); if (p.error) errorMsg = p.error; } } catch { /* ignore */ }
+        update({ permitResult: { success: false, icao: leg.airportIcao, error: errorMsg } });
+      } else {
         update({ permitResult: res as PermitResult, ...(res?.permitRequired === 'yes' ? { permitRequired: true } : res?.permitRequired === 'no' ? { permitRequired: false } : {}) });
       }
     } catch { update({ permitResult: { success: false, icao: leg.airportIcao, error: 'Failed to connect' } }); }
@@ -339,8 +342,11 @@ export default function TripLegCard({
     update({ ciqResult: null });
     try {
       const { data: res, error } = await supabase.functions.invoke('ciq-lookup', { body: { icao: leg.airportIcao } });
-      if (error) { update({ ciqResult: { success: false, icao: leg.airportIcao, error: error.message } }); }
-      else { update({ ciqResult: res as CiqResult, ...(res?.ciqAvailable === 'yes' ? { customsAvailable: true } : res?.ciqAvailable === 'no' ? { customsAvailable: false } : {}) }); }
+      if (error) {
+        let errorMsg = error.message;
+        try { const t = await (error as any).context?.text?.(); if (t) { const p = JSON.parse(t); if (p.error) errorMsg = p.error; } } catch { /* ignore */ }
+        update({ ciqResult: { success: false, icao: leg.airportIcao, error: errorMsg } });
+      } else { update({ ciqResult: res as CiqResult, ...(res?.ciqAvailable === 'yes' ? { customsAvailable: true } : res?.ciqAvailable === 'no' ? { customsAvailable: false } : {}) }); }
     } catch { update({ ciqResult: { success: false, icao: leg.airportIcao, error: 'Failed to connect' } }); }
     finally { setCiqLoading(false); }
   }, [leg.airportIcao]);
@@ -360,8 +366,11 @@ export default function TripLegCard({
           departureTime: leg.departureTime || undefined,
         },
       });
-      if (error) { update({ chargesResult: { success: false, icao: leg.airportIcao, error: error.message } }); }
-      else { update({ chargesResult: res as ChargesResult }); }
+      if (error) {
+        let errorMsg = error.message;
+        try { const t = await (error as any).context?.text?.(); if (t) { const p = JSON.parse(t); if (p.error) errorMsg = p.error; } } catch { /* ignore */ }
+        update({ chargesResult: { success: false, icao: leg.airportIcao, error: errorMsg } });
+      } else { update({ chargesResult: res as ChargesResult }); }
     } catch { update({ chargesResult: { success: false, icao: leg.airportIcao, error: 'Failed to connect' } }); }
     finally { setChargesLoading(false); }
   }, [leg.airportIcao, aircraftType, leg.arrivalDate, leg.arrivalTime, leg.departureDate, leg.departureTime]);
@@ -372,8 +381,11 @@ export default function TripLegCard({
     update({ pprResult: null });
     try {
       const { data: res, error } = await supabase.functions.invoke('ppr-lookup', { body: { icao: leg.airportIcao, flightType: flightType || undefined, aircraftType: aircraftType || undefined } });
-      if (error) { update({ pprResult: { success: false, icao: leg.airportIcao, error: error.message } }); }
-      else { update({ pprResult: res as PprResult, ...(res?.pprRequired === 'yes' ? { pprRequired: true } : res?.pprRequired === 'no' ? { pprRequired: false } : {}), ...(res?.slotRequired === true ? { slotRequired: true } : res?.slotRequired === false ? { slotRequired: false } : {}) }); }
+      if (error) {
+        let errorMsg = error.message;
+        try { const t = await (error as any).context?.text?.(); if (t) { const p = JSON.parse(t); if (p.error) errorMsg = p.error; } } catch { /* ignore */ }
+        update({ pprResult: { success: false, icao: leg.airportIcao, error: errorMsg } });
+      } else { update({ pprResult: res as PprResult, ...(res?.pprRequired === 'yes' ? { pprRequired: true } : res?.pprRequired === 'no' ? { pprRequired: false } : {}), ...(res?.slotRequired === true ? { slotRequired: true } : res?.slotRequired === false ? { slotRequired: false } : {}) }); }
     } catch { update({ pprResult: { success: false, icao: leg.airportIcao, error: 'Failed to connect' } }); }
     finally { setPprLoading(false); }
   }, [leg.airportIcao, flightType, aircraftType]);
@@ -394,8 +406,11 @@ export default function TripLegCard({
           flightType: flightType || undefined,
         },
       });
-      if (error) { update({ airportHoursResult: { success: false, icao: leg.airportIcao, error: error.message } }); }
-      else { update({ airportHoursResult: res as AirportHoursResult }); }
+      if (error) {
+        let errorMsg = error.message;
+        try { const t = await (error as any).context?.text?.(); if (t) { const p = JSON.parse(t); if (p.error) errorMsg = p.error; } } catch { /* ignore */ }
+        update({ airportHoursResult: { success: false, icao: leg.airportIcao, error: errorMsg } });
+      } else { update({ airportHoursResult: res as AirportHoursResult }); }
     } catch { update({ airportHoursResult: { success: false, icao: leg.airportIcao, error: 'Failed to connect' } }); }
     finally { setHoursLoading(false); }
   }, [leg.airportIcao, leg.arrivalDate, leg.arrivalTime, leg.departureDate, leg.departureTime, aircraftType, flightType]);

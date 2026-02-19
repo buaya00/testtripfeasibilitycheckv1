@@ -147,7 +147,7 @@ Return structured data about:
       }
       if (aiResponse.status === 402) {
         return new Response(
-          JSON.stringify({ success: false, error: 'Usage limit reached.' }),
+          JSON.stringify({ success: false, error: 'Usage limit reached. Please add credits to continue using AI lookups.' }),
           { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
