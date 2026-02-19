@@ -8,6 +8,7 @@ import {
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { AircraftTypeCombobox } from "@/components/AircraftTypeCombobox";
+import { NationalityCombobox } from "@/components/NationalityCombobox";
 import { AIRCRAFT_RANGE_NM, AIRCRAFT_CRUISE_KTAS } from "@/data/aircraftPerformance";
 import { calculateFlightLeg, type FlightLegCalculation } from "@/lib/flightCalculations";
 import { COUNTRIES } from "@/data/countries";
@@ -31,6 +32,7 @@ export default function FeasibilityForm() {
   const [logoDataUrl, setLogoDataUrl] = useState<string>("");
   const [aircraftType, setAircraftType] = useState("");
   const [flightType, setFlightType] = useState("");
+  const [aircraftNationality, setAircraftNationality] = useState("");
   const [legs, setLegs] = useState<LegData[]>([createEmptyLeg()]);
   const [uploadLoading, setUploadLoading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -338,6 +340,7 @@ export default function FeasibilityForm() {
   const handleReset = () => {
     setAircraftType("");
     setFlightType("");
+    setAircraftNationality("");
     setLegs([createEmptyLeg()]);
     setOverflightResults({});
     setOverflightLoading({});
@@ -452,6 +455,17 @@ export default function FeasibilityForm() {
                 </Select>
               </div>
             </div>
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1.5">
+                Aircraft Nationality
+                <span className="text-xs text-muted-foreground font-normal">(country of registration — affects permit &amp; TCO requirements)</span>
+              </Label>
+              <NationalityCombobox
+                value={aircraftNationality}
+                onChange={setAircraftNationality}
+                placeholder="Select country of registration…"
+              />
+            </div>
           </CardContent>
         </Card>
 
@@ -507,6 +521,7 @@ export default function FeasibilityForm() {
                 totalLegs={legs.length}
                 aircraftType={aircraftType}
                 flightType={flightType}
+                aircraftNationality={aircraftNationality}
                 overflightResult={overflightResults[idx] ?? null}
                 onUpdateLeg={updateLeg}
                 onRemoveLeg={removeLeg}

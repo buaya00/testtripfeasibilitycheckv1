@@ -233,6 +233,7 @@ interface TripLegCardProps {
   totalLegs: number;
   aircraftType: string;
   flightType: string;
+  aircraftNationality?: string;
   overflightResult?: OverflightResult | null;
   onUpdateLeg: (index: number, updates: Partial<LegData>) => void;
   onRemoveLeg: (index: number) => void;
@@ -240,7 +241,7 @@ interface TripLegCardProps {
 }
 
 export default function TripLegCard({
-  leg, legIndex, totalLegs, aircraftType, flightType, overflightResult, onUpdateLeg, onRemoveLeg, onRegisterLookup,
+  leg, legIndex, totalLegs, aircraftType, flightType, aircraftNationality, overflightResult, onUpdateLeg, onRemoveLeg, onRegisterLookup,
 }: TripLegCardProps) {
   const [expanded, setExpanded] = useState(true);
   const [aegFeesExpanded, setAegFeesExpanded] = useState(false);
@@ -317,14 +318,20 @@ export default function TripLegCard({
     setPermitLoading(true);
     update({ permitResult: null });
     try {
-      const { data: res, error } = await supabase.functions.invoke('permit-lookup', { body: { icao: leg.airportIcao, flightType: flightType || undefined } });
+      const { data: res, error } = await supabase.functions.invoke('permit-lookup', {
+        body: {
+          icao: leg.airportIcao,
+          flightType: flightType || undefined,
+          aircraftNationality: aircraftNationality || undefined,
+        },
+      });
       if (error) { update({ permitResult: { success: false, icao: leg.airportIcao, error: error.message } }); }
       else {
         update({ permitResult: res as PermitResult, ...(res?.permitRequired === 'yes' ? { permitRequired: true } : res?.permitRequired === 'no' ? { permitRequired: false } : {}) });
       }
     } catch { update({ permitResult: { success: false, icao: leg.airportIcao, error: 'Failed to connect' } }); }
     finally { setPermitLoading(false); }
-  }, [leg.airportIcao, flightType]);
+  }, [leg.airportIcao, flightType, aircraftNationality]);
 
   const handleCiqLookup = useCallback(async () => {
     if (leg.airportIcao.length !== 4) return;

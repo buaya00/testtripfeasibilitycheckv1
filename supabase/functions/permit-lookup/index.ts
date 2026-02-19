@@ -9,7 +9,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { icao, aircraftRegistration, flightType } = await req.json();
+    const { icao, aircraftRegistration, flightType, aircraftNationality } = await req.json();
 
     if (!icao || typeof icao !== 'string' || !/^[A-Z]{4}$/.test(icao)) {
       return new Response(
@@ -59,12 +59,12 @@ Deno.serve(async (req) => {
               },
               {
                 role: 'user',
-                content: `Research the current landing permit and regulatory requirements for ICAO airport code "${icao}" (prefix "${icaoPrefix}"). Flight type: ${flightTypeLabel}.${aircraftRegistration ? ` Aircraft registration prefix: ${aircraftRegistration}.` : ''}
+                content: `Research the current landing permit and regulatory requirements for ICAO airport code "${icao}" (prefix "${icaoPrefix}"). Flight type: ${flightTypeLabel}.${aircraftRegistration ? ` Aircraft registration prefix: ${aircraftRegistration}.` : ''}${aircraftNationality ? ` Aircraft nationality/country of registration: ${aircraftNationality}.` : ''}
 
 Please search for and provide:
 1. Whether a landing permit is required (yes/no/conditional) and from which authority
-2. Any TCO (Third Country Operator) authorization requirements for EU/UK destinations
-3. Relevant bilateral air service agreements
+2. Any TCO (Third Country Operator) authorization requirements for EU/UK destinations — specifically whether these apply based on the aircraft's country of registration
+3. Relevant bilateral air service agreements between the aircraft's country of registration and the destination country
 4. Charter/non-scheduled commercial permit requirements if applicable
 5. Any sanctions, restrictions, curfews, or special regulatory warnings
 6. Lead times in business days for any permits required
@@ -101,6 +101,14 @@ Search official CAA websites, ICAO documentation, and government aviation author
 
 Flight type: ${flightTypeLabel}
 ${aircraftRegistration ? `Aircraft registration prefix: ${aircraftRegistration}` : ''}
+${aircraftNationality ? `Aircraft nationality / country of registration: ${aircraftNationality}` : ''}
+
+IMPORTANT — Aircraft Nationality Context:
+${aircraftNationality ? `The aircraft is registered in ${aircraftNationality}. You must tailor your analysis based on this:
+- For TCO authorization: A ${aircraftNationality}-registered aircraft operating into EU/EASA states requires EASA TCO authorization UNLESS ${aircraftNationality} is itself an EU/EASA member state. Similarly for UK post-Brexit.
+- For bilateral air service agreements: Evaluate the agreement between ${aircraftNationality} and the destination country specifically.
+- For landing permits: Some countries grant permit-free access to aircraft from countries with open-skies or bilateral agreements with ${aircraftNationality}.
+- For charter permits: Requirements often differ based on whether the operator's home state (${aircraftNationality}) has a relevant BASA with the destination country.` : 'No aircraft nationality specified — provide general requirements applicable to international operators.'}
 
 ${perplexityContext ? `## Real-time regulatory research (use this as primary source):
 ${perplexityContext}
