@@ -335,6 +335,8 @@ export interface TankeringAnalysis {
 export interface LegData {
   id: string;
   airportIcao: string;
+  /** City/municipality from fast airport-info lookup — populated as soon as 4-char ICAO is entered */
+  airportCity: string | null;
   arrivalDate: Date | undefined;
   arrivalTime: string;
   departureDate: Date | undefined;
@@ -364,6 +366,7 @@ export function createEmptyLeg(): LegData {
   return {
     id: crypto.randomUUID(),
     airportIcao: "",
+    airportCity: null,
     arrivalDate: undefined,
     arrivalTime: "",
     departureDate: undefined,

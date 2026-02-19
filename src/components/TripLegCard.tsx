@@ -227,6 +227,24 @@ export default function TripLegCard({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [legIndex]);
 
+  // Auto-fetch city name as soon as a valid 4-char ICAO is entered
+  useEffect(() => {
+    if (leg.airportIcao.length !== 4) {
+      if (leg.airportCity !== null) update({ airportCity: null });
+      return;
+    }
+    let cancelled = false;
+    supabase.functions.invoke('airport-info', { body: { icao: leg.airportIcao } })
+      .then(({ data }) => {
+        if (!cancelled && data?.municipality) {
+          update({ airportCity: data.municipality });
+        }
+      })
+      .catch(() => {/* silent */});
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leg.airportIcao]);
+
   const handleCbpLookup = useCallback(async () => {
     if (leg.airportIcao.length !== 4) return;
     setCbpLoading(true);
@@ -496,9 +514,9 @@ export default function TripLegCard({
           <span className="font-semibold text-sm">
             {leg.airportIcao ? `Leg ${legIndex + 1} — ${leg.airportIcao}` : `Leg ${legIndex + 1}`}
           </span>
-          {leg.runwayResult?.municipality && (
+          {(leg.airportCity || leg.runwayResult?.municipality) && (
             <span className="text-xs text-muted-foreground font-normal">
-              {leg.runwayResult.municipality}
+              {leg.airportCity || leg.runwayResult?.municipality}
             </span>
           )}
           {feasResult && (
@@ -533,6 +551,7 @@ export default function TripLegCard({
                 value={leg.airportIcao}
                 onChange={(e) => update({
                   airportIcao: e.target.value.toUpperCase().replace(/[^A-Z]/g, ""),
+                  airportCity: null,
                   cbpResult: null, runwayResult: null, permitResult: null,
                   ciqResult: null, chargesResult: null, pprResult: null,
                 })}
