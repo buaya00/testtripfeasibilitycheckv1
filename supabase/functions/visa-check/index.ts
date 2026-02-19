@@ -9,7 +9,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { nationalities, destinationCountry, destinationIcao } = await req.json();
+    const { nationalities, destinationCountry, destinationIcao, isAircrew } = await req.json();
 
     if (!nationalities || !Array.isArray(nationalities) || nationalities.length === 0) {
       return new Response(
@@ -34,26 +34,31 @@ Deno.serve(async (req) => {
 
     const nationalityList = nationalities.join(', ');
     const destination = destinationCountry || `the country of airport ${destinationIcao}`;
+    const personType = isAircrew ? 'aircrew members (pilots, co-pilots, cabin crew, engineers)' : 'passengers';
 
-    const prompt = `Determine visa requirements for passengers with the following nationalities: ${nationalityList}.
+    const prompt = `Determine visa requirements for ${personType} with the following nationalities: ${nationalityList}.
 
 Destination: ${destination}${destinationIcao ? ` (ICAO: ${destinationIcao})` : ''}.
-
+${isAircrew ? `
+IMPORTANT: These are AIRCREW members operating a private or charter flight, NOT tourists or business travelers.
+Aircrew often have special visa exemptions, crew visas (C-1/D for US), or bilateral aviation agreements that give them different treatment from regular passengers.
+Consider ICAO Annex 9 facilitation provisions, crew visas, and any specific aircrew exemptions.
+` : ''}
 For EACH nationality, determine:
-- Whether a visa is required to enter the destination country
-- The type of visa needed (tourist, transit, business, etc.)
-- Whether visa-on-arrival or e-visa is available
+- Whether a visa is required to enter the destination country${isAircrew ? ' specifically for aircrew in their professional capacity' : ''}
+- The type of visa needed (${isAircrew ? 'crew visa, C-1/D, airside transit, etc.' : 'tourist, transit, business, etc.'})
+- Whether visa-on-arrival or e-visa is available${isAircrew ? ' for crew members' : ''}
 - Typical processing time
 - Maximum stay allowed without a visa (if visa-free)
-- Any special conditions or bilateral agreements
-- Whether a transit visa is needed if only transiting through`;
+- Any special conditions or bilateral agreements${isAircrew ? ' for aviation crew' : ''}
+- Whether a transit visa is needed if only transiting through${isAircrew ? ' (airside transit for crew)' : ''}${isAircrew ? '\n- Any specific aircrew exemptions or facilitation provisions (ICAO Annex 9)' : ''}`;
 
     const requestBody = {
       model: 'google/gemini-3-flash-preview',
       messages: [
         {
           role: 'system',
-          content: 'You are an immigration and visa requirements expert. Provide accurate visa requirement information based on current bilateral agreements and immigration policies. You MUST call the extract_visa_requirements tool to return structured data.',
+          content: `You are an aviation immigration and visa requirements expert specializing in ${isAircrew ? 'aircrew visa requirements, crew visas, and aviation facilitation agreements (ICAO Annex 9)' : 'passenger visa requirements and immigration policies'}. Provide accurate visa requirement information based on current bilateral agreements and immigration policies. You MUST call the extract_visa_requirements tool to return structured data.`,
         },
         { role: 'user', content: prompt },
       ],
@@ -88,7 +93,7 @@ For EACH nationality, determine:
                     additionalProperties: false,
                   },
                 },
-                notes: { type: 'string', description: 'General notes about visa policies for this destination' },
+                notes: { type: 'string', description: 'General notes about visa policies for this destination, including any aircrew-specific exemptions or provisions if applicable' },
                 confidence: { type: 'string', enum: ['high', 'medium', 'low'], description: 'Confidence level' },
               },
               required: ['destinationCountry', 'results', 'confidence'],

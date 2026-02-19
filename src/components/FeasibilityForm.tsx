@@ -54,10 +54,15 @@ export default function FeasibilityForm() {
   const [overflightResults, setOverflightResults] = useState<Record<number, OverflightResult | null>>({});
   const [overflightLoading, setOverflightLoading] = useState<Record<number, boolean>>({});
 
-  // Visa — results keyed by ICAO code
+  // Visa — passenger results keyed by ICAO code
   const [visaNationalities, setVisaNationalities] = useState<string[]>([""]);
   const [visaResults, setVisaResults] = useState<Record<string, VisaCheckResult | null>>({});
   const [visaLoading, setVisaLoading] = useState<Record<string, boolean>>({});
+
+  // Visa — aircrew results keyed by ICAO code
+  const [aircrewNationalities, setAircrewNationalities] = useState<string[]>([""]);
+  const [aircrewVisaResults, setAircrewVisaResults] = useState<Record<string, VisaCheckResult | null>>({});
+  const [aircrewVisaLoading, setAircrewVisaLoading] = useState<Record<string, boolean>>({});
 
   // Pet travel — results keyed by ICAO code
   const [petTypes, setPetTypes] = useState<string[]>([]);
@@ -220,6 +225,34 @@ export default function FeasibilityForm() {
     }));
   }, [visaNationalities, destinationIcaos]);
 
+  // Aircrew visa check — runs for all destination ICAOs with isAircrew flag
+  const handleAircrewVisaCheck = useCallback(async () => {
+    const validNationalities = aircrewNationalities.filter(n => n.length > 0);
+    if (validNationalities.length === 0 || destinationIcaos.length === 0) return;
+
+    const loadingState: Record<string, boolean> = {};
+    destinationIcaos.forEach(icao => { loadingState[icao] = true; });
+    setAircrewVisaLoading(loadingState);
+    setAircrewVisaResults({});
+
+    await Promise.all(destinationIcaos.map(async (icao) => {
+      try {
+        const { data: res, error } = await supabase.functions.invoke('visa-check', {
+          body: { nationalities: validNationalities, destinationIcao: icao, isAircrew: true },
+        });
+        if (error) {
+          setAircrewVisaResults(prev => ({ ...prev, [icao]: { success: false, error: error.message } }));
+        } else {
+          setAircrewVisaResults(prev => ({ ...prev, [icao]: res as VisaCheckResult }));
+        }
+      } catch {
+        setAircrewVisaResults(prev => ({ ...prev, [icao]: { success: false, error: 'Failed to connect' } }));
+      } finally {
+        setAircrewVisaLoading(prev => ({ ...prev, [icao]: false }));
+      }
+    }));
+  }, [aircrewNationalities, destinationIcaos]);
+
   // Pet requirements check
   const handlePetCheck = useCallback(async () => {
     if (petTypes.length === 0 || destinationIcaos.length === 0) return;
@@ -303,6 +336,9 @@ export default function FeasibilityForm() {
     setVisaNationalities([""]);
     setVisaResults({});
     setVisaLoading({});
+    setAircrewNationalities([""]);
+    setAircrewVisaResults({});
+    setAircrewVisaLoading({});
     setPetTypes([]);
     setPetResults({});
     setPetLoading({});
@@ -756,6 +792,105 @@ export default function FeasibilityForm() {
                       </div>
                     ))}
                     {visaResults[icao]!.error && <p className="text-xs text-destructive">{visaResults[icao]!.error}</p>}
+                  </div>
+                )}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        {/* Aircrew Visa Requirements */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Plane className="h-4 w-4" /> Aircrew Visa Requirements
+            </CardTitle>
+            {destinationIcaos.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Destinations detected: {destinationIcaos.join(', ')}
+              </p>
+            )}
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="space-y-2">
+              <Label className="text-xs">Aircrew Nationalities</Label>
+              {aircrewNationalities.map((nat, idx) => (
+                <div key={idx} className="flex gap-2 items-center">
+                  <Select
+                    value={nat}
+                    onValueChange={(v) => {
+                      const updated = [...aircrewNationalities];
+                      updated[idx] = v;
+                      setAircrewNationalities(updated);
+                      setAircrewVisaResults({});
+                    }}
+                  >
+                    <SelectTrigger className="flex-1"><SelectValue placeholder="Select nationality" /></SelectTrigger>
+                    <SelectContent className="max-h-60">
+                      <SelectItem value="United States of America">United States of America</SelectItem>
+                      <Separator className="my-1" />
+                      {COUNTRIES.filter(c => c !== "United States of America").map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  {aircrewNationalities.length > 1 && (
+                    <Button type="button" variant="ghost" size="icon" className="shrink-0 h-9 w-9"
+                      onClick={() => { setAircrewNationalities(aircrewNationalities.filter((_, i) => i !== idx)); setAircrewVisaResults({}); }}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              ))}
+              <Button type="button" variant="outline" size="sm" onClick={() => setAircrewNationalities([...aircrewNationalities, ""])} className="text-xs">
+                <Plus className="h-3 w-3 mr-1" /> Add Crew Member
+              </Button>
+            </div>
+
+            <Button type="button" variant="secondary" onClick={handleAircrewVisaCheck}
+              disabled={destinationIcaos.length === 0 || aircrewNationalities.filter(n => n).length === 0 || Object.values(aircrewVisaLoading).some(Boolean)}
+              className="w-full">
+              {Object.values(aircrewVisaLoading).some(Boolean) ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Plane className="h-4 w-4 mr-1.5" />}
+              Check Aircrew Visa Requirements ({destinationIcaos.length} destination{destinationIcaos.length !== 1 ? 's' : ''})
+            </Button>
+
+            {/* Results per destination */}
+            {destinationIcaos.map(icao => (
+              <div key={icao}>
+                {aircrewVisaLoading[icao] && (
+                  <div className="rounded-md border p-3 text-sm flex items-center gap-2 text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking aircrew visa for {icao}…
+                  </div>
+                )}
+
+                {aircrewVisaResults[icao] && !aircrewVisaLoading[icao] && (
+                  <div className={cn("rounded-md border p-3 text-sm space-y-2", aircrewVisaResults[icao]!.success ? "border-primary/30 bg-primary/5" : "border-muted bg-muted/50")}>
+                    <div className="flex items-center gap-1.5 font-medium">
+                      <Plane className="h-3.5 w-3.5 text-primary" />
+                      {icao} — {aircrewVisaResults[icao]!.destinationCountry || 'Unknown'}
+                    </div>
+                    {aircrewVisaResults[icao]!.results?.map((r, i) => (
+                      <div key={i} className={cn("rounded bg-background/50 px-2 py-1.5 text-xs space-y-0.5",
+                        r.visaRequired === 'yes' ? "border-l-2 border-l-destructive" : r.visaRequired === 'no' ? "border-l-2 border-l-success" : "border-l-2 border-l-warning"
+                      )}>
+                        <p className="font-medium">
+                          {r.visaRequired === 'yes' ? '❌' : r.visaRequired === 'no' ? '✅' : '⚠️'} {r.nationality}
+                          <span className="font-normal text-muted-foreground ml-1">
+                            — {r.visaRequired === 'yes' ? 'Visa required' : r.visaRequired === 'no' ? 'Visa-free / Crew exemption' : 'Conditional'}
+                          </span>
+                        </p>
+                        {r.visaType && <p><span className="font-medium">Visa type:</span> {r.visaType}</p>}
+                        {r.visaOnArrival && <p className="text-success">✅ Visa on arrival</p>}
+                        {r.eVisaAvailable && <p className="text-success">✅ e-Visa available</p>}
+                        {r.maxStayDays != null && <p><span className="font-medium">Max stay:</span> {r.maxStayDays} days</p>}
+                        {r.processingTimeDays != null && <p><span className="font-medium">Processing:</span> ~{r.processingTimeDays} days</p>}
+                        {r.transitVisaRequired && <p className="text-warning">⚠️ Transit visa required</p>}
+                        {r.conditions && <p><span className="font-medium">Conditions:</span> {r.conditions}</p>}
+                        {r.notes && <p className="text-muted-foreground italic">{r.notes}</p>}
+                      </div>
+                    ))}
+                    {aircrewVisaResults[icao]!.notes && (
+                      <p className="text-xs text-muted-foreground italic">{aircrewVisaResults[icao]!.notes}</p>
+                    )}
+                    {aircrewVisaResults[icao]!.error && <p className="text-xs text-destructive">{aircrewVisaResults[icao]!.error}</p>}
                   </div>
                 )}
               </div>
