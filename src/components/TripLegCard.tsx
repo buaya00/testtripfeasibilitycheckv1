@@ -1058,12 +1058,15 @@ export default function TripLegCard({
                     <div className="grid grid-cols-2 gap-x-4 gap-y-1 pt-1">
                       <p><span className="font-medium">Landing:</span></p>
                       <p className="text-right font-mono">${leg.chargesResult.landingFeeUsd?.toLocaleString(undefined, { maximumFractionDigits: 0 }) ?? '—'}</p>
-                      <p><span className="font-medium">Parking/day:</span></p>
-                      <p className="text-right font-mono">${leg.chargesResult.parkingPerDayUsd?.toLocaleString(undefined, { maximumFractionDigits: 0 }) ?? '—'}</p>
-                      {leg.chargesResult.parkingDays != null && leg.chargesResult.totalParkingUsd != null && (
+                      {leg.chargesResult.parkingDays != null && leg.chargesResult.totalParkingUsd != null ? (
                         <>
                           <p><span className="font-medium">Parking ({leg.chargesResult.parkingDays}d):</span></p>
                           <p className="text-right font-mono">${leg.chargesResult.totalParkingUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+                        </>
+                      ) : (
+                        <>
+                          <p><span className="font-medium">Parking/day:</span></p>
+                          <p className="text-right font-mono">${leg.chargesResult.parkingPerDayUsd?.toLocaleString(undefined, { maximumFractionDigits: 0 }) ?? '—'}</p>
                         </>
                       )}
                     </div>
