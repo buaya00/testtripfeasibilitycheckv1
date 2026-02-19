@@ -344,6 +344,7 @@ export interface LegData {
   permitRequired: boolean;
   pprRequired: boolean;
   customsAvailable: boolean;
+  slotRequired: boolean;
   runwayOverrideFt: string;
   // Fuel price at this stop (for tankering analysis)
   fuelPriceUsd: number | null;
@@ -374,6 +375,7 @@ export function createEmptyLeg(): LegData {
     permitRequired: false,
     pprRequired: false,
     customsAvailable: false,
+    slotRequired: false,
     runwayOverrideFt: "",
     fuelPriceUsd: null,
     fuelPriceNote: "",
