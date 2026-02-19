@@ -703,11 +703,11 @@ export default function FeasibilityForm() {
           </Card>
         )}
 
-        {/* Visa Requirements */}
+        {/* Passenger Visa Requirements */}
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
-              <Globe className="h-4 w-4" /> Visa Requirements
+              <Globe className="h-4 w-4" /> Passenger Visa Requirements
             </CardTitle>
             {destinationIcaos.length > 0 && (
               <p className="text-xs text-muted-foreground">
@@ -753,7 +753,7 @@ export default function FeasibilityForm() {
               disabled={destinationIcaos.length === 0 || visaNationalities.filter(n => n).length === 0 || Object.values(visaLoading).some(Boolean)}
               className="w-full">
               {Object.values(visaLoading).some(Boolean) ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Globe className="h-4 w-4 mr-1.5" />}
-              Check Visa Requirements ({destinationIcaos.length} destination{destinationIcaos.length !== 1 ? 's' : ''})
+              Check Passenger Visa Requirements ({destinationIcaos.length} destination{destinationIcaos.length !== 1 ? 's' : ''})
             </Button>
 
             {/* Results per destination */}
