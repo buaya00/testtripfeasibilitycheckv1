@@ -7,11 +7,11 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
-import { AIRCRAFT_CATEGORIES } from "@/data/aircraftData";
+import { AircraftTypeCombobox } from "@/components/AircraftTypeCombobox";
 import { AIRCRAFT_RANGE_NM, AIRCRAFT_CRUISE_KTAS } from "@/data/aircraftPerformance";
 import { calculateFlightLeg, type FlightLegCalculation } from "@/lib/flightCalculations";
 import { COUNTRIES } from "@/data/countries";
-import { SelectGroup, SelectLabel } from "@/components/ui/select";
+
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -434,19 +434,11 @@ export default function FeasibilityForm() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Aircraft Type <span className="text-destructive">*</span></Label>
-                <Select value={aircraftType} onValueChange={(v) => { setAircraftType(v); setCheckAllError(null); }}>
-                  <SelectTrigger className={cn(!aircraftType && checkAllError ? "border-destructive ring-1 ring-destructive" : "")}><SelectValue placeholder="Select aircraft" /></SelectTrigger>
-                  <SelectContent className="max-h-80">
-                    {AIRCRAFT_CATEGORIES.map((cat) => (
-                      <SelectGroup key={cat.label}>
-                        <SelectLabel className="text-xs font-semibold text-muted-foreground">{cat.label}</SelectLabel>
-                        {cat.types.map((type) => (
-                          <SelectItem key={type} value={type}>{type}</SelectItem>
-                        ))}
-                      </SelectGroup>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <AircraftTypeCombobox
+                  value={aircraftType}
+                  onChange={(v) => { setAircraftType(v); setCheckAllError(null); }}
+                  hasError={!aircraftType && !!checkAllError}
+                />
               </div>
               <div className="space-y-2">
                 <Label>Flight Type <span className="text-destructive">*</span></Label>
