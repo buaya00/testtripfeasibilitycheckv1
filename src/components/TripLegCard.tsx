@@ -673,23 +673,13 @@ export default function TripLegCard({
             </div>
           </div>
 
-          {/* UTC Offset */}
-          <div className="space-y-1">
-            <Label className="text-xs">Local UTC Offset</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                type="number"
-                step="0.5"
-                min={-12}
-                max={14}
-                value={leg.utcOffsetHours}
-                onChange={(e) => update({ utcOffsetHours: parseFloat(e.target.value) || 0 })}
-                className="font-mono text-xs w-24"
-                placeholder="0"
-              />
-              <span className="text-xs text-muted-foreground">{formatOffset(leg.utcOffsetHours)}</span>
+          {/* UTC Offset — read-only, auto-detected from longitude */}
+          {leg.utcOffsetHours !== 0 && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Clock className="h-3 w-3 shrink-0" />
+              <span>Local timezone auto-detected: <span className="font-medium text-foreground">{formatOffset(leg.utcOffsetHours)}</span></span>
             </div>
-          </div>
+          )}
 
           {/* Arrival / Departure */}
           <div className="grid grid-cols-2 gap-4">
