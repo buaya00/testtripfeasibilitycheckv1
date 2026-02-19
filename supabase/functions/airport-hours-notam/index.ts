@@ -29,14 +29,12 @@ Deno.serve(async (req) => {
     // Also try to fetch live NOTAM data from FAA
     let notamData = '';
     try {
-      // FAA NOTAM API (public, no key required for basic queries)
       const notamUrl = `https://www.notams.faa.gov/dinsQueryWeb/queryRetrievalMapAction.do?reportType=Raw&retrieveLocId=${icao}&actionType=notamRetrievalByICAOs`;
       const notamRes = await fetch(notamUrl, {
         headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AirportOpsChecker/1.0)', 'Accept': 'text/html' },
       });
       if (notamRes.ok) {
         const html = await notamRes.text();
-        // Extract NOTAM text content (strip HTML tags)
         const bodyMatch = html.match(/<PRE[^>]*>([\s\S]*?)<\/PRE>/gi);
         if (bodyMatch) {
           notamData = bodyMatch.map(m => m.replace(/<[^>]+>/g, '').trim()).join('\n').substring(0, 5000);
@@ -67,93 +65,114 @@ Return structured data about:
 4. Any curfew or noise restrictions
 5. Seasonal or temporary restrictions`;
 
-    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an aviation operations specialist. Extract structured airport operating hours and NOTAM information. Always provide times in UTC 24h format (HH:MM). Be precise about closures and restrictions.',
-          },
-          { role: 'user', content: prompt },
-        ],
-        tools: [
-          {
-            type: 'function',
-            function: {
-              name: 'report_airport_hours',
-              description: 'Report structured airport operating hours and NOTAM data.',
-              parameters: {
-                type: 'object',
-                properties: {
-                  airportName: { type: 'string', description: 'Full airport name' },
-                  country: { type: 'string', description: 'Country name' },
-                  operatingHoursOpen: { type: 'string', description: 'Opening time HH:MM UTC. Empty string if H24.' },
-                  operatingHoursClose: { type: 'string', description: 'Closing time HH:MM UTC. Empty string if H24.' },
-                  is24Hours: { type: 'boolean', description: 'Whether airport operates 24 hours' },
-                  operatingDays: { type: 'string', description: 'Days of operation e.g. "Mon-Fri", "Daily"' },
-                  curfewStart: { type: 'string', description: 'Curfew/quiet hours start HH:MM UTC, empty if none' },
-                  curfewEnd: { type: 'string', description: 'Curfew/quiet hours end HH:MM UTC, empty if none' },
-                  curfewNotes: { type: 'string', description: 'Curfew details or noise restrictions' },
-                  activeNotams: {
-                    type: 'array',
-                    items: {
-                      type: 'object',
-                      properties: {
-                        id: { type: 'string', description: 'NOTAM ID if available' },
-                        type: { type: 'string', enum: ['closure', 'restriction', 'runway_closure', 'equipment', 'hazard', 'info'], description: 'Type of NOTAM' },
-                        summary: { type: 'string', description: 'Brief summary of the NOTAM' },
-                        effectiveFrom: { type: 'string', description: 'Start date/time if known' },
-                        effectiveTo: { type: 'string', description: 'End date/time if known' },
-                        affectsOperations: { type: 'boolean', description: 'Whether this NOTAM could affect planned operations' },
-                      },
-                      required: ['type', 'summary', 'affectsOperations'],
-                      additionalProperties: false,
+    const requestBody = JSON.stringify({
+      model: 'google/gemini-3-flash-preview',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are an aviation operations specialist. Extract structured airport operating hours and NOTAM information. Always provide times in UTC 24h format (HH:MM). Be precise about closures and restrictions.',
+        },
+        { role: 'user', content: prompt },
+      ],
+      tools: [
+        {
+          type: 'function',
+          function: {
+            name: 'report_airport_hours',
+            description: 'Report structured airport operating hours and NOTAM data.',
+            parameters: {
+              type: 'object',
+              properties: {
+                airportName: { type: 'string', description: 'Full airport name' },
+                country: { type: 'string', description: 'Country name' },
+                operatingHoursOpen: { type: 'string', description: 'Opening time HH:MM UTC. Empty string if H24.' },
+                operatingHoursClose: { type: 'string', description: 'Closing time HH:MM UTC. Empty string if H24.' },
+                is24Hours: { type: 'boolean', description: 'Whether airport operates 24 hours' },
+                operatingDays: { type: 'string', description: 'Days of operation e.g. "Mon-Fri", "Daily"' },
+                curfewStart: { type: 'string', description: 'Curfew/quiet hours start HH:MM UTC, empty if none' },
+                curfewEnd: { type: 'string', description: 'Curfew/quiet hours end HH:MM UTC, empty if none' },
+                curfewNotes: { type: 'string', description: 'Curfew details or noise restrictions' },
+                activeNotams: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      id: { type: 'string', description: 'NOTAM ID if available' },
+                      type: { type: 'string', enum: ['closure', 'restriction', 'runway_closure', 'equipment', 'hazard', 'info'], description: 'Type of NOTAM' },
+                      summary: { type: 'string', description: 'Brief summary of the NOTAM' },
+                      effectiveFrom: { type: 'string', description: 'Start date/time if known' },
+                      effectiveTo: { type: 'string', description: 'End date/time if known' },
+                      affectsOperations: { type: 'boolean', description: 'Whether this NOTAM could affect planned operations' },
                     },
-                    description: 'Active NOTAMs affecting this airport',
+                    required: ['type', 'summary', 'affectsOperations'],
+                    additionalProperties: false,
                   },
-                  arrivalOutsideHours: { type: 'boolean', description: 'Whether planned arrival time is outside operating hours' },
-                  departureOutsideHours: { type: 'boolean', description: 'Whether planned departure time is outside operating hours' },
-                  arrivalDuringCurfew: { type: 'boolean', description: 'Whether planned arrival falls during curfew' },
-                  departureDuringCurfew: { type: 'boolean', description: 'Whether planned departure falls during curfew' },
-                  seasonalRestrictions: { type: 'string', description: 'Any seasonal or temporary restrictions' },
-                  notes: { type: 'string', description: 'Additional operational notes' },
-                  confidence: { type: 'string', enum: ['high', 'medium', 'low'], description: 'Confidence in the data' },
+                  description: 'Active NOTAMs affecting this airport',
                 },
-                required: ['is24Hours', 'operatingDays', 'activeNotams', 'arrivalOutsideHours', 'departureOutsideHours', 'arrivalDuringCurfew', 'departureDuringCurfew', 'confidence'],
-                additionalProperties: false,
+                arrivalOutsideHours: { type: 'boolean', description: 'Whether planned arrival time is outside operating hours' },
+                departureOutsideHours: { type: 'boolean', description: 'Whether planned departure time is outside operating hours' },
+                arrivalDuringCurfew: { type: 'boolean', description: 'Whether planned arrival falls during curfew' },
+                departureDuringCurfew: { type: 'boolean', description: 'Whether planned departure falls during curfew' },
+                seasonalRestrictions: { type: 'string', description: 'Any seasonal or temporary restrictions' },
+                notes: { type: 'string', description: 'Additional operational notes' },
+                confidence: { type: 'string', enum: ['high', 'medium', 'low'], description: 'Confidence in the data' },
               },
+              required: ['is24Hours', 'operatingDays', 'activeNotams', 'arrivalOutsideHours', 'departureOutsideHours', 'arrivalDuringCurfew', 'departureDuringCurfew', 'confidence'],
+              additionalProperties: false,
             },
           },
-        ],
-        tool_choice: { type: 'function', function: { name: 'report_airport_hours' } },
-      }),
+        },
+      ],
+      tool_choice: { type: 'function', function: { name: 'report_airport_hours' } },
     });
 
-    if (!aiResponse.ok) {
-      const errText = await aiResponse.text();
-      console.error('AI gateway error:', aiResponse.status, errText);
+    // Retry with exponential backoff for transient errors (503, 429)
+    let aiResponse: Response | null = null;
+    let lastStatus = 0;
+    let lastErrText = '';
 
-      if (aiResponse.status === 429) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempt - 1)));
+      }
+      const res = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: requestBody,
+      });
+
+      if (res.ok) {
+        aiResponse = res;
+        break;
+      }
+
+      lastStatus = res.status;
+      lastErrText = await res.text();
+      console.error(`AI gateway error (attempt ${attempt + 1}):`, lastStatus, lastErrText);
+
+      // Don't retry on billing/auth errors
+      if (lastStatus === 402 || lastStatus === 401) break;
+      // Retry on 429 and 5xx transient errors
+    }
+
+    if (!aiResponse) {
+      if (lastStatus === 429) {
         return new Response(
           JSON.stringify({ success: false, error: 'Rate limit exceeded, please try again later.' }),
           { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      if (aiResponse.status === 402) {
+      if (lastStatus === 402) {
         return new Response(
           JSON.stringify({ success: false, error: 'Usage limit reached. Please add credits to continue using AI lookups.' }),
           { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-
       return new Response(
-        JSON.stringify({ success: false, error: 'AI lookup failed' }),
+        JSON.stringify({ success: false, error: `AI lookup failed (${lastStatus})` }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
