@@ -9,6 +9,7 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
+  CommandSeparator,
 } from "@/components/ui/command";
 import {
   Popover,
@@ -28,10 +29,20 @@ export function NationalityCombobox({ value, onChange, placeholder = "Select cou
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
 
+  const PINNED = ["United States of America"];
+
   const filtered = React.useMemo(() => {
-    if (!query.trim()) return COUNTRIES;
-    const q = query.toLowerCase();
-    return COUNTRIES.filter((c) => c.toLowerCase().includes(q));
+    const q = query.trim().toLowerCase();
+    const list = q
+      ? COUNTRIES.filter((c) => c.toLowerCase().includes(q))
+      : COUNTRIES;
+
+    if (!q) {
+      // Pinned first, then the rest
+      const rest = list.filter((c) => !PINNED.includes(c));
+      return [...PINNED.filter((c) => list.includes(c)), ...rest];
+    }
+    return list;
   }, [query]);
 
   const handleSelect = (country: string) => {
@@ -71,20 +82,31 @@ export function NationalityCombobox({ value, onChange, placeholder = "Select cou
           <CommandList className="max-h-72 overflow-y-auto">
             {filtered.length === 0 ? (
               <CommandEmpty>No country found.</CommandEmpty>
+            ) : !query.trim() ? (
+              <>
+                <CommandGroup heading="Suggested">
+                  {PINNED.map((country) => (
+                    <CommandItem key={country} value={country} onSelect={() => handleSelect(country)}>
+                      <Check className={cn("mr-2 h-4 w-4 shrink-0", value === country ? "opacity-100" : "opacity-0")} />
+                      {country}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+                <CommandSeparator />
+                <CommandGroup heading="All countries">
+                  {filtered.filter((c) => !PINNED.includes(c)).map((country) => (
+                    <CommandItem key={country} value={country} onSelect={() => handleSelect(country)}>
+                      <Check className={cn("mr-2 h-4 w-4 shrink-0", value === country ? "opacity-100" : "opacity-0")} />
+                      {country}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </>
             ) : (
               <CommandGroup>
                 {filtered.map((country) => (
-                  <CommandItem
-                    key={country}
-                    value={country}
-                    onSelect={() => handleSelect(country)}
-                  >
-                    <Check
-                      className={cn(
-                        "mr-2 h-4 w-4 shrink-0",
-                        value === country ? "opacity-100" : "opacity-0"
-                      )}
-                    />
+                  <CommandItem key={country} value={country} onSelect={() => handleSelect(country)}>
+                    <Check className={cn("mr-2 h-4 w-4 shrink-0", value === country ? "opacity-100" : "opacity-0")} />
                     {country}
                   </CommandItem>
                 ))}
