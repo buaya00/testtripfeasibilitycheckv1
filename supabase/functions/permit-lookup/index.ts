@@ -30,12 +30,12 @@ Deno.serve(async (req) => {
 
     const icaoPrefix = icao.substring(0, 2);
     const flightTypeLabel = flightType === 'private'
-      ? 'Private / general aviation (non-commercial, owner/operator flown)'
+      ? 'Private / general aviation — FAR Part 91 (non-commercial; owner or operator is aboard or flight is not-for-hire)'
       : flightType === 'non-scheduled-commercial'
-        ? 'Non-scheduled commercial (charter / air taxi — operated for hire)'
+        ? 'Non-scheduled commercial (charter / air taxi — operated for hire under FAR Part 135 or equivalent)'
         : flightType === 'commercial'
-          ? 'Scheduled commercial airline service'
-          : 'Private / general aviation (assume non-commercial)';
+          ? 'Scheduled commercial airline service (FAR Part 121 or equivalent)'
+          : 'Private / general aviation — FAR Part 91 (assume non-commercial, owner/operator onboard)';
 
     // ── Step 1: Use Perplexity to get real-time grounded regulatory data ──────
     let perplexityContext = '';
@@ -97,18 +97,29 @@ Search official CAA websites, ICAO documentation, and government aviation author
       );
     }
 
+    const isPrivateFlight = !flightType || flightType === 'private';
+
     const prompt = `You are an expert aviation regulatory consultant. Given the ICAO airport code "${icao}" (prefix "${icaoPrefix}"), provide a comprehensive analysis of ALL permit and regulatory requirements for the following flight:
 
 Flight type: ${flightTypeLabel}
 ${aircraftRegistration ? `Aircraft registration prefix: ${aircraftRegistration}` : ''}
 ${aircraftNationality ? `Aircraft nationality / country of registration: ${aircraftNationality}` : ''}
 
-IMPORTANT — Aircraft Nationality Context:
+${isPrivateFlight ? `CRITICAL — PRIVATE / PART 91 FLIGHT CONTEXT:
+This is a FAR Part 91 private flight. This is NON-COMMERCIAL — the aircraft is operated by the owner or for the owner's personal/business use, and is NOT operated for hire or reward. Key implications:
+- Many landing permit requirements that appear "conditional" are conditioned on whether the flight is commercial or non-commercial. For this private Part 91 flight, those conditions resolve to NO permit required in most cases.
+- Countries that require permits ONLY for commercial or charter operations do NOT require permits for private/Part 91 flights — mark permitRequired as "no" in those cases.
+- If a permit is required regardless of flight type (e.g. diplomatic clearances, restricted airspace, specific country policies for ALL foreign aircraft), then mark permitRequired as "yes".
+- Charter-specific permits (charterPermitRequired) are NOT applicable to private flights — mark as "not_applicable".
+- TCO (Third Country Operator) authorization is a commercial operator safety oversight requirement and does NOT apply to private/Part 91 non-commercial operations.
+- Be decisive: apply the Part 91 private non-commercial context to resolve any conditional requirements to a definitive yes/no answer.
+
+` : ''}IMPORTANT — Aircraft Nationality Context:
 ${aircraftNationality ? `The aircraft is registered in ${aircraftNationality}. You must tailor your analysis based on this:
-- For TCO authorization: A ${aircraftNationality}-registered aircraft operating into EU/EASA states requires EASA TCO authorization UNLESS ${aircraftNationality} is itself an EU/EASA member state. Similarly for UK post-Brexit.
+- For TCO authorization: A ${aircraftNationality}-registered aircraft operating into EU/EASA states requires EASA TCO authorization UNLESS ${aircraftNationality} is itself an EU/EASA member state OR the operation is private/non-commercial (TCO is a commercial operator requirement). Similarly for UK post-Brexit.
 - For bilateral air service agreements: Evaluate the agreement between ${aircraftNationality} and the destination country specifically.
 - For landing permits: Some countries grant permit-free access to aircraft from countries with open-skies or bilateral agreements with ${aircraftNationality}.
-- For charter permits: Requirements often differ based on whether the operator's home state (${aircraftNationality}) has a relevant BASA with the destination country.` : 'No aircraft nationality specified — provide general requirements applicable to international operators.'}
+- For charter permits: Requirements often differ based on whether the operator's home state (${aircraftNationality}) has a relevant BASA with the destination country. Not applicable for private flights.` : 'No aircraft nationality specified — provide general requirements applicable to international operators.'}
 
 ${perplexityContext ? `## Real-time regulatory research (use this as primary source):
 ${perplexityContext}
@@ -120,14 +131,14 @@ Based on the above${perplexityContext ? ' real-time research' : ' knowledge'}, p
 
 1. LANDING PERMIT
    - Is a landing permit required? (yes/no/conditional)
-   - Type of permit (e.g. diplomatic clearance, landing permit, blanket permit, exemption)
+   - ${isPrivateFlight ? 'IMPORTANT: Resolve any conditional requirements in the context of a private/Part 91 non-commercial flight. Only return "yes" if a permit is required specifically for private/non-commercial foreign aircraft.' : 'Type of permit (e.g. diplomatic clearance, landing permit, blanket permit, exemption)'}
    - Issuing authority (full name of CAA or ministry)
    - Lead time in business days
    - Conditions under which permit is/isn't needed
 
 2. THIRD COUNTRY OPERATOR (TCO) AUTHORIZATION — CRITICAL FOR EU & UK
-   - For flights INTO EU/EASA states: Non-EU registered operators require a TCO Authorization issued by EASA.
-   - For flights INTO UK: Post-Brexit, non-UK registered operators need a UK TCO Authorization from the UK CAA.
+   - ${isPrivateFlight ? 'TCO is a commercial operator authorization. For this private Part 91 flight, TCO is NOT applicable — return "not_applicable".' : 'For flights INTO EU/EASA states: Non-EU registered operators require a TCO Authorization issued by EASA.'}
+   - ${isPrivateFlight ? '' : 'For flights INTO UK: Post-Brexit, non-UK registered operators need a UK TCO Authorization from the UK CAA.'}
    - Is TCO authorization required for this specific flight type and aircraft registration?
    - Lead time (typically 3–6 months for initial approval)
 
@@ -136,8 +147,8 @@ Based on the above${perplexityContext ? ' real-time research' : ' knowledge'}, p
    - How does the ASA affect permit requirements for this flight type?
 
 4. CHARTER / NON-SCHEDULED COMMERCIAL SPECIFIC REQUIREMENTS
-   - Is a separate charter/non-scheduled commercial permit required beyond the landing permit?
-   - Lead time and authority for charter permits
+   - ${isPrivateFlight ? 'Not applicable for private Part 91 flights — return "not_applicable" for charterPermitRequired.' : 'Is a separate charter/non-scheduled commercial permit required beyond the landing permit?'}
+   - ${isPrivateFlight ? '' : 'Lead time and authority for charter permits'}
 
 5. REGULATORY WARNINGS & SPECIAL SITUATIONS
    - Sanctions, restrictions, political complications
