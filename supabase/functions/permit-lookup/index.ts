@@ -50,28 +50,41 @@ Deno.serve(async (req) => {
             'Authorization': `Bearer ${perplexityApiKey}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
+            body: JSON.stringify({
             model: 'sonar-pro',
             messages: [
               {
                 role: 'system',
-                content: 'You are an aviation regulatory expert. Provide accurate, up-to-date information about landing permits, regulatory requirements, and air service agreements for specific airports. Focus on official sources like civil aviation authority websites, ICAO publications, and official government documents.',
+                content: 'You are an aviation regulatory expert. Provide accurate, up-to-date information about landing permits, regulatory requirements, and air service agreements for specific airports. Focus on official sources like civil aviation authority (CAA) websites, official AIP (Aeronautical Information Publication) entries, ICAO publications, and official government documents. Prioritize AIP GEN and AD sections, national CAA portals, and EASA/FAA documentation over secondary sources.',
               },
               {
                 role: 'user',
                 content: `Research the current landing permit and regulatory requirements for ICAO airport code "${icao}" (prefix "${icaoPrefix}"). Flight type: ${flightTypeLabel}.${aircraftRegistration ? ` Aircraft registration prefix: ${aircraftRegistration}.` : ''}${aircraftNationality ? ` Aircraft nationality/country of registration: ${aircraftNationality}.` : ''}
 
-Please search for and provide:
-1. Whether a landing permit is required (yes/no/conditional) and from which authority
+Please search official AIP publications, CAA websites, and ICAO documentation for:
+1. Whether a landing permit is required (yes/no/conditional) and from which authority — check the country's AIP GEN 1.2 or equivalent
 2. Any TCO (Third Country Operator) authorization requirements for EU/UK destinations — specifically whether these apply based on the aircraft's country of registration
 3. Relevant bilateral air service agreements between the aircraft's country of registration and the destination country
 4. Charter/non-scheduled commercial permit requirements if applicable
 5. Any sanctions, restrictions, curfews, or special regulatory warnings
 6. Lead times in business days for any permits required
 
-Search official CAA websites, ICAO documentation, and government aviation authority sources. Provide specific, accurate information based on current regulations.`,
+Prioritize official CAA websites, EASA, UK CAA, FAA, and AIP sources. Provide specific, accurate information based on current regulations.`,
               },
             ],
+            search_domain_filter: [
+              'ead.eurocontrol.int',
+              'icao.int',
+              'easa.europa.eu',
+              'caa.co.uk',
+              'faa.gov',
+              'iata.org',
+              'skybrary.aero',
+              'gcaa.gov.ae',
+              'caac.gov.cn',
+              'dgca.gov.in',
+            ],
+            search_recency_filter: 'year',
             max_tokens: 1500,
           }),
         });

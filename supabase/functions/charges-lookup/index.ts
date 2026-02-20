@@ -19,6 +19,8 @@ Deno.serve(async (req) => {
     }
 
     const apiKey = Deno.env.get('LOVABLE_API_KEY');
+    const perplexityApiKey = Deno.env.get('PERPLEXITY_API_KEY');
+
     if (!apiKey) {
       return new Response(
         JSON.stringify({ success: false, error: 'AI API key not configured' }),
@@ -45,9 +47,54 @@ Deno.serve(async (req) => {
     if (arrivalTime) scheduleInfo += `\nArrival time (UTC): ${arrivalTime}`;
     if (departureTime) scheduleInfo += `\nDeparture time (UTC): ${departureTime}`;
 
+    // ── Step 1: Perplexity grounding with official airport charge schedules ───
+    let perplexityContext = '';
+    if (perplexityApiKey) {
+      try {
+        const perpResponse = await fetch('https://api.perplexity.ai/chat/completions', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${perplexityApiKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'sonar-pro',
+            messages: [
+              {
+                role: 'system',
+                content: 'You are an aviation cost analyst. Search for official published landing and parking fees from airport authority websites, AIP AD 2 sections, and official airport charge schedules. Prioritize official published tariffs over estimates.',
+              },
+              {
+                role: 'user',
+                content: `Find the official published landing and parking fees for airport ICAO "${icao}"${aircraftType ? ` for a ${aircraftType}` : ' for a mid-size business jet'}. Look for the airport authority or AIP official charge schedule. Include landing fee, parking fee per day, any passenger fees, and surcharges (night, noise, weekend).`,
+              },
+            ],
+            search_domain_filter: [
+              'ead.eurocontrol.int',
+              'faa.gov',
+              'airportguide.com',
+              'anna.aero',
+              'eurocontrol.int',
+              'iata.org',
+              'airport-data.com',
+            ],
+            search_recency_filter: 'year',
+            max_tokens: 600,
+          }),
+        });
+        if (perpResponse.ok) {
+          const perpData = await perpResponse.json();
+          perplexityContext = perpData.choices?.[0]?.message?.content || '';
+          console.log(`Perplexity charges context: ${perplexityContext.length} chars`);
+        } else {
+          console.warn('Perplexity charges lookup failed:', perpResponse.status);
+        }
+      } catch (e) {
+        console.warn('Perplexity charges lookup error (non-fatal):', e);
+      }
+    }
+
     const prompt = `Estimate the airport landing and parking charges for airport ICAO "${icao}" (prefix "${icaoPrefix}") for the aircraft type "${aircraftType || 'mid-size business jet (~15,000 kg MTOW)'}".
 ${parkingInfo}${scheduleInfo}
 
+${perplexityContext ? `## Official published charge schedule research (use as primary source):\n${perplexityContext}\n\n---\n` : ''}
 Provide realistic estimates in USD based on:
 - Published airport authority fee schedules where known
 - Regional averages for similar airports in the same country

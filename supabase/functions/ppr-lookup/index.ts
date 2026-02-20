@@ -19,6 +19,8 @@ Deno.serve(async (req) => {
     }
 
     const apiKey = Deno.env.get('LOVABLE_API_KEY');
+    const perplexityApiKey = Deno.env.get('PERPLEXITY_API_KEY');
+
     if (!apiKey) {
       return new Response(
         JSON.stringify({ success: false, error: 'AI API key not configured' }),
@@ -34,8 +36,56 @@ Deno.serve(async (req) => {
           ? 'Scheduled commercial airline service'
           : 'Private / general aviation';
 
+    // ── Step 1: Perplexity grounding with official AIP/CAA sources ──────────
+    let perplexityContext = '';
+    if (perplexityApiKey) {
+      try {
+        const perpResponse = await fetch('https://api.perplexity.ai/chat/completions', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${perplexityApiKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'sonar-pro',
+            messages: [
+              {
+                role: 'system',
+                content: 'You are an aviation operations expert. Search official aeronautical information sources (AIP, CAA websites, Jeppesen, airport authority pages) for PPR and slot requirements. Prioritize official government and civil aviation authority sources over secondary sources.',
+              },
+              {
+                role: 'user',
+                content: `Search for the current Prior Permission Required (PPR) and slot requirements for airport ICAO "${icao}" for a ${flightTypeDesc} operation${aircraftType ? ` in a ${aircraftType}` : ''}. Check the airport's official AIP entry, CAA website, or airport authority page. Include: whether PPR is mandatory, advance notice period, how to obtain it (contact details if available), and any slot or handling requirements.`,
+              },
+            ],
+            search_domain_filter: [
+              'ead.eurocontrol.int',
+              'nats.aero',
+              'faa.gov',
+              'skybrary.aero',
+              'jeppesen.com',
+              'airportguide.com',
+              'gcaa.gov.ae',
+              'caac.gov.cn',
+              'caa.co.uk',
+              'easa.europa.eu',
+            ],
+            search_recency_filter: 'year',
+            max_tokens: 800,
+          }),
+        });
+        if (perpResponse.ok) {
+          const perpData = await perpResponse.json();
+          perplexityContext = perpData.choices?.[0]?.message?.content || '';
+          console.log(`Perplexity PPR context: ${perplexityContext.length} chars`);
+        } else {
+          console.warn('Perplexity PPR lookup failed:', perpResponse.status);
+        }
+      } catch (e) {
+        console.warn('Perplexity PPR lookup error (non-fatal):', e);
+      }
+    }
+
     const prompt = `Given the ICAO airport code "${icao}", determine if Prior Permission Required (PPR) applies for landing at this airport.
 
+${perplexityContext ? `## Official source research (use as primary reference):\n${perplexityContext}\n\n---\n` : ''}
 Consider:
 - Whether the airport requires PPR for all traffic or only certain categories
 - Whether PPR requirements differ by flight type (private, charter, scheduled)
