@@ -25,6 +25,8 @@ Deno.serve(async (req) => {
     }
 
     const apiKey = Deno.env.get('LOVABLE_API_KEY');
+    const perplexityApiKey = Deno.env.get('PERPLEXITY_API_KEY');
+
     if (!apiKey) {
       return new Response(
         JSON.stringify({ success: false, error: 'AI API key not configured' }),
@@ -40,8 +42,57 @@ Deno.serve(async (req) => {
           ? 'Scheduled commercial airline service'
           : 'Private / general aviation';
 
+    // ── Step 1: Perplexity grounding for overflight requirements ─────────────
+    let perplexityContext = '';
+    if (perplexityApiKey) {
+      try {
+        const icaoPrefix1 = originIcao.substring(0, 2);
+        const icaoPrefix2 = destinationIcao.substring(0, 2);
+        const perpResponse = await fetch('https://api.perplexity.ai/chat/completions', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${perplexityApiKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'sonar-pro',
+            messages: [
+              {
+                role: 'system',
+                content: 'You are an aviation regulatory expert. Search official CAA, ICAO, and government aviation authority sources for overflight permit requirements and air navigation charges. Prioritize official AIP publications, ICAO documentation, and national CAA websites.',
+              },
+              {
+                role: 'user',
+                content: `What are the overflight permit requirements and air navigation charges for a ${flightTypeDesc} flight from ${originIcao} (prefix ${icaoPrefix1}) to ${destinationIcao} (prefix ${icaoPrefix2})? Include requirements for each country whose airspace is crossed on the great circle route. Search official CAA and AIP sources.${aircraftType ? ` Aircraft: ${aircraftType}.` : ''}`,
+              },
+            ],
+            search_domain_filter: [
+              'ead.eurocontrol.int',
+              'eurocontrol.int',
+              'icao.int',
+              'faa.gov',
+              'caa.co.uk',
+              'easa.europa.eu',
+              'iata.org',
+              'gcaa.gov.ae',
+              'caac.gov.cn',
+            ],
+            search_recency_filter: 'year',
+            max_tokens: 1000,
+          }),
+        });
+        if (perpResponse.ok) {
+          const perpData = await perpResponse.json();
+          perplexityContext = perpData.choices?.[0]?.message?.content || '';
+          console.log(`Perplexity overflight context: ${perplexityContext.length} chars`);
+        } else {
+          console.warn('Perplexity overflight lookup failed:', perpResponse.status);
+        }
+      } catch (e) {
+        console.warn('Perplexity overflight lookup error (non-fatal):', e);
+      }
+    }
+
     const prompt = `A flight is planned from ${originIcao} to ${destinationIcao}.
 
+${perplexityContext ? `## Official regulatory research (use as primary source):\n${perplexityContext}\n\n---\n` : ''}
 Determine the great circle route between these two airports. Identify ALL countries whose airspace would be crossed or closely skirted on this direct route (including the departure and arrival countries).
 
 For EACH country whose airspace is crossed, determine the overflight permit requirements AND estimated overflight charges/fees.
