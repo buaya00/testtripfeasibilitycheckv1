@@ -502,21 +502,49 @@ export default function FeasibilityForm() {
               if (f) handleDocumentUpload(f);
             }}
           />
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
             <h2 className="text-lg font-semibold">Trip Legs</h2>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploadLoading}
-              className="gap-2 text-xs"
-            >
-              {uploadLoading ? (
-                <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Parsing…</>
-              ) : (
-                <><Upload className="h-3.5 w-3.5" /> Import Schedule</>
-              )}
-            </Button>
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Add multiple legs inline control */}
+              <div className="flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1">
+                <span className="text-xs text-muted-foreground whitespace-nowrap">Add</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={20}
+                  defaultValue={1}
+                  id="add-legs-count"
+                  className="w-10 text-xs text-center bg-transparent border-0 outline-none focus:ring-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                />
+                <span className="text-xs text-muted-foreground whitespace-nowrap">leg(s)</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-6 text-xs px-2 gap-1"
+                  onClick={() => {
+                    const input = document.getElementById('add-legs-count') as HTMLInputElement;
+                    const count = Math.min(20, Math.max(1, parseInt(input?.value || '1', 10) || 1));
+                    setLegs(prev => [...prev, ...Array.from({ length: count }, () => createEmptyLeg())]);
+                  }}
+                >
+                  <Plus className="h-3 w-3" />
+                  Add
+                </Button>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadLoading}
+                className="gap-2 text-xs"
+              >
+                {uploadLoading ? (
+                  <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Parsing…</>
+                ) : (
+                  <><Upload className="h-3.5 w-3.5" /> Import Schedule</>
+                )}
+              </Button>
+            </div>
           </div>
           {uploadError && (
             <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive flex items-center gap-2">
