@@ -1143,21 +1143,21 @@ export default function FeasibilityForm() {
             <Button
               size="sm"
               className="justify-start gap-2 w-full"
-              onClick={() => { handleCheckAll(); if (legs.length > 1) handleAllOverflights(); }}
-            >
-              <RefreshCw className="h-3.5 w-3.5" /> Refresh All
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              className="justify-start gap-2 w-full"
               onClick={handleCheckAll}
             >
-              <CheckCircle2 className="h-3.5 w-3.5" /> Check All Legs
+              <CheckCircle2 className="h-3.5 w-3.5" /> Run Feasibility Check
             </Button>
             {checkAllError && (
               <p className="text-xs text-destructive leading-snug px-1">{checkAllError}</p>
             )}
+            <Button
+              variant="secondary"
+              size="sm"
+              className="justify-start gap-2 w-full"
+              onClick={() => { handleCheckAll(); if (legs.length > 1) handleAllOverflights(); }}
+            >
+              <RefreshCw className="h-3.5 w-3.5" /> Refresh All
+            </Button>
             {legs.length > 1 && (
               <Button
                 variant="secondary"
