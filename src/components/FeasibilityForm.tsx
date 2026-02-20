@@ -464,6 +464,16 @@ export default function FeasibilityForm() {
           <span className="text-base sm:text-lg font-semibold text-primary leading-tight">
             Trip Feasibility Check
           </span>
+          <div className="ml-auto">
+            <a
+              href="https://www.aegfuels.com/flightsupport"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs sm:text-sm text-primary underline underline-offset-4 hover:text-primary/80 transition-colors"
+            >
+              Want to find out more about AEG International Trip Planning?
+            </a>
+          </div>
         </div>
       </header>
 
