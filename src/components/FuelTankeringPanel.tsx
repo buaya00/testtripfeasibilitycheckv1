@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Fuel, TrendingDown, TrendingUp, Minus, ChevronDown, ChevronUp, Info } from "lucide-react";
+import { useMemo, useState, useCallback } from "react";
+import { Fuel, TrendingDown, TrendingUp, Minus, ChevronDown, ChevronUp, Info, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -46,12 +46,15 @@ export default function FuelTankeringPanel({
   onUpdateLegFuelPrice,
 }: Props) {
   const [expanded, setExpanded] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const handleRefresh = useCallback(() => setRefreshKey(k => k + 1), []);
 
   const cruiseKtas = aircraftType ? AIRCRAFT_CRUISE_KTAS[aircraftType] : undefined;
   const mtowKg = aircraftType ? AIRCRAFT_MTOW_KG[aircraftType] : undefined;
 
-  // Build per-leg tankering rows
+  // Build per-leg tankering rows (refreshKey forces recalculation on demand)
   const rows: TankeringRow[] = useMemo(() => {
+    void refreshKey; // dependency to allow manual refresh
     const result: TankeringRow[] = [];
     for (let i = 0; i < legs.length - 1; i++) {
       const from = legs[i];
@@ -88,7 +91,7 @@ export default function FuelTankeringPanel({
       });
     }
     return result;
-  }, [legs, flightCalcs, aircraftType, cruiseKtas, mtowKg]);
+  }, [legs, flightCalcs, aircraftType, cruiseKtas, mtowKg, refreshKey]);
 
   // Only show if there are multiple legs (at least one flight segment)
   if (legs.length < 2) return null;
@@ -99,33 +102,45 @@ export default function FuelTankeringPanel({
   return (
     <Card>
       <CardHeader className="pb-3">
-        <button
-          type="button"
-          className="flex w-full items-center justify-between text-left"
-          onClick={() => setExpanded(!expanded)}
-        >
-          <CardTitle className="text-base flex items-center gap-2">
-            <Fuel className="h-4 w-4 text-primary" />
-            Fuel Tankering Analysis
-            {hasAnyAnalysis && (
-              <span className={cn(
-                "ml-2 text-xs font-normal px-2 py-0.5 rounded-full",
-                totalSavingUsd > 50
-                  ? "bg-success/15 text-success"
-                  : totalSavingUsd < -50
-                    ? "bg-destructive/15 text-destructive"
-                    : "bg-muted text-muted-foreground"
-              )}>
-                {totalSavingUsd > 50
-                  ? `Tanker saves ~$${totalSavingUsd.toLocaleString()}`
-                  : totalSavingUsd < -50
-                    ? `Buy local saves ~$${Math.abs(totalSavingUsd).toLocaleString()}`
-                    : "Prices similar — no clear advantage"}
-              </span>
-            )}
-          </CardTitle>
-          {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-        </button>
+        <div className="flex w-full items-center justify-between">
+          <button
+            type="button"
+            className="flex flex-1 items-center text-left gap-2"
+            onClick={() => setExpanded(!expanded)}
+          >
+            <CardTitle className="text-base flex items-center gap-2">
+              <Fuel className="h-4 w-4 text-primary" />
+              Fuel Tankering Analysis
+              {hasAnyAnalysis && (
+                <span className={cn(
+                  "ml-2 text-xs font-normal px-2 py-0.5 rounded-full",
+                  totalSavingUsd > 50
+                    ? "bg-success/15 text-success"
+                    : totalSavingUsd < -50
+                      ? "bg-destructive/15 text-destructive"
+                      : "bg-muted text-muted-foreground"
+                )}>
+                  {totalSavingUsd > 50
+                    ? `Tanker saves ~$${totalSavingUsd.toLocaleString()}`
+                    : totalSavingUsd < -50
+                      ? `Buy local saves ~$${Math.abs(totalSavingUsd).toLocaleString()}`
+                      : "Prices similar — no clear advantage"}
+                </span>
+              )}
+            </CardTitle>
+            {expanded ? <ChevronUp className="h-4 w-4 ml-2" /> : <ChevronDown className="h-4 w-4 ml-2" />}
+          </button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 shrink-0"
+            onClick={handleRefresh}
+            title="Refresh tankering analysis"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+          </Button>
+        </div>
         <p className="text-xs text-muted-foreground mt-1">
           Enter posted fuel prices at each stop to see whether tankering is economical.
           {!aircraftType && " Select an aircraft type to enable block fuel estimates."}
