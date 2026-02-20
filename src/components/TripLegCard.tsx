@@ -598,40 +598,62 @@ export default function TripLegCard({
 
   const feasResult = leg.feasibilityResult;
 
-  // Determine banner color from feasibility result
-  const bannerClass = feasResult
+  // Determine card style from feasibility result — bold left border
+  const cardClass = feasResult
     ? feasResult.feasible
-      ? "bg-success/10 border-t-4 border-success rounded-lg bg-card"
-      : "bg-destructive/10 border-t-4 border-destructive rounded-lg bg-card"
-    : "rounded-lg border bg-card";
+      ? "rounded-lg border border-l-4 border-l-success bg-card shadow-sm"
+      : "rounded-lg border border-l-4 border-l-destructive bg-card shadow-sm"
+    : "rounded-lg border bg-card shadow-sm";
 
   return (
-    <div className={bannerClass}>
+    <div className={cardClass}>
       {/* Header */}
-      <div className="flex w-full items-center justify-between p-4">
+      <div className="flex w-full items-center justify-between px-4 py-3">
         <button
           type="button"
-          className="flex flex-1 items-center gap-2 flex-wrap text-left"
+          className="flex flex-1 items-center gap-2.5 flex-wrap text-left min-w-0"
           onClick={() => setExpanded(!expanded)}
         >
-          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold shrink-0">
+          {/* Leg number pill */}
+          <span className={cn(
+            "flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold shrink-0",
+            feasResult
+              ? feasResult.feasible
+                ? "bg-success text-success-foreground"
+                : "bg-destructive text-destructive-foreground"
+              : "bg-primary text-primary-foreground"
+          )}>
             {legIndex + 1}
           </span>
-          <span className="font-semibold text-sm">
-            {leg.airportIcao ? `Leg ${legIndex + 1} — ${leg.airportIcao}` : `Leg ${legIndex + 1}`}
-          </span>
-          {(leg.airportCity || leg.runwayResult?.municipality) && (
-            <span className="text-xs text-muted-foreground font-normal">
-              {leg.airportCity || leg.runwayResult?.municipality}
+
+          {/* Airport + city */}
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="font-semibold text-sm">
+              {leg.airportIcao ? `Leg ${legIndex + 1} — ${leg.airportIcao}` : `Leg ${legIndex + 1}`}
             </span>
-          )}
-          {feasResult && (
-            feasResult.feasible
-              ? <CheckCircle2 className="h-4 w-4 text-success" />
-              : <XCircle className="h-4 w-4 text-destructive" />
-          )}
+            {(leg.airportCity || leg.runwayResult?.municipality) && (
+              <span className="text-xs text-muted-foreground font-normal truncate">
+                {leg.airportCity || leg.runwayResult?.municipality}
+              </span>
+            )}
+          </div>
+
+          {/* Status badge */}
+          {feasResult ? (
+            feasResult.feasible ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-success border border-success/30 shrink-0">
+                <CheckCircle2 className="h-3 w-3" /> Pass
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-destructive border border-destructive/30 shrink-0">
+                <XCircle className="h-3 w-3" /> Fail
+              </span>
+            )
+          ) : null}
+
+          {/* Date range */}
           {(leg.arrivalDate || leg.departureDate) && (
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs text-muted-foreground shrink-0">
               {leg.arrivalDate && leg.departureDate
                 ? `${format(leg.arrivalDate, "dd MMM")} – ${format(leg.departureDate, "dd MMM")}`
                 : leg.departureDate
@@ -641,7 +663,15 @@ export default function TripLegCard({
                     : ''}
             </span>
           )}
-          {expanded ? <ChevronUp className="h-4 w-4 ml-auto" /> : <ChevronDown className="h-4 w-4 ml-auto" />}
+
+          {/* Issues preview when collapsed */}
+          {!expanded && feasResult && !feasResult.feasible && feasResult.issues.length > 0 && (
+            <span className="hidden sm:inline text-xs text-destructive truncate max-w-[200px]">
+              {feasResult.issues[0]}{feasResult.issues.length > 1 ? ` +${feasResult.issues.length - 1} more` : ''}
+            </span>
+          )}
+
+          <ChevronUp className={cn("h-4 w-4 ml-auto shrink-0 text-muted-foreground transition-transform", !expanded && "rotate-180")} />
         </button>
         {/* Leg navigation arrows — only shown when there are multiple legs */}
         {totalLegs > 1 && onNavigateLeg && (
@@ -899,14 +929,14 @@ export default function TripLegCard({
           <div className="space-y-2">
             {/* CBP */}
             {leg.cbpResult && (
-              <div className={cn("rounded-md border p-3 text-sm space-y-1.5", leg.cbpResult.found ? "border-success/30 bg-success/5" : "border-muted bg-muted/50")}>
+              <div className={cn("rounded-md border-l-4 border border-border p-3 text-sm space-y-1.5", leg.cbpResult.found ? "border-l-success" : "border-l-warning bg-muted/30")}>
                 <div className="flex items-center gap-1.5 font-medium">
                   {leg.cbpResult.found ? <CheckCircle2 className="h-3.5 w-3.5 text-success" /> : <AlertTriangle className="h-3.5 w-3.5 text-warning" />}
                   {leg.cbpResult.airportName ? `${leg.cbpResult.airportName} (${leg.cbpResult.icao})` : leg.cbpResult.icao}
                 </div>
                 <p className="text-muted-foreground text-xs">{leg.cbpResult.message}</p>
                 {leg.cbpResult.operatingHours && (
-                  <div className="rounded bg-background/50 px-2 py-1.5 text-xs space-y-0.5">
+                  <div className="rounded bg-muted/40 px-2 py-1.5 text-xs space-y-0.5">
                     <p className="font-medium">CBP Hours:</p>
                     <p>{leg.cbpResult.operatingHours.open}–{leg.cbpResult.operatingHours.close} ({leg.cbpResult.operatingHours.days})</p>
                   </div>
@@ -922,14 +952,14 @@ export default function TripLegCard({
             {/* CIQ */}
             {ciqLoading && <div className="rounded-md border p-3 text-sm flex items-center gap-2 text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Looking up CIQ…</div>}
             {leg.ciqResult && !ciqLoading && (
-              <div className={cn("rounded-md border p-3 text-sm space-y-1.5",
-                leg.ciqResult.ciqAvailable === 'yes' ? "border-success/30 bg-success/5" : leg.ciqResult.ciqAvailable === 'no' ? "border-destructive/30 bg-destructive/5" : "border-warning/30 bg-warning/5"
+              <div className={cn("rounded-md border-l-4 border border-border p-3 text-sm space-y-1.5",
+                leg.ciqResult.ciqAvailable === 'yes' ? "border-l-success" : leg.ciqResult.ciqAvailable === 'no' ? "border-l-destructive" : "border-l-warning"
               )}>
                 <div className="flex items-center gap-1.5 font-medium">
                   {leg.ciqResult.ciqAvailable === 'yes' ? <CheckCircle2 className="h-3.5 w-3.5 text-success" /> : leg.ciqResult.ciqAvailable === 'no' ? <XCircle className="h-3.5 w-3.5 text-destructive" /> : <AlertTriangle className="h-3.5 w-3.5 text-warning" />}
                   CIQ — {leg.ciqResult.airportName || leg.ciqResult.country || leg.ciqResult.icao}
                 </div>
-                <div className="rounded bg-background/50 px-2 py-1.5 text-xs space-y-0.5">
+                <div className="rounded bg-muted/40 px-2 py-1.5 text-xs space-y-0.5">
                   {leg.ciqResult.operatingHours && <p><span className="font-medium">Hours:</span> {leg.ciqResult.operatingHours}</p>}
                   {leg.ciqResult.advanceNotice && <p><span className="font-medium">Notice:</span> {leg.ciqResult.advanceNotice}</p>}
                   {leg.ciqResult.notes && <p className="text-muted-foreground italic">{leg.ciqResult.notes}</p>}
@@ -940,8 +970,8 @@ export default function TripLegCard({
             {/* Permit */}
             {permitLoading && <div className="rounded-md border p-3 text-sm flex items-center gap-2 text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Permit lookup…</div>}
             {leg.permitResult && !permitLoading && (
-              <div className={cn("rounded-md border p-3 text-sm space-y-2",
-                leg.permitResult.permitRequired === 'no' ? "border-success/30 bg-success/5" : leg.permitResult.permitRequired === 'yes' ? "border-warning/30 bg-warning/5" : "border-muted bg-muted/50"
+              <div className={cn("rounded-md border-l-4 border border-border p-3 text-sm space-y-2",
+                leg.permitResult.permitRequired === 'no' ? "border-l-success" : leg.permitResult.permitRequired === 'yes' ? "border-l-warning" : "border-l-muted-foreground/40"
               )}>
                 <div className="flex items-center gap-1.5 font-medium">
                   <Shield className="h-3.5 w-3.5 text-primary" />
@@ -949,7 +979,7 @@ export default function TripLegCard({
                 </div>
 
                 {/* Landing Permit */}
-                <div className="rounded bg-background/50 px-2 py-1.5 text-xs space-y-0.5">
+                <div className="rounded bg-muted/40 px-2 py-1.5 text-xs space-y-0.5">
                   <p className="font-semibold text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Landing Permit</p>
                   <p className="font-medium">
                     {leg.permitResult.permitRequired === 'yes' && '⚠️ Required'}
@@ -981,7 +1011,7 @@ export default function TripLegCard({
 
                 {/* Bilateral Agreements */}
                 {leg.permitResult.bilateralAgreement && (
-                  <div className="rounded bg-background/50 px-2 py-1.5 text-xs space-y-0.5">
+                  <div className="rounded bg-muted/40 px-2 py-1.5 text-xs space-y-0.5">
                     <p className="font-semibold text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Air Service Agreement</p>
                     <p><span className="font-medium">Agreement:</span> {leg.permitResult.bilateralAgreement}</p>
                     {leg.permitResult.bilateralImpact && <p className="text-muted-foreground italic">{leg.permitResult.bilateralImpact}</p>}
@@ -1020,7 +1050,6 @@ export default function TripLegCard({
                   <p className="text-xs text-muted-foreground italic px-1">{leg.permitResult.notes}</p>
                 )}
 
-
                 {/* Confidence + data source */}
                 <div className="flex items-center gap-2 flex-wrap">
                   {leg.permitResult.confidence && (
@@ -1042,14 +1071,14 @@ export default function TripLegCard({
             {/* PPR */}
             {pprLoading && <div className="rounded-md border p-3 text-sm flex items-center gap-2 text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />PPR lookup…</div>}
             {leg.pprResult && !pprLoading && (
-              <div className={cn("rounded-md border p-3 text-sm space-y-1.5",
-                leg.pprResult.pprRequired === 'no' ? "border-success/30 bg-success/5" : leg.pprResult.pprRequired === 'yes' ? "border-warning/30 bg-warning/5" : "border-muted bg-muted/50"
+              <div className={cn("rounded-md border-l-4 border border-border p-3 text-sm space-y-1.5",
+                leg.pprResult.pprRequired === 'no' ? "border-l-success" : leg.pprResult.pprRequired === 'yes' ? "border-l-warning" : "border-l-muted-foreground/40"
               )}>
                 <div className="flex items-center gap-1.5 font-medium">
                   <Clock className="h-3.5 w-3.5 text-primary" />
                   PPR — {leg.pprResult.airportName || leg.pprResult.icao}
                 </div>
-                <div className="rounded bg-background/50 px-2 py-1.5 text-xs space-y-0.5">
+                <div className="rounded bg-muted/40 px-2 py-1.5 text-xs space-y-0.5">
                   {leg.pprResult.advanceNoticePeriod && <p><span className="font-medium">Notice:</span> {leg.pprResult.advanceNoticePeriod}</p>}
                   {leg.pprResult.contactDetails && <p><span className="font-medium">Contact:</span> {leg.pprResult.contactDetails}</p>}
                   {leg.pprResult.slotRequired !== undefined && <p><span className="font-medium">Slot:</span> {leg.pprResult.slotRequired ? 'Required' : 'Not required'}</p>}
@@ -1060,14 +1089,14 @@ export default function TripLegCard({
 
             {/* Runway */}
             {leg.runwayResult && (
-              <div className={cn("rounded-md border p-3 text-sm space-y-1.5", leg.runwayResult.found ? "border-success/30 bg-success/5" : "border-muted bg-muted/50")}>
+              <div className={cn("rounded-md border-l-4 border border-border p-3 text-sm space-y-1.5", leg.runwayResult.found ? "border-l-success" : "border-l-muted-foreground/40")}>
                 <div className="flex items-center gap-1.5 font-medium">
                   <PlaneLanding className="h-3.5 w-3.5 text-primary" />
                   Runway Data
                 </div>
                 <p className="text-muted-foreground text-xs">{leg.runwayResult.message}</p>
                 {leg.runwayResult.runways.length > 0 && (
-                  <div className="rounded bg-background/50 px-2 py-1.5 text-xs space-y-0.5">
+                  <div className="rounded bg-muted/40 px-2 py-1.5 text-xs space-y-0.5">
                     {leg.runwayResult.runways.map((rwy, i) => (
                       <p key={i}><span className="font-mono font-medium">{rwy.ident}</span> — {rwy.lengthFt.toLocaleString()} ft × {rwy.widthFt} ft · {rwy.surface}{rwy.lighted && " · Lighted"}</p>
                     ))}
@@ -1084,7 +1113,7 @@ export default function TripLegCard({
               // Calculate total from filtered items
               const filteredTotal = filteredItems.reduce((sum, item) => sum + (item.subtotal ?? 0), 0);
               return (
-              <div key={ghq.id} className="rounded-md border border-accent/30 bg-accent/5 p-3 text-sm space-y-1.5">
+              <div key={ghq.id} className="rounded-md border-l-4 border-l-accent border border-border p-3 text-sm space-y-1.5">
                 <div className="flex items-center gap-1.5 font-medium">
                   <FileText className="h-3.5 w-3.5 text-accent-foreground" />
                   Ground Handling — {ghq.provider_name}
@@ -1098,7 +1127,7 @@ export default function TripLegCard({
                   </p>
                 )}
                 {ghq.quote_date && <p className="text-[10px] text-muted-foreground">Tariff effective: {ghq.quote_date}</p>}
-                <div className="rounded bg-background/50 px-2 py-1.5 text-xs space-y-0.5">
+                <div className="rounded bg-muted/40 px-2 py-1.5 text-xs space-y-0.5">
                   {Object.entries(
                     filteredItems.reduce<Record<string, typeof filteredItems>>((acc, item) => {
                       (acc[item.service_category] ??= []).push(item);
@@ -1135,12 +1164,12 @@ export default function TripLegCard({
             {/* Airport Hours */}
             {hoursLoading && <div className="rounded-md border p-3 text-sm flex items-center gap-2 text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Checking airport hours & NOTAMs…</div>}
             {leg.airportHoursResult && !hoursLoading && (
-              <div className={cn("rounded-md border p-3 text-sm space-y-1.5",
+              <div className={cn("rounded-md border-l-4 border border-border p-3 text-sm space-y-1.5",
                 leg.airportHoursResult.success
                   ? (leg.airportHoursResult.arrivalOutsideHours || leg.airportHoursResult.departureOutsideHours || leg.airportHoursResult.arrivalDuringCurfew || leg.airportHoursResult.departureDuringCurfew)
-                    ? "border-destructive/30 bg-destructive/5"
-                    : "border-success/30 bg-success/5"
-                  : "border-muted bg-muted/50"
+                    ? "border-l-destructive"
+                    : "border-l-success"
+                  : "border-l-muted-foreground/40"
               )}>
                 <div className="flex items-center gap-1.5 font-medium">
                   <Clock className="h-3.5 w-3.5 text-primary" />
@@ -1151,7 +1180,7 @@ export default function TripLegCard({
                 </div>
 
                 {leg.airportHoursResult.success && (
-                  <div className="rounded bg-background/50 px-2 py-1.5 text-xs space-y-1">
+                  <div className="rounded bg-muted/40 px-2 py-1.5 text-xs space-y-1">
                     {leg.airportHoursResult.is24Hours ? (
                       <p className="text-success font-medium">✅ 24-hour operations</p>
                     ) : leg.airportHoursResult.operatingHoursOpen && leg.airportHoursResult.operatingHoursClose ? (
@@ -1212,13 +1241,13 @@ export default function TripLegCard({
             {/* Charges */}
             {chargesLoading && <div className="rounded-md border p-3 text-sm flex items-center gap-2 text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Estimating charges…</div>}
             {leg.chargesResult && !chargesLoading && (
-              <div className={cn("rounded-md border p-3 text-sm space-y-1.5", leg.chargesResult.success ? "border-primary/30 bg-primary/5" : "border-muted bg-muted/50")}>
+              <div className={cn("rounded-md border-l-4 border border-border p-3 text-sm space-y-1.5", leg.chargesResult.success ? "border-l-primary" : "border-l-muted-foreground/40")}>
                 <div className="flex items-center gap-1.5 font-medium">
                   <DollarSign className="h-3.5 w-3.5 text-primary" />
                   Charges — {leg.chargesResult.airportName || leg.chargesResult.icao}
                 </div>
                 {leg.chargesResult.success && (
-                  <div className="rounded bg-background/50 px-2 py-1.5 text-xs space-y-0.5">
+                  <div className="rounded bg-muted/40 px-2 py-1.5 text-xs space-y-0.5">
                     {leg.chargesResult.mtowKg && <p className="text-muted-foreground">MTOW: {leg.chargesResult.mtowKg.toLocaleString()} kg</p>}
                     <div className="grid grid-cols-2 gap-x-4 gap-y-1 pt-1">
                       <p><span className="font-medium">Landing:</span></p>
