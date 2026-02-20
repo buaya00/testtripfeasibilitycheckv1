@@ -1162,7 +1162,7 @@ export default function FeasibilityForm() {
               variant="secondary"
               size="sm"
               className="justify-start gap-2 w-full"
-              onClick={() => { handleCheckAll(); if (legs.length > 1) handleAllOverflights(); }}
+              onClick={() => { handleCheckAll(); }}
             >
               <RefreshCw className="h-3.5 w-3.5" /> Refresh All
             </Button>
