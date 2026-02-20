@@ -457,17 +457,17 @@ export default function FeasibilityForm() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-white">
-        <div className="container mx-auto flex items-center gap-3 px-6 py-4">
-          <img src={aegLogo} alt="AEG Fuels" className="h-[208px] w-auto" />
+        <div className="container mx-auto flex items-center gap-3 px-4 sm:px-6 py-3 sm:py-4">
+          <img src={aegLogo} alt="AEG Fuels" className="h-[80px] sm:h-[120px] md:h-[160px] w-auto" />
           <Separator orientation="vertical" className="h-6 bg-border" />
-          <Plane className="h-6 w-6 text-primary" />
-          <span className="text-lg font-semibold text-primary">
+          <Plane className="h-5 w-5 sm:h-6 sm:w-6 text-primary shrink-0" />
+          <span className="text-base sm:text-lg font-semibold text-primary leading-tight">
             Trip Feasibility Check
           </span>
         </div>
       </header>
 
-      <main className="container mx-auto max-w-3xl px-6 py-8 pb-32 space-y-6">
+      <main className="container mx-auto max-w-3xl px-3 sm:px-6 py-4 sm:py-8 pb-32 space-y-4 sm:space-y-6">
         {/* Shared Trip Config */}
         <Card>
           <CardHeader className="pb-4">
@@ -477,7 +477,7 @@ export default function FeasibilityForm() {
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Aircraft Type <span className="text-destructive">*</span></Label>
                 <AircraftTypeCombobox
