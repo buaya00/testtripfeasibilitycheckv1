@@ -24,7 +24,7 @@ import type {
 } from "./tripTypes";
 
 // ── Feature flag: set to true to show AEG Set Up Fees section ──
-const SHOW_AEG_FEES = true;
+const SHOW_AEG_FEES = false;
 
 // ── Constants ──────────────────────────────────────────────
 const TIMES = Array.from({ length: 96 }, (_, i) => {
