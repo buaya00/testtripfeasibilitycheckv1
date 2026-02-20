@@ -146,7 +146,10 @@ export default function FuelTankeringPanel({
 
           {/* Fuel price inputs per stop */}
           <div className="space-y-3">
-            <Label className="text-xs font-semibold">Posted Fuel Prices (USD / US gallon)</Label>
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">All-Inclusive Fuel Prices (USD / US gallon)</Label>
+              <p className="text-xs text-muted-foreground">Enter the total price including all taxes, fees, and VAT.</p>
+            </div>
             <div className="grid gap-2">
               {legs.map((leg, idx) => (
                 <div key={leg.id} className="flex items-center gap-2">
@@ -159,7 +162,7 @@ export default function FuelTankeringPanel({
                       type="number"
                       min={0}
                       step={0.01}
-                      placeholder="e.g. 7.85"
+                      placeholder="All-in price incl. tax"
                       value={leg.fuelPriceUsd ?? ""}
                       onChange={(e) => {
                         const v = e.target.value;
@@ -203,9 +206,9 @@ export default function FuelTankeringPanel({
           )}
 
           <p className="text-xs text-muted-foreground border-t pt-2">
-            Block fuel estimates are derived from aircraft type and leg distance.
-            Weight penalty uses a 4% burn factor for carrying extra fuel. Always verify
-            with your fuel supplier and dispatcher before tankering.
+            Prices entered should be all-inclusive (base price + taxes + VAT). Block fuel estimates
+            are derived from aircraft type and leg distance. Weight penalty uses a 4% burn factor
+            for carrying extra fuel. Always verify with your fuel supplier and dispatcher before tankering.
           </p>
         </CardContent>
       )}
