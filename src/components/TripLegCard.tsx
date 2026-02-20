@@ -2,7 +2,7 @@ import { useCallback, useState, useEffect } from "react";
 import { format } from "date-fns";
 import {
   CalendarIcon, CheckCircle2, XCircle, AlertTriangle, Search, Loader2,
-  ExternalLink, Ruler, Shield, DollarSign, Clock, ChevronDown, ChevronUp,
+  ExternalLink, PlaneLanding, Shield, DollarSign, Clock, ChevronDown, ChevronUp,
   FileText, Plus, Trash2, Tag, ShieldCheck, ClipboardList, Building2, Timer,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -1062,7 +1062,7 @@ export default function TripLegCard({
             {leg.runwayResult && (
               <div className={cn("rounded-md border p-3 text-sm space-y-1.5", leg.runwayResult.found ? "border-success/30 bg-success/5" : "border-muted bg-muted/50")}>
                 <div className="flex items-center gap-1.5 font-medium">
-                  <Ruler className="h-3.5 w-3.5 text-primary" />
+                  <PlaneLanding className="h-3.5 w-3.5 text-primary" />
                   Runway Data
                 </div>
                 <p className="text-muted-foreground text-xs">{leg.runwayResult.message}</p>
