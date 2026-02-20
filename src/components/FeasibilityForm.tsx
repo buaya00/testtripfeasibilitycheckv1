@@ -458,7 +458,7 @@ export default function FeasibilityForm() {
     <div className="min-h-screen bg-background">
       <header className="border-b bg-white">
         <div className="container mx-auto flex items-center gap-3 px-6 py-4">
-          <img src={aegLogo} alt="AEG Fuels" className="h-[104px] w-auto" />
+          <img src={aegLogo} alt="AEG Fuels" className="h-[208px] w-auto" />
           <Separator orientation="vertical" className="h-6 bg-border" />
           <Plane className="h-6 w-6 text-primary" />
           <span className="text-lg font-semibold text-primary">
