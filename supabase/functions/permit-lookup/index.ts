@@ -28,6 +28,45 @@ Deno.serve(async (req) => {
       );
     }
 
+    // ── Hardcoded overrides for known airports ───────────────────────────────
+    if (icao === 'VHHH') {
+      const isPrivate = !flightType || flightType === 'private';
+      return new Response(
+        JSON.stringify({
+          success: true,
+          icao,
+          country: 'Hong Kong SAR, China',
+          permitRequired: 'yes',
+          permitType: 'Landing Permit',
+          leadTimeDays: isPrivate ? 3 : 14,
+          issuingAuthority: 'Civil Aviation Department (CAD) Hong Kong',
+          conditions: 'Landing permit required for all foreign-registered aircraft regardless of flight type.',
+          overflightPermit: 'no',
+          tcoRequired: 'not_applicable',
+          tcoAuthority: null,
+          tcoLeadTimeDays: null,
+          tcoNotes: null,
+          bilateralAgreement: null,
+          bilateralImpact: null,
+          charterPermitRequired: isPrivate ? 'not_applicable' : 'yes',
+          charterPermitAuthority: isPrivate ? null : 'Civil Aviation Department (CAD) Hong Kong',
+          charterLeadTimeDays: isPrivate ? null : 14,
+          charterPermitNotes: isPrivate ? null : 'Non-scheduled/charter permit required in addition to the standard landing permit. 14 business days lead time.',
+          regulatoryWarnings: [
+            'Permit required for ALL foreign aircraft operations regardless of flight type.',
+            isPrivate
+              ? 'Private flights: minimum 3 business days lead time for landing permit.'
+              : 'Non-private/commercial flights: minimum 14 business days lead time for landing permit.',
+          ],
+          notes: `VHHH (Hong Kong International Airport) requires a landing permit for all foreign-registered aircraft. Lead time: ${isPrivate ? '3 business days (private flights)' : '14 business days (non-private/commercial flights)'}.`,
+          confidence: 'high',
+          citations: [],
+          groundedByPerplexity: false,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const icaoPrefix = icao.substring(0, 2);
     const flightTypeLabel = flightType === 'private'
       ? 'Private / general aviation — FAR Part 91 (non-commercial; owner or operator is aboard or flight is not-for-hire)'
