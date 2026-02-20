@@ -535,46 +535,7 @@ export default function FeasibilityForm() {
             }}
           />
           <div className="flex items-center justify-between gap-2 flex-wrap">
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-semibold">Trip Legs</h2>
-              {/* Jump-to-leg navigator */}
-              {legs.length > 1 && (
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5 px-2">
-                      <MapPin className="h-3 w-3" />
-                      Jump to Leg
-                      <ChevronDown className="h-3 w-3 text-muted-foreground" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent align="start" className="w-52 p-1">
-                    <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide px-2 py-1">
-                      Select Location
-                    </div>
-                    {legs.map((leg, idx) => (
-                      <button
-                        key={leg.id}
-                        onClick={() => {
-                          const el = document.getElementById(`leg-${idx}`);
-                          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        }}
-                        className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs hover:bg-muted text-left transition-colors"
-                      >
-                        <span className="flex items-center justify-center h-4.5 w-4.5 min-w-[1.125rem] rounded-full bg-primary/10 text-primary text-[10px] font-bold leading-none px-1">
-                          {idx + 1}
-                        </span>
-                        <span className="font-mono font-medium">
-                          {leg.airportIcao || <span className="text-muted-foreground italic">TBD</span>}
-                        </span>
-                        {leg.airportCity && (
-                          <span className="text-muted-foreground truncate">{leg.airportCity}</span>
-                        )}
-                      </button>
-                    ))}
-                  </PopoverContent>
-                </Popover>
-              )}
-            </div>
+            <h2 className="text-lg font-semibold">Trip Legs</h2>
             <div className="flex items-center gap-2 flex-wrap">
               {/* Add multiple legs inline control */}
               <div className="flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1">
@@ -1244,6 +1205,44 @@ export default function FeasibilityForm() {
                 >
                   <FileDown className="h-3.5 w-3.5" /> Save as PDF
                 </Button>
+              </>
+            )}
+            {legs.length > 1 && (
+              <>
+                <Separator className="my-0.5" />
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="secondary" size="sm" className="justify-start gap-2 w-full">
+                      <MapPin className="h-3.5 w-3.5" /> Jump to Leg
+                      <ChevronDown className="h-3 w-3 text-muted-foreground ml-auto" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent side="left" align="end" className="w-52 p-1">
+                    <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide px-2 py-1">
+                      Select Location
+                    </div>
+                    {legs.map((leg, idx) => (
+                      <button
+                        key={leg.id}
+                        onClick={() => {
+                          const el = document.getElementById(`leg-${idx}`);
+                          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }}
+                        className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs hover:bg-muted text-left transition-colors"
+                      >
+                        <span className="flex items-center justify-center min-w-[1.125rem] rounded-full bg-primary/10 text-primary text-[10px] font-bold leading-none px-1 py-0.5">
+                          {idx + 1}
+                        </span>
+                        <span className="font-mono font-medium">
+                          {leg.airportIcao || <span className="text-muted-foreground italic">TBD</span>}
+                        </span>
+                        {leg.airportCity && (
+                          <span className="text-muted-foreground truncate">{leg.airportCity}</span>
+                        )}
+                      </button>
+                    ))}
+                  </PopoverContent>
+                </Popover>
               </>
             )}
             <Separator className="my-0.5" />
