@@ -456,22 +456,47 @@ export default function FeasibilityForm() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b bg-white">
-        <div className="container mx-auto flex items-center gap-3 px-4 sm:px-6 py-3 sm:py-4">
-          <img src={aegLogo} alt="AEG Fuels" className="h-[80px] sm:h-[120px] md:h-[160px] w-auto" />
-          <Separator orientation="vertical" className="h-6 bg-border" />
-          <Plane className="h-5 w-5 sm:h-6 sm:w-6 text-primary shrink-0" />
-          <span className="text-base sm:text-lg font-semibold text-primary leading-tight">
-            Trip Feasibility Check
-          </span>
-          <div className="ml-auto">
+      <header className="border-b bg-white shadow-sm sticky top-0 z-40">
+        <div className="container mx-auto flex items-center h-16 px-4 sm:px-6 gap-4">
+          {/* Logo */}
+          <a href="https://www.aegfuels.com" target="_blank" rel="noopener noreferrer" className="shrink-0 flex items-center">
+            <img src={aegLogo} alt="AEG Fuels" className="h-9 sm:h-10 w-auto" />
+          </a>
+
+          {/* Divider */}
+          <Separator orientation="vertical" className="h-6 bg-border shrink-0" />
+
+          {/* Product title */}
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center justify-center h-7 w-7 rounded-md bg-primary/10">
+              <Plane className="h-4 w-4 text-primary" />
+            </div>
+            <div className="hidden sm:block">
+              <p className="text-sm font-semibold text-foreground leading-none">Trip Feasibility Check</p>
+              <p className="text-xs text-muted-foreground leading-none mt-0.5">Flight Planning Tool</p>
+            </div>
+            <p className="sm:hidden text-sm font-semibold text-foreground leading-none">Feasibility Check</p>
+          </div>
+
+          {/* Right side CTA */}
+          <div className="ml-auto flex items-center gap-3">
             <a
               href="https://www.aegfuels.com/flightsupport"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs sm:text-sm text-primary underline underline-offset-4 hover:text-primary/80 transition-colors"
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10 transition-colors"
             >
-              Want to find out more about AEG International Trip Planning?
+              <Globe className="h-3.5 w-3.5" />
+              AEG Trip Planning
+            </a>
+            <a
+              href="https://www.aegfuels.com/flightsupport"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="sm:hidden flex items-center justify-center h-8 w-8 rounded-md border border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 transition-colors"
+              aria-label="AEG Trip Planning"
+            >
+              <Globe className="h-4 w-4" />
             </a>
           </div>
         </div>
