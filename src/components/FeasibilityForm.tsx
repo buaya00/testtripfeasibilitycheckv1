@@ -664,6 +664,17 @@ export default function FeasibilityForm() {
                   const el = document.getElementById(`leg-${toIndex}`);
                   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }}
+                onRefreshLeg={(index) => {
+                  feasibilityTriggered.current = true;
+                  // Re-evaluate this leg's feasibility after a short delay to allow lookup state to propagate
+                  setTimeout(() => {
+                    setLegs(prev => prev.map((l, i) =>
+                      i === index
+                        ? { ...l, feasibilityResult: evaluateLegFeasibility(l, aircraftType, i, prev.length) }
+                        : l
+                    ));
+                  }, 300);
+                }}
               />
 
               {/* Overflight between this leg and next */}

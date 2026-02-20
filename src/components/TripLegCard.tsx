@@ -3,7 +3,7 @@ import { format } from "date-fns";
 import {
   CalendarIcon, CheckCircle2, XCircle, AlertTriangle, Search, Loader2,
   ExternalLink, PlaneLanding, Shield, DollarSign, Clock, ChevronDown, ChevronUp,
-  FileText, Plus, Trash2, Tag, ShieldCheck, ClipboardList, Building2, Timer,
+  FileText, Plus, Trash2, Tag, ShieldCheck, ClipboardList, Building2, Timer, RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -272,10 +272,11 @@ interface TripLegCardProps {
   onRemoveLeg: (index: number) => void;
   onRegisterLookup?: (index: number, fn: (() => void) | null) => void;
   onNavigateLeg?: (toIndex: number) => void;
+  onRefreshLeg?: (index: number) => void;
 }
 
 export default function TripLegCard({
-  leg, legIndex, totalLegs, aircraftType, flightType, aircraftNationality, overflightResult, previousLegDepartureDate, expanded: expandedProp, onToggleExpanded, onUpdateLeg, onRemoveLeg, onRegisterLookup, onNavigateLeg,
+  leg, legIndex, totalLegs, aircraftType, flightType, aircraftNationality, overflightResult, previousLegDepartureDate, expanded: expandedProp, onToggleExpanded, onUpdateLeg, onRemoveLeg, onRegisterLookup, onNavigateLeg, onRefreshLeg,
 }: TripLegCardProps) {
   const [localExpanded, setLocalExpanded] = useState(true);
   const expanded = expandedProp !== undefined ? expandedProp : localExpanded;
@@ -673,29 +674,48 @@ export default function TripLegCard({
 
           <ChevronUp className={cn("h-4 w-4 ml-auto shrink-0 text-muted-foreground transition-transform", !expanded && "rotate-180")} />
         </button>
-        {/* Leg navigation arrows — only shown when there are multiple legs */}
-        {totalLegs > 1 && onNavigateLeg && (
-          <div className="flex items-center gap-1 ml-3 shrink-0">
-            <button
-              type="button"
-              disabled={legIndex === 0}
-              onClick={() => onNavigateLeg(legIndex - 1)}
-              className="flex h-6 w-6 items-center justify-center rounded border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              title="Previous leg"
-            >
-              <ChevronUp className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              disabled={legIndex === totalLegs - 1}
-              onClick={() => onNavigateLeg(legIndex + 1)}
-              className="flex h-6 w-6 items-center justify-center rounded border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              title="Next leg"
-            >
-              <ChevronDown className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        )}
+        {/* Refresh button — re-runs all lookups for this leg */}
+        <div className="flex items-center gap-1 ml-3 shrink-0">
+          <button
+            type="button"
+            disabled={anyLoading || leg.airportIcao.length !== 4}
+            onClick={() => {
+              handleLookupAll();
+              onRefreshLeg?.(legIndex);
+            }}
+            className="flex h-6 w-6 items-center justify-center rounded border border-border bg-background text-muted-foreground hover:bg-primary/10 hover:text-primary hover:border-primary/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            title="Refresh this leg"
+          >
+            {anyLoading
+              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              : <RefreshCw className="h-3.5 w-3.5" />
+            }
+          </button>
+
+          {/* Leg navigation arrows — only shown when there are multiple legs */}
+          {totalLegs > 1 && onNavigateLeg && (
+            <>
+              <button
+                type="button"
+                disabled={legIndex === 0}
+                onClick={() => onNavigateLeg(legIndex - 1)}
+                className="flex h-6 w-6 items-center justify-center rounded border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                title="Previous leg"
+              >
+                <ChevronUp className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                disabled={legIndex === totalLegs - 1}
+                onClick={() => onNavigateLeg(legIndex + 1)}
+                className="flex h-6 w-6 items-center justify-center rounded border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                title="Next leg"
+              >
+                <ChevronDown className="h-3.5 w-3.5" />
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {expanded && (
