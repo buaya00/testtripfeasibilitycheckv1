@@ -1076,45 +1076,6 @@ export default function TripLegCard({
               </div>
             )}
 
-            {/* Charges */}
-            {chargesLoading && <div className="rounded-md border p-3 text-sm flex items-center gap-2 text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Estimating charges…</div>}
-            {leg.chargesResult && !chargesLoading && (
-              <div className={cn("rounded-md border p-3 text-sm space-y-1.5", leg.chargesResult.success ? "border-primary/30 bg-primary/5" : "border-muted bg-muted/50")}>
-                <div className="flex items-center gap-1.5 font-medium">
-                  <DollarSign className="h-3.5 w-3.5 text-primary" />
-                  Charges — {leg.chargesResult.airportName || leg.chargesResult.icao}
-                </div>
-                {leg.chargesResult.success && (
-                  <div className="rounded bg-background/50 px-2 py-1.5 text-xs space-y-0.5">
-                    {leg.chargesResult.mtowKg && <p className="text-muted-foreground">MTOW: {leg.chargesResult.mtowKg.toLocaleString()} kg</p>}
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 pt-1">
-                      <p><span className="font-medium">Landing:</span></p>
-                      <p className="text-right font-mono">${leg.chargesResult.landingFeeUsd?.toLocaleString(undefined, { maximumFractionDigits: 0 }) ?? '—'}</p>
-                      {leg.chargesResult.parkingDays != null && leg.chargesResult.totalParkingUsd != null ? (
-                        <>
-                          <p><span className="font-medium">Parking ({leg.chargesResult.parkingDays}d):</span></p>
-                          <p className="text-right font-mono">${leg.chargesResult.totalParkingUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
-                        </>
-                      ) : (
-                        <>
-                          <p><span className="font-medium">Parking/day:</span></p>
-                          <p className="text-right font-mono">${leg.chargesResult.parkingPerDayUsd?.toLocaleString(undefined, { maximumFractionDigits: 0 }) ?? '—'}</p>
-                        </>
-                      )}
-                    </div>
-                    {leg.chargesResult.surcharges && <p className="pt-1"><span className="font-medium">Surcharges:</span> {leg.chargesResult.surcharges}</p>}
-                    {leg.chargesResult.nightSurchargeApplies && <p className="text-warning text-xs">⚠️ Night surcharge applies</p>}
-                    <div className="pt-1 border-t mt-1 flex justify-between font-medium">
-                      <span>Total:</span>
-                      <span className="font-mono text-primary">${leg.chargesResult.totalEstimateUsd?.toLocaleString(undefined, { maximumFractionDigits: 0 }) ?? '—'}</span>
-                    </div>
-                    {leg.chargesResult.notes && <p className="text-muted-foreground italic pt-1">{leg.chargesResult.notes}</p>}
-                  </div>
-                )}
-                {leg.chargesResult.error && <p className="text-xs text-destructive">{leg.chargesResult.error}</p>}
-              </div>
-            )}
-
             {/* Ground Handling (from invoice database) */}
             {ghLoading && <div className="rounded-md border p-3 text-sm flex items-center gap-2 text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Loading ground handling data…</div>}
             {groundHandlingQuotes.length > 0 && !ghLoading && groundHandlingQuotes.map((ghq) => {
@@ -1170,6 +1131,8 @@ export default function TripLegCard({
               </div>
               );
             })}
+
+            {/* Airport Hours */}
             {hoursLoading && <div className="rounded-md border p-3 text-sm flex items-center gap-2 text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Checking airport hours & NOTAMs…</div>}
             {leg.airportHoursResult && !hoursLoading && (
               <div className={cn("rounded-md border p-3 text-sm space-y-1.5",
@@ -1243,6 +1206,45 @@ export default function TripLegCard({
                   <p className="text-[10px] text-muted-foreground">Confidence: {leg.airportHoursResult.confidence}</p>
                 )}
                 {leg.airportHoursResult.error && <p className="text-xs text-destructive">{leg.airportHoursResult.error}</p>}
+              </div>
+            )}
+
+            {/* Charges */}
+            {chargesLoading && <div className="rounded-md border p-3 text-sm flex items-center gap-2 text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Estimating charges…</div>}
+            {leg.chargesResult && !chargesLoading && (
+              <div className={cn("rounded-md border p-3 text-sm space-y-1.5", leg.chargesResult.success ? "border-primary/30 bg-primary/5" : "border-muted bg-muted/50")}>
+                <div className="flex items-center gap-1.5 font-medium">
+                  <DollarSign className="h-3.5 w-3.5 text-primary" />
+                  Charges — {leg.chargesResult.airportName || leg.chargesResult.icao}
+                </div>
+                {leg.chargesResult.success && (
+                  <div className="rounded bg-background/50 px-2 py-1.5 text-xs space-y-0.5">
+                    {leg.chargesResult.mtowKg && <p className="text-muted-foreground">MTOW: {leg.chargesResult.mtowKg.toLocaleString()} kg</p>}
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 pt-1">
+                      <p><span className="font-medium">Landing:</span></p>
+                      <p className="text-right font-mono">${leg.chargesResult.landingFeeUsd?.toLocaleString(undefined, { maximumFractionDigits: 0 }) ?? '—'}</p>
+                      {leg.chargesResult.parkingDays != null && leg.chargesResult.totalParkingUsd != null ? (
+                        <>
+                          <p><span className="font-medium">Parking ({leg.chargesResult.parkingDays}d):</span></p>
+                          <p className="text-right font-mono">${leg.chargesResult.totalParkingUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+                        </>
+                      ) : (
+                        <>
+                          <p><span className="font-medium">Parking/day:</span></p>
+                          <p className="text-right font-mono">${leg.chargesResult.parkingPerDayUsd?.toLocaleString(undefined, { maximumFractionDigits: 0 }) ?? '—'}</p>
+                        </>
+                      )}
+                    </div>
+                    {leg.chargesResult.surcharges && <p className="pt-1"><span className="font-medium">Surcharges:</span> {leg.chargesResult.surcharges}</p>}
+                    {leg.chargesResult.nightSurchargeApplies && <p className="text-warning text-xs">⚠️ Night surcharge applies</p>}
+                    <div className="pt-1 border-t mt-1 flex justify-between font-medium">
+                      <span>Total:</span>
+                      <span className="font-mono text-primary">${leg.chargesResult.totalEstimateUsd?.toLocaleString(undefined, { maximumFractionDigits: 0 }) ?? '—'}</span>
+                    </div>
+                    {leg.chargesResult.notes && <p className="text-muted-foreground italic pt-1">{leg.chargesResult.notes}</p>}
+                  </div>
+                )}
+                {leg.chargesResult.error && <p className="text-xs text-destructive">{leg.chargesResult.error}</p>}
               </div>
             )}
           </div>
