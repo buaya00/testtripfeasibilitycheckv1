@@ -57,6 +57,12 @@ export default function FeasibilityForm() {
   // Overflight toggle — when true, automatically run overflight checks for all legs with valid ICAOs
   const [autoRunOverflights, setAutoRunOverflights] = useState(false);
 
+  // Track per-leg expanded state so the overflight panel collapses/expands with the leg
+  const [expandedLegs, setExpandedLegs] = useState<Record<number, boolean>>({});
+  const isLegExpanded = (idx: number) => expandedLegs[idx] !== false; // default true
+  const toggleLegExpanded = (idx: number) =>
+    setExpandedLegs(prev => ({ ...prev, [idx]: !isLegExpanded(idx) }));
+
   // Overflight results keyed by "legIdx" (between leg legIdx and legIdx+1)
   const [overflightResults, setOverflightResults] = useState<Record<number, OverflightResult | null>>({});
   const [overflightLoading, setOverflightLoading] = useState<Record<number, boolean>>({});
@@ -619,6 +625,8 @@ export default function FeasibilityForm() {
                 aircraftNationality={aircraftNationality}
                 overflightResult={overflightResults[idx] ?? null}
                 previousLegDepartureDate={idx > 0 ? legs[idx - 1].departureDate : undefined}
+                expanded={isLegExpanded(idx)}
+                onToggleExpanded={() => toggleLegExpanded(idx)}
                 onUpdateLeg={updateLeg}
                 onRemoveLeg={removeLeg}
                 onRegisterLookup={registerLegLookup}
@@ -685,7 +693,7 @@ export default function FeasibilityForm() {
                     </div>
                   )}
 
-                  {overflightResults[idx] && !overflightLoading[idx] && (
+                  {overflightResults[idx] && !overflightLoading[idx] && isLegExpanded(idx) && (
                     <div className={cn("rounded-md border p-3 text-xs space-y-1.5",
                       overflightResults[idx]!.success ? "border-primary/30 bg-primary/5" : "border-muted bg-muted/50"
                     )}>
