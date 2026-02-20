@@ -266,6 +266,8 @@ interface TripLegCardProps {
   aircraftNationality?: string;
   overflightResult?: OverflightResult | null;
   previousLegDepartureDate?: Date;
+  expanded?: boolean;
+  onToggleExpanded?: () => void;
   onUpdateLeg: (index: number, updates: Partial<LegData>) => void;
   onRemoveLeg: (index: number) => void;
   onRegisterLookup?: (index: number, fn: (() => void) | null) => void;
@@ -273,9 +275,13 @@ interface TripLegCardProps {
 }
 
 export default function TripLegCard({
-  leg, legIndex, totalLegs, aircraftType, flightType, aircraftNationality, overflightResult, previousLegDepartureDate, onUpdateLeg, onRemoveLeg, onRegisterLookup, onNavigateLeg,
+  leg, legIndex, totalLegs, aircraftType, flightType, aircraftNationality, overflightResult, previousLegDepartureDate, expanded: expandedProp, onToggleExpanded, onUpdateLeg, onRemoveLeg, onRegisterLookup, onNavigateLeg,
 }: TripLegCardProps) {
-  const [expanded, setExpanded] = useState(true);
+  const [localExpanded, setLocalExpanded] = useState(true);
+  const expanded = expandedProp !== undefined ? expandedProp : localExpanded;
+  const setExpanded = (val: boolean) => {
+    if (onToggleExpanded) { onToggleExpanded(); } else { setLocalExpanded(val); }
+  };
   const [aegFeesExpanded, setAegFeesExpanded] = useState(false);
   const [cbpLoading, setCbpLoading] = useState(false);
   const [runwayLoading, setRunwayLoading] = useState(false);
