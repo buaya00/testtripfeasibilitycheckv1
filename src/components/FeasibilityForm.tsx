@@ -457,25 +457,21 @@ export default function FeasibilityForm() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-white shadow-sm sticky top-0 z-40">
-        <div className="container mx-auto flex items-center h-16 px-4 sm:px-6 gap-4">
+        <div className="container mx-auto flex items-center py-2 px-4 sm:px-6 gap-4">
           {/* Logo */}
           <a href="https://www.aegfuels.com" target="_blank" rel="noopener noreferrer" className="shrink-0 flex items-center">
-            <img src={aegLogo} alt="AEG Fuels" className="h-9 sm:h-10 w-auto" />
+            <img src={aegLogo} alt="AEG Fuels" className="h-[60px] sm:h-[90px] md:h-[120px] w-auto" />
           </a>
 
           {/* Divider */}
-          <Separator orientation="vertical" className="h-6 bg-border shrink-0" />
+          <Separator orientation="vertical" className="h-8 bg-border shrink-0" />
 
           {/* Product title */}
           <div className="flex items-center gap-2 shrink-0">
             <div className="flex items-center justify-center h-7 w-7 rounded-md bg-primary/10">
               <Plane className="h-4 w-4 text-primary" />
             </div>
-            <div className="hidden sm:block">
-              <p className="text-sm font-semibold text-foreground leading-none">Trip Feasibility Check</p>
-              <p className="text-xs text-muted-foreground leading-none mt-0.5">Flight Planning Tool</p>
-            </div>
-            <p className="sm:hidden text-sm font-semibold text-foreground leading-none">Feasibility Check</p>
+            <p className="text-sm sm:text-base font-semibold text-foreground leading-none">Trip Feasibility Check</p>
           </div>
 
           {/* Right side CTA */}
