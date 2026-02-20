@@ -5,7 +5,7 @@ import {
   CheckCircle2, XCircle, AlertTriangle, Printer, FileDown, PawPrint,
   Clock, Ruler, RefreshCw, Upload, MapPin, ChevronDown,
 } from "lucide-react";
-import { Switch } from "@/components/ui/switch";
+
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { AircraftTypeCombobox } from "@/components/AircraftTypeCombobox";
@@ -55,8 +55,7 @@ export default function FeasibilityForm() {
   }, []);
 
   
-  // Overflight toggle — when true, automatically run overflight checks for all legs with valid ICAOs
-  const [autoRunOverflights, setAutoRunOverflights] = useState(false);
+
 
   // Track per-leg expanded state so the overflight panel collapses/expands with the leg
   const [expandedLegs, setExpandedLegs] = useState<Record<number, boolean>>({});
@@ -203,18 +202,7 @@ export default function FeasibilityForm() {
     }
   }, [legs.length, handleOverflightBetweenLegs]);
 
-  // When toggle is turned ON, or ICAOs change while toggle is on, auto-fire new pairs
-  useEffect(() => {
-    if (!autoRunOverflights) return;
-    for (let i = 0; i < legs.length - 1; i++) {
-      const from = legs[i];
-      const to = legs[i + 1];
-      if (from.airportIcao.length === 4 && to.airportIcao.length === 4 && !overflightResults[i] && !overflightLoading[i]) {
-        handleOverflightBetweenLegs(i);
-      }
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoRunOverflights, legs.map(l => l.airportIcao).join(',')]);
+  // Overflight checks only run when explicitly triggered via the toolbar buttons
 
   // Auto-derive unique destination ICAOs from legs (skip first leg = departure origin when multi-leg)
   const destinationIcaos = useMemo(() => {
@@ -579,34 +567,7 @@ export default function FeasibilityForm() {
             </div>
           </div>
 
-          {/* Overflight auto-run toggle */}
-          <div className="flex items-center gap-3 rounded-md border border-border bg-muted/30 px-3 py-2">
-            <Switch
-              id="auto-overflight-toggle"
-              checked={autoRunOverflights}
-              onCheckedChange={(checked) => {
-                setAutoRunOverflights(checked);
-                // If turning off, clear any stale results so they re-run cleanly if toggled back on
-                if (!checked) {
-                  setOverflightResults({});
-                  setOverflightLoading({});
-                }
-              }}
-            />
-            <div className="flex flex-col">
-              <Label htmlFor="auto-overflight-toggle" className="text-sm font-medium cursor-pointer">
-                Add Overflight Analysis
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                {autoRunOverflights
-                  ? 'Overflight permit & charge checks will run automatically for each leg pair.'
-                  : 'Off — use the Check button on each leg to run overflights manually.'}
-              </p>
-            </div>
-            {autoRunOverflights && Object.values(overflightLoading).some(Boolean) && (
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground ml-auto" />
-            )}
-          </div>
+          {/* Overflight auto-run toggle removed — overflights only run via toolbar buttons */}
 
           {uploadError && (
             <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive flex items-center gap-2">
