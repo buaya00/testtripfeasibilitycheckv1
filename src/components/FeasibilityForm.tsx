@@ -6,6 +6,7 @@ import {
   Clock, Ruler, RefreshCw, Upload, MapPin, ChevronDown,
 } from "lucide-react";
 
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { AircraftTypeCombobox } from "@/components/AircraftTypeCombobox";
@@ -57,7 +58,9 @@ export default function FeasibilityForm() {
   
 
 
-  // Track per-leg expanded state so the overflight panel collapses/expands with the leg
+  // Overflight toggle — when true, overflights auto-run as part of 'Run Feasibility Check'
+  const [autoRunOverflights, setAutoRunOverflights] = useState(false);
+
   const [expandedLegs, setExpandedLegs] = useState<Record<number, boolean>>({});
   const isLegExpanded = (idx: number) => expandedLegs[idx] !== false; // default true
   const toggleLegExpanded = (idx: number) =>
@@ -122,6 +125,9 @@ export default function FeasibilityForm() {
   // Track whether a check-all has been triggered so we can re-evaluate on lookup completion
   const feasibilityTriggered = useRef(false);
 
+  // Ref so handleCheckAll can call handleAllOverflights without forward-reference issues
+  const handleAllOverflightsRef = useRef<(() => void) | null>(null);
+
   // Check feasibility for all legs
   const handleCheckAll = useCallback(() => {
     if (!aircraftType || !flightType) {
@@ -137,7 +143,11 @@ export default function FeasibilityForm() {
       ...leg,
       feasibilityResult: evaluateLegFeasibility(leg, aircraftType, idx, prev.length),
     })));
-  }, [aircraftType, flightType]);
+    // If overflight toggle is on, also run overflight checks for all leg pairs
+    if (autoRunOverflights) {
+      handleAllOverflightsRef.current?.();
+    }
+  }, [aircraftType, flightType, autoRunOverflights]);
 
   // Stable snapshot of lookup results used as a dependency (avoids hooks array-size violation)
   const lookupSnapshot = useMemo(() => legs.map(l => [
@@ -202,7 +212,8 @@ export default function FeasibilityForm() {
     }
   }, [legs.length, handleOverflightBetweenLegs]);
 
-  // Overflight checks only run when explicitly triggered via the toolbar buttons
+  // Keep the ref in sync so handleCheckAll can call it without forward-reference issues
+  useEffect(() => { handleAllOverflightsRef.current = handleAllOverflights; }, [handleAllOverflights]);
 
   // Auto-derive unique destination ICAOs from legs (skip first leg = departure origin when multi-leg)
   const destinationIcaos = useMemo(() => {
@@ -567,7 +578,33 @@ export default function FeasibilityForm() {
             </div>
           </div>
 
-          {/* Overflight auto-run toggle removed — overflights only run via toolbar buttons */}
+          {/* Overflight auto-run toggle */}
+          <div className="flex items-center gap-3 rounded-md border border-border bg-muted/30 px-3 py-2">
+            <Switch
+              id="auto-overflight-toggle"
+              checked={autoRunOverflights}
+              onCheckedChange={(checked) => {
+                setAutoRunOverflights(checked);
+                if (!checked) {
+                  setOverflightResults({});
+                  setOverflightLoading({});
+                }
+              }}
+            />
+            <div className="flex flex-col">
+              <Label htmlFor="auto-overflight-toggle" className="text-sm font-medium cursor-pointer">
+                Add Overflight Analysis
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                {autoRunOverflights
+                  ? 'Overflight permit & charge checks will run when you click Run Feasibility Check.'
+                  : 'Off — overflight checks will not run with feasibility check.'}
+              </p>
+            </div>
+            {autoRunOverflights && Object.values(overflightLoading).some(Boolean) && (
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground ml-auto" />
+            )}
+          </div>
 
           {uploadError && (
             <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive flex items-center gap-2">
