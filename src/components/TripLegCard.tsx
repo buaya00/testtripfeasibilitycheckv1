@@ -265,6 +265,7 @@ interface TripLegCardProps {
   flightType: string;
   aircraftNationality?: string;
   overflightResult?: OverflightResult | null;
+  previousLegDepartureDate?: Date;
   onUpdateLeg: (index: number, updates: Partial<LegData>) => void;
   onRemoveLeg: (index: number) => void;
   onRegisterLookup?: (index: number, fn: (() => void) | null) => void;
@@ -272,7 +273,7 @@ interface TripLegCardProps {
 }
 
 export default function TripLegCard({
-  leg, legIndex, totalLegs, aircraftType, flightType, aircraftNationality, overflightResult, onUpdateLeg, onRemoveLeg, onRegisterLookup, onNavigateLeg,
+  leg, legIndex, totalLegs, aircraftType, flightType, aircraftNationality, overflightResult, previousLegDepartureDate, onUpdateLeg, onRemoveLeg, onRegisterLookup, onNavigateLeg,
 }: TripLegCardProps) {
   const [expanded, setExpanded] = useState(true);
   const [aegFeesExpanded, setAegFeesExpanded] = useState(false);
@@ -725,7 +726,7 @@ export default function TripLegCard({
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar mode="single" selected={leg.arrivalDate} onSelect={(d) => update({ arrivalDate: d })} initialFocus className="p-3 pointer-events-auto" />
+                      <Calendar mode="single" selected={leg.arrivalDate} onSelect={(d) => update({ arrivalDate: d })} initialFocus defaultMonth={leg.arrivalDate ?? previousLegDepartureDate} className="p-3 pointer-events-auto" />
                     </PopoverContent>
                   </Popover>
                 </div>
@@ -771,7 +772,7 @@ export default function TripLegCard({
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar mode="single" selected={leg.departureDate} onSelect={(d) => update({ departureDate: d })} initialFocus className="p-3 pointer-events-auto" />
+                      <Calendar mode="single" selected={leg.departureDate} onSelect={(d) => update({ departureDate: d })} initialFocus defaultMonth={leg.departureDate ?? leg.arrivalDate ?? previousLegDepartureDate} className="p-3 pointer-events-auto" />
                     </PopoverContent>
                   </Popover>
                 </div>
