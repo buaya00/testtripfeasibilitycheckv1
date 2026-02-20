@@ -535,6 +535,7 @@ export default function FeasibilityForm() {
                 flightType={flightType}
                 aircraftNationality={aircraftNationality}
                 overflightResult={overflightResults[idx] ?? null}
+                previousLegDepartureDate={idx > 0 ? legs[idx - 1].departureDate : undefined}
                 onUpdateLeg={updateLeg}
                 onRemoveLeg={removeLeg}
                 onRegisterLookup={registerLegLookup}
