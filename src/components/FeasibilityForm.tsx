@@ -94,6 +94,14 @@ export default function FeasibilityForm() {
     setLegs(prev => [...prev, createEmptyLeg()]);
   }, []);
 
+  const insertLegAfter = useCallback((index: number) => {
+    setLegs(prev => {
+      const next = [...prev];
+      next.splice(index + 1, 0, createEmptyLeg());
+      return next;
+    });
+  }, []);
+
   // Refs for triggering lookup on each leg
   const legLookupRefs = React.useRef<Record<number, (() => void) | null>>({});
 
@@ -680,10 +688,9 @@ export default function FeasibilityForm() {
               {/* Add Leg button after each leg */}
               <div className="flex justify-center mt-3">
                 <Button
-                  type="button"
                   variant="outline"
                   size="sm"
-                  onClick={addLeg}
+                  onClick={() => insertLegAfter(idx)}
                   className="text-xs border-dashed"
                 >
                   <Plus className="h-3.5 w-3.5 mr-1" /> Add Leg
