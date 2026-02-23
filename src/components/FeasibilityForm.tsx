@@ -678,10 +678,16 @@ export default function FeasibilityForm() {
                         className={cn(
                           "px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all",
                           isCurrent
-                            ? "bg-primary text-primary-foreground shadow-sm"
-                            : "bg-muted hover:bg-muted/80 text-muted-foreground",
-                          hasFailed && !isCurrent && "ring-1 ring-destructive/50",
-                          hasPassed && !isCurrent && "ring-1 ring-success/50",
+                            ? hasFailed
+                              ? "bg-destructive text-destructive-foreground shadow-sm"
+                              : hasPassed
+                                ? "bg-success text-success-foreground shadow-sm"
+                                : "bg-primary text-primary-foreground shadow-sm"
+                            : hasFailed
+                              ? "bg-destructive/15 text-destructive border border-destructive/30"
+                              : hasPassed
+                                ? "bg-success/15 text-success border border-success/30"
+                                : "bg-muted hover:bg-muted/80 text-muted-foreground",
                         )}
                       >
                         {label}
