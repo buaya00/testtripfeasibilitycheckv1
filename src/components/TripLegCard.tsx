@@ -1243,7 +1243,7 @@ export default function TripLegCard({
               )}>
                 <div className="flex items-center gap-1.5 font-medium">
                   <Clock className="h-3.5 w-3.5 text-primary" />
-                  Airport Hours — {leg.airportHoursResult.airportName || leg.airportHoursResult.icao}
+                  Airport Hours and Services — {leg.airportHoursResult.airportName || leg.airportHoursResult.icao}
                   {leg.airportHoursResult.hasLiveNotamData && (
                     <span className="text-[10px] font-normal bg-primary/10 text-primary px-1.5 py-0.5 rounded">Live NOTAMs</span>
                   )}
