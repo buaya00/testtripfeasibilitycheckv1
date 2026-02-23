@@ -231,7 +231,7 @@ export function generatePrintableHtml({
         <p class="result-title">Overflight: ${esc(legs[i].airportIcao)} → ${esc(legs[i + 1].airportIcao)}</p>
         ${r.routeSummary ? `<p>${esc(r.routeSummary)}</p>` : ""}
         ${r.totalPermitsNeeded != null ? `<p>${r.totalPermitsNeeded === 0 ? "✅ No permits required" : `⚠️ ${r.totalPermitsNeeded} permit(s) required`}</p>` : ""}
-        ${r.totalOverflightChargesUsd != null ? `<p>Overflight charges: $${r.totalOverflightChargesUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })} USD</p>` : ""}
+        ${r.totalOverflightChargesUsd != null ? `<p>Navigation fees: $${r.totalOverflightChargesUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })} USD</p>` : ""}
         ${r.countries ? r.countries.map(c => `
           <div class="country-row ${c.overflightPermitRequired === "yes" ? "country-warn" : "country-ok"}">
             <p><strong>${c.overflightPermitRequired === "yes" ? "⚠️" : "✅"} ${esc(c.country)}</strong> — ${c.overflightPermitRequired === "yes" ? "Permit required" : c.overflightPermitRequired === "no" ? "No permit" : "Conditional"}</p>
@@ -284,7 +284,7 @@ export function generatePrintableHtml({
       summaryHtml += `<h3 style="margin-top:12px;">Trip Cost Summary</h3>
       <table class="charges-table">
         ${totalCharges > 0 ? `<tr><td>Airport charges (${legs.length} leg${legs.length > 1 ? "s" : ""})</td><td class="amount">$${totalCharges.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td></tr>` : ""}
-        ${totalOverflightCharges > 0 ? `<tr><td>Overflight charges</td><td class="amount">$${totalOverflightCharges.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td></tr>` : ""}
+        ${totalOverflightCharges > 0 ? `<tr><td>Navigation fees</td><td class="amount">$${totalOverflightCharges.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td></tr>` : ""}
         <tr class="total-row"><td><strong>Estimated Total</strong></td><td class="amount"><strong>$${(totalCharges + totalOverflightCharges).toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong></td></tr>
       </table>`;
     }
