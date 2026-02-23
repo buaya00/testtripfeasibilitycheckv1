@@ -63,7 +63,8 @@ Return structured data about:
 2. Any active NOTAMs that affect operations (closures, restrictions, runway closures, equipment outages)
 3. Whether the planned arrival/departure times fall outside operating hours
 4. Any curfew or noise restrictions
-5. Seasonal or temporary restrictions`;
+5. Seasonal or temporary restrictions
+6. Aircraft deicing availability — whether deicing services are available at this airport, the provider if known, and any notes (seasonal availability, equipment type, etc.)`;
 
     const requestBody = JSON.stringify({
       model: 'google/gemini-3-flash-preview',
@@ -114,6 +115,9 @@ Return structured data about:
                 arrivalDuringCurfew: { type: 'boolean', description: 'Whether planned arrival falls during curfew' },
                 departureDuringCurfew: { type: 'boolean', description: 'Whether planned departure falls during curfew' },
                 seasonalRestrictions: { type: 'string', description: 'Any seasonal or temporary restrictions' },
+                deicingAvailable: { type: 'string', enum: ['yes', 'no', 'limited', 'unknown'], description: 'Whether aircraft deicing services are available at this airport' },
+                deicingProvider: { type: 'string', description: 'Deicing service provider name if known' },
+                deicingNotes: { type: 'string', description: 'Deicing notes: seasonal availability, equipment type, hours of operation, etc.' },
                 notes: { type: 'string', description: 'Additional operational notes' },
                 confidence: { type: 'string', enum: ['high', 'medium', 'low'], description: 'Confidence in the data' },
               },
@@ -206,6 +210,9 @@ Return structured data about:
       arrivalDuringCurfew: extracted.arrivalDuringCurfew || false,
       departureDuringCurfew: extracted.departureDuringCurfew || false,
       seasonalRestrictions: extracted.seasonalRestrictions || null,
+      deicingAvailable: extracted.deicingAvailable || 'unknown',
+      deicingProvider: extracted.deicingProvider || null,
+      deicingNotes: extracted.deicingNotes || null,
       notes: extracted.notes || null,
       hasLiveNotamData: notamData.length > 0,
       confidence: extracted.confidence || 'medium',

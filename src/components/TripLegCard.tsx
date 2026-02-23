@@ -1247,6 +1247,24 @@ export default function TripLegCard({
                     {leg.airportHoursResult.seasonalRestrictions && (
                       <p className="text-warning"><span className="font-medium">Seasonal:</span> {leg.airportHoursResult.seasonalRestrictions}</p>
                     )}
+
+                    {/* Deicing availability */}
+                    {leg.airportHoursResult.deicingAvailable && leg.airportHoursResult.deicingAvailable !== 'unknown' && (
+                      <div className={cn("rounded px-2 py-1 border-l-2",
+                        leg.airportHoursResult.deicingAvailable === 'yes' ? "bg-success/10 border-l-success" :
+                        leg.airportHoursResult.deicingAvailable === 'limited' ? "bg-warning/10 border-l-warning" :
+                        "bg-destructive/10 border-l-destructive"
+                      )}>
+                        <p className="font-medium">
+                          {leg.airportHoursResult.deicingAvailable === 'yes' ? '✅' : leg.airportHoursResult.deicingAvailable === 'limited' ? '⚠️' : '❌'} Deicing: {leg.airportHoursResult.deicingAvailable === 'yes' ? 'Available' : leg.airportHoursResult.deicingAvailable === 'limited' ? 'Limited' : 'Not Available'}
+                          {leg.airportHoursResult.deicingProvider && ` — ${leg.airportHoursResult.deicingProvider}`}
+                        </p>
+                        {leg.airportHoursResult.deicingNotes && (
+                          <p className="text-muted-foreground">{leg.airportHoursResult.deicingNotes}</p>
+                        )}
+                      </div>
+                    )}
+
                     {leg.airportHoursResult.notes && <p className="text-muted-foreground italic">{leg.airportHoursResult.notes}</p>}
                   </div>
                 )}

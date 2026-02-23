@@ -161,6 +161,9 @@ export interface AirportHoursResult {
   arrivalDuringCurfew?: boolean;
   departureDuringCurfew?: boolean;
   seasonalRestrictions?: string | null;
+  deicingAvailable?: 'yes' | 'no' | 'limited' | 'unknown';
+  deicingProvider?: string | null;
+  deicingNotes?: string | null;
   notes?: string | null;
   hasLiveNotamData?: boolean;
   confidence?: 'high' | 'medium' | 'low';
