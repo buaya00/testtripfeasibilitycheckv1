@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import type {
@@ -973,9 +974,18 @@ export default function TripLegCard({
                     CIQ — {leg.cbpResult.airportName ? `${leg.cbpResult.airportName} (${leg.cbpResult.icao})` : leg.cbpResult.icao}
                   </div>
                   {AEG_RSP_AIRPORTS.has(leg.cbpResult.icao?.toUpperCase()) && (
-                    <span className="inline-flex items-center rounded bg-success/15 border border-success/30 px-2 py-0.5 text-[10px] font-semibold text-success whitespace-nowrap">
-                      CBP RSP Available
-                    </span>
+                    <TooltipProvider delayDuration={200}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex items-center rounded bg-success/15 border border-success/30 px-2 py-0.5 text-[10px] font-semibold text-success whitespace-nowrap cursor-help">
+                            CBP RSP Available
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-[220px] text-xs">
+                          AEG is able to arrange for after hours CIQ at this location with prior notice
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   )}
                 </div>
                 <p className="text-muted-foreground text-xs">{leg.cbpResult.message}</p>
@@ -1005,9 +1015,18 @@ export default function TripLegCard({
                     CIQ — {leg.ciqResult.airportName || leg.ciqResult.country || leg.ciqResult.icao}
                   </div>
                   {AEG_RSP_AIRPORTS.has(leg.ciqResult.icao?.toUpperCase()) && (
-                    <span className="inline-flex items-center rounded bg-success/15 border border-success/30 px-2 py-0.5 text-[10px] font-semibold text-success whitespace-nowrap">
-                      CBP RSP Available
-                    </span>
+                    <TooltipProvider delayDuration={200}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex items-center rounded bg-success/15 border border-success/30 px-2 py-0.5 text-[10px] font-semibold text-success whitespace-nowrap cursor-help">
+                            CBP RSP Available
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-[220px] text-xs">
+                          AEG is able to arrange for after hours CIQ at this location with prior notice
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   )}
                 </div>
                 <div className="rounded bg-muted/40 px-2 py-1.5 text-xs space-y-0.5">
