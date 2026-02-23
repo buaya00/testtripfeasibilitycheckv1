@@ -816,7 +816,7 @@ export default function FeasibilityForm() {
                       {overflightResults[idx]!.totalOverflightChargesUsd != null && (
                         <p className="font-medium flex items-center gap-1">
                           <DollarSign className="h-3 w-3 text-primary" />
-                          Overflight charges: ${overflightResults[idx]!.totalOverflightChargesUsd!.toLocaleString(undefined, { maximumFractionDigits: 0 })} USD
+                          Navigation fees: ${overflightResults[idx]!.totalOverflightChargesUsd!.toLocaleString(undefined, { maximumFractionDigits: 0 })} USD
                         </p>
                       )}
                       {overflightResults[idx]!.countries && (
@@ -910,7 +910,7 @@ export default function FeasibilityForm() {
                     )}
                     {totalOverflightCharges > 0 && (
                       <div className="flex justify-between">
-                        <span>Overflight charges:</span>
+                        <span>Navigation fees:</span>
                         <span className="font-mono">${totalOverflightCharges.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                       </div>
                     )}
