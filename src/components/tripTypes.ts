@@ -261,6 +261,29 @@ export interface PetCheckResult {
   error?: string;
 }
 
+// ── Cabotage Analysis ────────────────────────────────────
+export interface CabotageLegAnalysis {
+  fromIcao: string;
+  toIcao: string;
+  fromCountry?: string;
+  toCountry?: string;
+  isCabotageRisk: boolean;
+  riskLevel: 'none' | 'low' | 'medium' | 'high';
+  reason: string;
+  exemptions?: string;
+  applicableLaw?: string;
+}
+
+export interface CabotageResult {
+  success: boolean;
+  overallRisk?: 'none' | 'low' | 'medium' | 'high';
+  legAnalysis?: CabotageLegAnalysis[];
+  summary?: string;
+  recommendations?: string;
+  confidence?: 'high' | 'medium' | 'low';
+  error?: string;
+}
+
 // ── AEG Set Up Fees ──────────────────────────────────────
 export interface AegPredefinedService {
   id: string;
