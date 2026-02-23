@@ -174,7 +174,9 @@ export function evaluateLegFeasibility(
   if (leg.permitRequired) notes.push("Landing permit must be obtained prior to ops");
   if (leg.pprRequired) notes.push("Prior Permission Required — contact airport ops");
   if (leg.slotRequired) notes.push("Slot coordination required — book slot in advance");
-  if (!leg.customsAvailable) issues.push("Customs not available at this airport");
+  // Only flag customs as unavailable if a lookup has actually completed (CBP or CIQ)
+  const customsLookupDone = !!(leg.cbpResult || leg.ciqResult);
+  if (customsLookupDone && !leg.customsAvailable) issues.push("Customs not available at this airport");
 
   // Permit lead time check — for US airports, only add as guidance notes, not feasibility issues
   if (checkArrival && leg.arrivalDate && leg.permitResult?.success && leg.permitResult.permitRequired === 'yes' && leg.permitResult.leadTimeDays != null && leg.permitResult.leadTimeDays > 0) {
