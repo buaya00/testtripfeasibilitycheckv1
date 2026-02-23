@@ -164,6 +164,9 @@ export interface AirportHoursResult {
   deicingAvailable?: 'yes' | 'no' | 'limited' | 'unknown';
   deicingProvider?: string | null;
   deicingNotes?: string | null;
+  fireCategory?: number | null;
+  fireCategoryUpgradable?: boolean | null;
+  fireCategoryNotes?: string | null;
   notes?: string | null;
   hasLiveNotamData?: boolean;
   confidence?: 'high' | 'medium' | 'low';
