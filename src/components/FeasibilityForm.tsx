@@ -665,17 +665,7 @@ export default function FeasibilityForm() {
               <div className="flex-1 overflow-x-auto scrollbar-hide">
                 <div className="flex items-center gap-1">
                   {legs.map((leg, idx) => {
-                    const nextLeg = legs[idx + 1];
-                    const prevLeg = idx > 0 ? legs[idx - 1] : null;
-                    // Build label: for multi-leg show "FROM → TO" route style
-                    const fromIcao = prevLeg?.airportIcao || '';
-                    const toIcao = leg.airportIcao || '';
-                    let label = '';
-                    if (idx === 0) {
-                      label = toIcao || `Leg ${idx + 1}`;
-                    } else {
-                      label = `${fromIcao || '?'} → ${toIcao || '?'}`;
-                    }
+                    const label = leg.airportIcao || `Leg ${idx + 1}`;
 
                     const isCurrent = idx === currentLegIndex;
                     const hasFailed = leg.feasibilityResult?.feasible === false;
