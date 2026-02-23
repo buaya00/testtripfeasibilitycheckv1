@@ -26,6 +26,23 @@ import type {
 // ── Feature flag: set to true to show AEG Set Up Fees section ──
 const SHOW_AEG_FEES = false;
 
+// ── AEG RSP (Registered Service Provider) airports ──
+const AEG_RSP_AIRPORTS = new Set([
+  'KSJC','KRNO','KBDL','KAUS','KCHS','KTPA','KSLC','KTEB','KOKC','KFPR',
+  'KFOK','KFRG','KISP','KLAX','KMDW','KILG','KCLT','KCLE','KIND','KMEM',
+  'KOPF','KPBI','KPDX','KHPN','KBGR','KDEN','PAFA','KFTY','KIAH','KSAV',
+  'KCMH','KMSY','KTMB','KBNA','KMCO','KPHX','KSAT','KSFO','KRSW','KHUM',
+  'KBFI','KCVG','KBOS','KPDK','KBWI','KDSM','KOMA','KGYY','KGRR','KMKE',
+  'KJAX','KOAK','KMSP','KNUQ','KPIT','KMCI','PHOG','KMKC','PHKO','KSDF',
+  'KBTR','KRDU','KSTP','KICT','KABQ','KATL','KLGA','KBHM','KGTF','KTUL',
+  'KSUS','KALB','KLIT','KBTV','KPIA','KABE','KPVD','KSTL','KPAE','KDLH',
+  'KHEF','KPWM','KPSM','KGEG','KILM','KRYY','KRAC','KJFK','KDTW','KGPT',
+  'KHIO','KIAD','KMBS','KRIC','KSDM','KRFD','KBUF','KORD','KMDT','KMOT',
+  'KTYS','KLUK','KCPR','KAZO','TJSJ','TIST','KFXE','KGSO','KFAR','KNEW',
+  'KNYL','KTUS','KSMF','PANC','KEWR','KPHL','KHOU','KBRO','KELP','KGPI',
+  'KDRT','KMFE','KEYW','KBOI','KPIE','KSEA',
+]);
+
 // ── Constants ──────────────────────────────────────────────
 const TIMES = Array.from({ length: 96 }, (_, i) => {
   const h = String(Math.floor(i / 4)).padStart(2, "0");
@@ -950,9 +967,16 @@ export default function TripLegCard({
             {/* CBP */}
             {leg.cbpResult && (
               <div className={cn("rounded-md border-l-4 border border-border p-3 text-sm space-y-1.5", leg.cbpResult.found ? "border-l-success" : "border-l-warning bg-muted/30")}>
-                <div className="flex items-center gap-1.5 font-medium">
-                  {leg.cbpResult.found ? <CheckCircle2 className="h-3.5 w-3.5 text-success" /> : <AlertTriangle className="h-3.5 w-3.5 text-warning" />}
-                  CIQ — {leg.cbpResult.airportName ? `${leg.cbpResult.airportName} (${leg.cbpResult.icao})` : leg.cbpResult.icao}
+                <div className="flex items-center justify-between gap-1.5">
+                  <div className="flex items-center gap-1.5 font-medium">
+                    {leg.cbpResult.found ? <CheckCircle2 className="h-3.5 w-3.5 text-success" /> : <AlertTriangle className="h-3.5 w-3.5 text-warning" />}
+                    CIQ — {leg.cbpResult.airportName ? `${leg.cbpResult.airportName} (${leg.cbpResult.icao})` : leg.cbpResult.icao}
+                  </div>
+                  {AEG_RSP_AIRPORTS.has(leg.cbpResult.icao?.toUpperCase()) && (
+                    <span className="inline-flex items-center rounded bg-success/15 border border-success/30 px-2 py-0.5 text-[10px] font-semibold text-success whitespace-nowrap">
+                      AEG RSP Available
+                    </span>
+                  )}
                 </div>
                 <p className="text-muted-foreground text-xs">{leg.cbpResult.message}</p>
                 {leg.cbpResult.operatingHours && (
@@ -975,9 +999,16 @@ export default function TripLegCard({
               <div className={cn("rounded-md border-l-4 border border-border p-3 text-sm space-y-1.5",
                 leg.ciqResult.ciqAvailable === 'yes' ? "border-l-success" : leg.ciqResult.ciqAvailable === 'no' ? "border-l-destructive" : "border-l-warning"
               )}>
-                <div className="flex items-center gap-1.5 font-medium">
-                  {leg.ciqResult.ciqAvailable === 'yes' ? <CheckCircle2 className="h-3.5 w-3.5 text-success" /> : leg.ciqResult.ciqAvailable === 'no' ? <XCircle className="h-3.5 w-3.5 text-destructive" /> : <AlertTriangle className="h-3.5 w-3.5 text-warning" />}
-                  CIQ — {leg.ciqResult.airportName || leg.ciqResult.country || leg.ciqResult.icao}
+                <div className="flex items-center justify-between gap-1.5">
+                  <div className="flex items-center gap-1.5 font-medium">
+                    {leg.ciqResult.ciqAvailable === 'yes' ? <CheckCircle2 className="h-3.5 w-3.5 text-success" /> : leg.ciqResult.ciqAvailable === 'no' ? <XCircle className="h-3.5 w-3.5 text-destructive" /> : <AlertTriangle className="h-3.5 w-3.5 text-warning" />}
+                    CIQ — {leg.ciqResult.airportName || leg.ciqResult.country || leg.ciqResult.icao}
+                  </div>
+                  {AEG_RSP_AIRPORTS.has(leg.ciqResult.icao?.toUpperCase()) && (
+                    <span className="inline-flex items-center rounded bg-success/15 border border-success/30 px-2 py-0.5 text-[10px] font-semibold text-success whitespace-nowrap">
+                      AEG RSP Available
+                    </span>
+                  )}
                 </div>
                 <div className="rounded bg-muted/40 px-2 py-1.5 text-xs space-y-0.5">
                   {leg.ciqResult.operatingHours && <p><span className="font-medium">Hours:</span> {leg.ciqResult.operatingHours}</p>}
