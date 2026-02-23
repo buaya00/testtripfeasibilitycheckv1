@@ -1376,6 +1376,7 @@ export default function TripLegCard({
                       <span className="font-mono text-primary">${leg.chargesResult.totalEstimateUsd?.toLocaleString(undefined, { maximumFractionDigits: 0 }) ?? '—'}</span>
                     </div>
                     {leg.chargesResult.notes && <p className="text-muted-foreground italic pt-1">{leg.chargesResult.notes}</p>}
+                    <p className="text-muted-foreground italic pt-2 border-t mt-1 text-[10px] leading-tight">⚠️ Parking fees listed reflect airport‑published rates and do not apply to aircraft parked at FBOs. Individual FBOs may have their own rates for parking.</p>
                   </div>
                 )}
                 {leg.chargesResult.error && <p className="text-xs text-destructive">{leg.chargesResult.error}</p>}
