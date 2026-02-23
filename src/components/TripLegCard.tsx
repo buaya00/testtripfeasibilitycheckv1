@@ -284,6 +284,7 @@ interface TripLegCardProps {
   aircraftNationality?: string;
   overflightResult?: OverflightResult | null;
   previousLegDepartureDate?: Date;
+  nextLegIcao?: string;
   expanded?: boolean;
   onToggleExpanded?: () => void;
   onUpdateLeg: (index: number, updates: Partial<LegData>) => void;
@@ -294,7 +295,7 @@ interface TripLegCardProps {
 }
 
 export default function TripLegCard({
-  leg, legIndex, totalLegs, aircraftType, flightType, aircraftNationality, overflightResult, previousLegDepartureDate, expanded: expandedProp, onToggleExpanded, onUpdateLeg, onRemoveLeg, onRegisterLookup, onNavigateLeg, onRefreshLeg,
+  leg, legIndex, totalLegs, aircraftType, flightType, aircraftNationality, overflightResult, previousLegDepartureDate, nextLegIcao, expanded: expandedProp, onToggleExpanded, onUpdateLeg, onRemoveLeg, onRegisterLookup, onNavigateLeg, onRefreshLeg,
 }: TripLegCardProps) {
   const [localExpanded, setLocalExpanded] = useState(true);
   const expanded = expandedProp !== undefined ? expandedProp : localExpanded;
@@ -648,7 +649,11 @@ export default function TripLegCard({
           {/* Airport + city */}
           <div className="flex items-center gap-1.5 min-w-0">
             <span className="font-semibold text-sm">
-              {leg.airportIcao ? `Leg ${legIndex + 1} — ${leg.airportIcao}` : `Leg ${legIndex + 1}`}
+              {leg.airportIcao
+                ? nextLegIcao
+                  ? `Leg ${legIndex + 1} — ${leg.airportIcao} → ${nextLegIcao}`
+                  : `Leg ${legIndex + 1} — ${leg.airportIcao}`
+                : `Leg ${legIndex + 1}`}
             </span>
             {(leg.airportCity || leg.runwayResult?.municipality) && (
               <span className="text-xs text-muted-foreground font-normal truncate">

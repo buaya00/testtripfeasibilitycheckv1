@@ -726,6 +726,7 @@ export default function FeasibilityForm() {
                 aircraftNationality={aircraftNationality}
                 overflightResult={overflightResults[idx] ?? null}
                 previousLegDepartureDate={idx > 0 ? legs[idx - 1].departureDate : undefined}
+                nextLegIcao={idx < legs.length - 1 ? legs[idx + 1].airportIcao : undefined}
                 expanded={isLegExpanded(idx)}
                 onToggleExpanded={() => toggleLegExpanded(idx)}
                 onUpdateLeg={updateLeg}
