@@ -158,7 +158,7 @@ export default function FeasibilityForm() {
   // Stable snapshot of lookup results used as a dependency (avoids hooks array-size violation)
   const lookupSnapshot = useMemo(() => legs.map(l => [
     l.permitResult, l.pprResult, l.cbpResult, l.runwayResult, l.ciqResult, l.airportHoursResult,
-  ].map(r => (r ? JSON.stringify({ s: (r as any).success, e: (r as any).error }) : null)).join('|')).join('||'), [legs]);
+  ].map(r => (r ? JSON.stringify(r) : null)).join('|')).join('||'), [legs]);
 
   // Re-evaluate feasibility whenever lookup results change (permits, PPR, etc.)
   useEffect(() => {
@@ -173,7 +173,8 @@ export default function FeasibilityForm() {
       }));
       const changed = updated.some((u, i) =>
         u.feasibilityResult?.feasible !== prev[i].feasibilityResult?.feasible ||
-        u.feasibilityResult?.issues.length !== prev[i].feasibilityResult?.issues.length
+        u.feasibilityResult?.issues.join('|') !== prev[i].feasibilityResult?.issues.join('|') ||
+        u.feasibilityResult?.notes.join('|') !== prev[i].feasibilityResult?.notes.join('|')
       );
       return changed ? updated : prev;
     });
