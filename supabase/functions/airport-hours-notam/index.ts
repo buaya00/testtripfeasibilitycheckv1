@@ -64,7 +64,8 @@ Return structured data about:
 3. Whether the planned arrival/departure times fall outside operating hours
 4. Any curfew or noise restrictions
 5. Seasonal or temporary restrictions
-6. Aircraft deicing availability — whether deicing services are available at this airport, the provider if known, and any notes (seasonal availability, equipment type, etc.)`;
+6. Aircraft deicing availability — whether deicing services are available at this airport, the provider if known, and any notes (seasonal availability, equipment type, etc.)
+7. ICAO ARFF (Aircraft Rescue and Fire Fighting) fire category for the airport (1-10). Also indicate whether the fire category can be upgraded on request (some airports offer temporary upgrades for a fee or with advance notice).`;
 
     const requestBody = JSON.stringify({
       model: 'google/gemini-3-flash-preview',
@@ -118,6 +119,9 @@ Return structured data about:
                 deicingAvailable: { type: 'string', enum: ['yes', 'no', 'limited', 'unknown'], description: 'Whether aircraft deicing services are available at this airport' },
                 deicingProvider: { type: 'string', description: 'Deicing service provider name if known' },
                 deicingNotes: { type: 'string', description: 'Deicing notes: seasonal availability, equipment type, hours of operation, etc.' },
+                fireCategory: { type: 'number', description: 'ICAO ARFF fire category (1-10). Null/0 if unknown.' },
+                fireCategoryUpgradable: { type: 'boolean', description: 'Whether the fire category can be upgraded on request (temporary upgrade with advance notice or fee)' },
+                fireCategoryNotes: { type: 'string', description: 'Notes about fire category: upgrade process, fees, advance notice required, etc.' },
                 notes: { type: 'string', description: 'Additional operational notes' },
                 confidence: { type: 'string', enum: ['high', 'medium', 'low'], description: 'Confidence in the data' },
               },
@@ -213,6 +217,9 @@ Return structured data about:
       deicingAvailable: extracted.deicingAvailable || 'unknown',
       deicingProvider: extracted.deicingProvider || null,
       deicingNotes: extracted.deicingNotes || null,
+      fireCategory: extracted.fireCategory || null,
+      fireCategoryUpgradable: extracted.fireCategoryUpgradable ?? null,
+      fireCategoryNotes: extracted.fireCategoryNotes || null,
       notes: extracted.notes || null,
       hasLiveNotamData: notamData.length > 0,
       confidence: extracted.confidence || 'medium',

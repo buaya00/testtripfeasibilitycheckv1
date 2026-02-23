@@ -1315,6 +1315,23 @@ export default function TripLegCard({
                       </div>
                     )}
 
+                    {/* Fire Category (ARFF) */}
+                    {leg.airportHoursResult.fireCategory != null && leg.airportHoursResult.fireCategory > 0 && (
+                      <div className="rounded px-2 py-1 border-l-2 bg-muted/30 border-l-primary">
+                        <p className="font-medium">
+                          🚒 Fire Category: {leg.airportHoursResult.fireCategory}
+                          {leg.airportHoursResult.fireCategoryUpgradable && (
+                            <span className="ml-1.5 text-[10px] font-normal bg-success/15 text-success px-1.5 py-0.5 rounded">Upgradable</span>
+                          )}
+                          {leg.airportHoursResult.fireCategoryUpgradable === false && (
+                            <span className="ml-1.5 text-[10px] font-normal bg-muted px-1.5 py-0.5 rounded text-muted-foreground">Not upgradable</span>
+                          )}
+                        </p>
+                        {leg.airportHoursResult.fireCategoryNotes && (
+                          <p className="text-muted-foreground">{leg.airportHoursResult.fireCategoryNotes}</p>
+                        )}
+                      </div>
+                    )}
                     {leg.airportHoursResult.notes && <p className="text-muted-foreground italic">{leg.airportHoursResult.notes}</p>}
                   </div>
                 )}
