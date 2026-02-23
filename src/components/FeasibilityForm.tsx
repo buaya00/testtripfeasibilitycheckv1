@@ -3,7 +3,7 @@ import { format } from "date-fns";
 import {
   Plane, Loader2, Navigation, Globe, Plus, X, DollarSign,
   CheckCircle2, XCircle, AlertTriangle, Printer, FileDown, PawPrint,
-  Clock, Ruler, RefreshCw, Upload, MapPin, ChevronDown,
+  Clock, Ruler, RefreshCw, Upload, ChevronLeft, ChevronRight,
 } from "lucide-react";
 
 import { Switch } from "@/components/ui/switch";
@@ -21,7 +21,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import TripLegCard, { evaluateLegFeasibility } from "./TripLegCard";
 import FuelTankeringPanel from "./FuelTankeringPanel";
 import type {
@@ -60,6 +59,13 @@ export default function FeasibilityForm() {
 
   // Overflight toggle — when true, overflights auto-run as part of 'Run Feasibility Check'
   const [autoRunOverflights, setAutoRunOverflights] = useState(false);
+
+  const [currentLegIndex, setCurrentLegIndex] = useState(0);
+
+  // Clamp currentLegIndex when legs change
+  useEffect(() => {
+    if (currentLegIndex >= legs.length) setCurrentLegIndex(Math.max(0, legs.length - 1));
+  }, [legs.length, currentLegIndex]);
 
   const [expandedLegs, setExpandedLegs] = useState<Record<number, boolean>>({});
   const isLegExpanded = (idx: number) => expandedLegs[idx] !== false; // default true
@@ -644,7 +650,72 @@ export default function FeasibilityForm() {
             </div>
           )}
 
-          {legs.map((leg, idx) => (
+          {/* Leg Navigation Bar */}
+          {legs.length > 1 && (
+            <div className="sticky top-[calc(var(--header-h,76px))] z-30 bg-background/95 backdrop-blur-sm border rounded-lg shadow-sm py-2 px-2 flex items-center gap-1.5">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 shrink-0"
+                disabled={currentLegIndex === 0}
+                onClick={() => setCurrentLegIndex(prev => Math.max(0, prev - 1))}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <div className="flex-1 overflow-x-auto scrollbar-hide">
+                <div className="flex items-center gap-1">
+                  {legs.map((leg, idx) => {
+                    const nextLeg = legs[idx + 1];
+                    const prevLeg = idx > 0 ? legs[idx - 1] : null;
+                    // Build label: for multi-leg show "FROM → TO" route style
+                    const fromIcao = prevLeg?.airportIcao || '';
+                    const toIcao = leg.airportIcao || '';
+                    let label = '';
+                    if (idx === 0) {
+                      label = toIcao || `Leg ${idx + 1}`;
+                    } else {
+                      label = `${fromIcao || '?'} → ${toIcao || '?'}`;
+                    }
+
+                    const isCurrent = idx === currentLegIndex;
+                    const hasFailed = leg.feasibilityResult?.feasible === false;
+                    const hasPassed = leg.feasibilityResult?.feasible === true;
+
+                    return (
+                      <button
+                        key={leg.id}
+                        onClick={() => setCurrentLegIndex(idx)}
+                        className={cn(
+                          "px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all",
+                          isCurrent
+                            ? "bg-primary text-primary-foreground shadow-sm"
+                            : "bg-muted hover:bg-muted/80 text-muted-foreground",
+                          hasFailed && !isCurrent && "ring-1 ring-destructive/50",
+                          hasPassed && !isCurrent && "ring-1 ring-success/50",
+                        )}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 shrink-0"
+                disabled={currentLegIndex >= legs.length - 1}
+                onClick={() => setCurrentLegIndex(prev => Math.min(legs.length - 1, prev + 1))}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+
+          {/* Current Leg */}
+          {legs.map((leg, idx) => {
+            if (idx !== currentLegIndex) return null;
+            return (
             <div key={leg.id} id={`leg-${idx}`}>
               <TripLegCard
                 leg={leg}
@@ -660,13 +731,9 @@ export default function FeasibilityForm() {
                 onUpdateLeg={updateLeg}
                 onRemoveLeg={removeLeg}
                 onRegisterLookup={registerLegLookup}
-                onNavigateLeg={(toIndex) => {
-                  const el = document.getElementById(`leg-${toIndex}`);
-                  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }}
+                onNavigateLeg={(toIndex) => setCurrentLegIndex(toIndex)}
                 onRefreshLeg={(index) => {
                   feasibilityTriggered.current = true;
-                  // Re-evaluate this leg's feasibility after a short delay to allow lookup state to propagate
                   setTimeout(() => {
                     setLegs(prev => prev.map((l, i) =>
                       i === index
@@ -786,14 +853,18 @@ export default function FeasibilityForm() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => insertLegAfter(idx)}
+                  onClick={() => {
+                    insertLegAfter(idx);
+                    setCurrentLegIndex(idx + 1);
+                  }}
                   className="text-xs border-dashed"
                 >
                   <Plus className="h-3.5 w-3.5 mr-1" /> Add Leg
                 </Button>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Trip Summary */}
@@ -1247,44 +1318,7 @@ export default function FeasibilityForm() {
                 </Button>
               </>
             )}
-            {legs.length > 1 && (
-              <>
-                <Separator className="my-0.5" />
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="secondary" size="sm" className="justify-start gap-2 w-full">
-                      <MapPin className="h-3.5 w-3.5" /> Jump to Leg
-                      <ChevronDown className="h-3 w-3 text-muted-foreground ml-auto" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent side="left" align="end" className="w-52 p-1">
-                    <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide px-2 py-1">
-                      Select Location
-                    </div>
-                    {legs.map((leg, idx) => (
-                      <button
-                        key={leg.id}
-                        onClick={() => {
-                          const el = document.getElementById(`leg-${idx}`);
-                          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        }}
-                        className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs hover:bg-muted text-left transition-colors"
-                      >
-                        <span className="flex items-center justify-center min-w-[1.125rem] rounded-full bg-primary/10 text-primary text-[10px] font-bold leading-none px-1 py-0.5">
-                          {idx + 1}
-                        </span>
-                        <span className="font-mono font-medium">
-                          {leg.airportIcao || <span className="text-muted-foreground italic">TBD</span>}
-                        </span>
-                        {leg.airportCity && (
-                          <span className="text-muted-foreground truncate">{leg.airportCity}</span>
-                        )}
-                      </button>
-                    ))}
-                  </PopoverContent>
-                </Popover>
-              </>
-            )}
+            
             <Separator className="my-0.5" />
             <Button
               variant="ghost"
