@@ -974,7 +974,7 @@ export default function TripLegCard({
                   </div>
                   {AEG_RSP_AIRPORTS.has(leg.cbpResult.icao?.toUpperCase()) && (
                     <span className="inline-flex items-center rounded bg-success/15 border border-success/30 px-2 py-0.5 text-[10px] font-semibold text-success whitespace-nowrap">
-                      AEG RSP Available
+                      CBP RSP Available
                     </span>
                   )}
                 </div>
@@ -1006,7 +1006,7 @@ export default function TripLegCard({
                   </div>
                   {AEG_RSP_AIRPORTS.has(leg.ciqResult.icao?.toUpperCase()) && (
                     <span className="inline-flex items-center rounded bg-success/15 border border-success/30 px-2 py-0.5 text-[10px] font-semibold text-success whitespace-nowrap">
-                      AEG RSP Available
+                      CBP RSP Available
                     </span>
                   )}
                 </div>
