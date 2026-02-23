@@ -3,7 +3,7 @@ import { format } from "date-fns";
 import {
   Plane, Loader2, Navigation, Globe, Plus, X, DollarSign,
   CheckCircle2, XCircle, AlertTriangle, Printer, FileDown, PawPrint,
-  Clock, Ruler, RefreshCw, Upload, ChevronLeft, ChevronRight,
+  Clock, Ruler, RefreshCw, Upload, ChevronLeft, ChevronRight, Shield,
 } from "lucide-react";
 
 import { Switch } from "@/components/ui/switch";
@@ -24,7 +24,7 @@ import { Separator } from "@/components/ui/separator";
 import TripLegCard, { evaluateLegFeasibility } from "./TripLegCard";
 import FuelTankeringPanel from "./FuelTankeringPanel";
 import type {
-  LegData, OverflightResult, VisaCheckResult, PetCheckResult,
+  LegData, OverflightResult, VisaCheckResult, PetCheckResult, CabotageResult,
 } from "./tripTypes";
 import { createEmptyLeg } from "./tripTypes";
 import { generatePrintableHtml } from "./PrintableReport";
@@ -91,6 +91,10 @@ export default function FeasibilityForm() {
   const [petResults, setPetResults] = useState<Record<string, PetCheckResult | null>>({});
   const [petLoading, setPetLoading] = useState<Record<string, boolean>>({});
 
+  // Cabotage analysis — route-level check
+  const [cabotageResult, setCabotageResult] = useState<CabotageResult | null>(null);
+  const [cabotageLoading, setCabotageLoading] = useState(false);
+
   const updateLeg = useCallback((index: number, updates: Partial<LegData>) => {
     setLegs(prev => prev.map((leg, i) => i === index ? { ...leg, ...updates } : leg));
   }, []);
@@ -131,8 +135,9 @@ export default function FeasibilityForm() {
   // Track whether a check-all has been triggered so we can re-evaluate on lookup completion
   const feasibilityTriggered = useRef(false);
 
-  // Ref so handleCheckAll can call handleAllOverflights without forward-reference issues
+  // Refs so handleCheckAll can call handlers without forward-reference issues
   const handleAllOverflightsRef = useRef<(() => void) | null>(null);
+  const handleCabotageCheckRef = useRef<(() => void) | null>(null);
 
   // Check feasibility for all legs
   const handleCheckAll = useCallback(() => {
@@ -153,7 +158,12 @@ export default function FeasibilityForm() {
     if (autoRunOverflights) {
       handleAllOverflightsRef.current?.();
     }
-  }, [aircraftType, flightType, autoRunOverflights]);
+    // Auto-run cabotage check for multi-leg trips
+    if (legs.length >= 2) {
+      // Delay slightly to let country data populate from other lookups
+      setTimeout(() => handleCabotageCheckRef.current?.(), 2000);
+    }
+  }, [aircraftType, flightType, autoRunOverflights, legs.length]);
 
   // Stable snapshot of lookup results used as a dependency (avoids hooks array-size violation)
   const lookupSnapshot = useMemo(() => legs.map(l => [
@@ -219,8 +229,9 @@ export default function FeasibilityForm() {
     }
   }, [legs.length, handleOverflightBetweenLegs]);
 
-  // Keep the ref in sync so handleCheckAll can call it without forward-reference issues
+  // Keep the refs in sync so handleCheckAll can call them without forward-reference issues
   useEffect(() => { handleAllOverflightsRef.current = handleAllOverflights; }, [handleAllOverflights]);
+  
 
   // Auto-derive unique destination ICAOs from legs (skip first leg = departure origin when multi-leg)
   const destinationIcaos = useMemo(() => {
@@ -335,7 +346,46 @@ export default function FeasibilityForm() {
     }));
   }, [petTypes, destinationIcaos, legs]);
 
-  // Document upload — parse trip schedule from file
+  // Cabotage check — route-level analysis
+  const handleCabotageCheck = useCallback(async () => {
+    if (legs.length < 2) return;
+    const validLegs = legs.filter(l => l.airportIcao.length === 4);
+    if (validLegs.length < 2) return;
+
+    setCabotageLoading(true);
+    setCabotageResult(null);
+
+    try {
+      const legData = validLegs.map(l => ({
+        icao: l.airportIcao,
+        country: l.ciqResult?.country || l.permitResult?.country || l.airportHoursResult?.country || undefined,
+      }));
+
+      const { data: res, error } = await supabase.functions.invoke('cabotage-check', {
+        body: {
+          legs: legData,
+          aircraftNationality: aircraftNationality || undefined,
+          flightType: flightType || undefined,
+          aircraftType: aircraftType || undefined,
+        },
+      });
+
+      if (error) {
+        let errorMsg = error.message;
+        try { const t = await (error as any).context?.text?.(); if (t) { const p = JSON.parse(t); if (p.error) errorMsg = p.error; } } catch { /* ignore */ }
+        setCabotageResult({ success: false, error: errorMsg });
+      } else {
+        setCabotageResult(res as CabotageResult);
+      }
+    } catch {
+      setCabotageResult({ success: false, error: 'Failed to connect' });
+    } finally {
+      setCabotageLoading(false);
+    }
+  }, [legs, aircraftNationality, flightType, aircraftType]);
+
+  useEffect(() => { handleCabotageCheckRef.current = handleCabotageCheck; }, [handleCabotageCheck]);
+
   const handleDocumentUpload = useCallback(async (file: File) => {
     setUploadLoading(true);
     setUploadError(null);
@@ -403,6 +453,8 @@ export default function FeasibilityForm() {
     setPetTypes([]);
     setPetResults({});
     setPetLoading({});
+    setCabotageResult(null);
+    setCabotageLoading(false);
   };
 
   // Compute flight leg calculations between consecutive legs
@@ -865,7 +917,80 @@ export default function FeasibilityForm() {
           })}
         </div>
 
-        {/* Trip Summary */}
+        {/* Cabotage Analysis */}
+        {(cabotageLoading || cabotageResult) && (
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2 mb-3">
+                <Shield className="h-4 w-4 text-primary" />
+                <span className="font-semibold text-sm">Cabotage Analysis</span>
+                {cabotageLoading && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+              </div>
+
+              {cabotageLoading && (
+                <div className="rounded-md border p-2 text-xs flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" /> Analyzing route for cabotage restrictions…
+                </div>
+              )}
+
+              {cabotageResult && !cabotageLoading && (
+                <div className="space-y-2 text-xs">
+                  {cabotageResult.error ? (
+                    <p className="text-destructive">{cabotageResult.error}</p>
+                  ) : (
+                    <>
+                      <div className={cn("rounded-md border p-3",
+                        cabotageResult.overallRisk === 'none' ? "border-success/30 bg-success/5" :
+                        cabotageResult.overallRisk === 'low' ? "border-warning/30 bg-warning/5" :
+                        cabotageResult.overallRisk === 'medium' ? "border-warning/50 bg-warning/10" :
+                        "border-destructive/40 bg-destructive/5"
+                      )}>
+                        <p className="font-medium mb-1">
+                          {cabotageResult.overallRisk === 'none' ? '✅ No cabotage risk' :
+                           cabotageResult.overallRisk === 'low' ? '⚠️ Low cabotage risk' :
+                           cabotageResult.overallRisk === 'medium' ? '⚠️ Medium cabotage risk' :
+                           '🚫 High cabotage risk'}
+                        </p>
+                        {cabotageResult.summary && (
+                          <p className="text-muted-foreground">{cabotageResult.summary}</p>
+                        )}
+                      </div>
+
+                      {cabotageResult.legAnalysis && cabotageResult.legAnalysis.length > 0 && (
+                        <div className="space-y-1">
+                          {cabotageResult.legAnalysis.map((la, i) => (
+                            <div key={i} className={cn("rounded bg-background/50 px-2 py-1.5 space-y-0.5",
+                              la.isCabotageRisk
+                                ? "border-l-2 border-l-destructive"
+                                : "border-l-2 border-l-success"
+                            )}>
+                              <p className="font-medium">
+                                {la.isCabotageRisk ? '⚠️' : '✅'} {la.fromIcao} → {la.toIcao}
+                                {la.fromCountry && la.toCountry && (
+                                  <span className="font-normal text-muted-foreground ml-1">
+                                    ({la.fromCountry} → {la.toCountry})
+                                  </span>
+                                )}
+                              </p>
+                              <p className="text-muted-foreground">{la.reason}</p>
+                              {la.exemptions && <p className="text-muted-foreground italic">Exemptions: {la.exemptions}</p>}
+                              {la.applicableLaw && <p className="text-muted-foreground italic">Law: {la.applicableLaw}</p>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {cabotageResult.recommendations && (
+                        <p className="text-muted-foreground italic mt-1">{cabotageResult.recommendations}</p>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {(anyChecked || totalCharges > 0 || totalOverflightCharges > 0) && (
           <Card>
             <CardContent className="pt-6">
