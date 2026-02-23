@@ -952,7 +952,7 @@ export default function TripLegCard({
               <div className={cn("rounded-md border-l-4 border border-border p-3 text-sm space-y-1.5", leg.cbpResult.found ? "border-l-success" : "border-l-warning bg-muted/30")}>
                 <div className="flex items-center gap-1.5 font-medium">
                   {leg.cbpResult.found ? <CheckCircle2 className="h-3.5 w-3.5 text-success" /> : <AlertTriangle className="h-3.5 w-3.5 text-warning" />}
-                  {leg.cbpResult.airportName ? `${leg.cbpResult.airportName} (${leg.cbpResult.icao})` : leg.cbpResult.icao}
+                  CIQ — {leg.cbpResult.airportName ? `${leg.cbpResult.airportName} (${leg.cbpResult.icao})` : leg.cbpResult.icao}
                 </div>
                 <p className="text-muted-foreground text-xs">{leg.cbpResult.message}</p>
                 {leg.cbpResult.operatingHours && (
