@@ -106,7 +106,7 @@ For EACH nationality, determine:
 - Maximum stay allowed without a visa (if visa-free)
 - Any special conditions or bilateral agreements${isAircrew ? ' for aviation crew' : ''}
 - Whether a transit visa is needed if only transiting through${isAircrew ? ' (airside transit for crew)' : ''}${isAircrew ? '\n- Any specific aircrew exemptions or facilitation provisions (ICAO Annex 9)' : ''}
-- IMPORTANT: For the United Kingdom, ALWAYS check and report on Electronic Travel Authorization (ETA) requirements. Many nationalities that are visa-free for the UK still require an ETA (introduced 2024-2025). State clearly whether an ETA is required, the cost, and how to obtain one.`;
+- IMPORTANT: For the United Kingdom, ALWAYS check and report on Electronic Travel Authorization (ETA) requirements. The UK ETA scheme is ALREADY IN FORCE as of 2025. Many visa-free nationalities are NOW required to hold an ETA before travelling to the UK. State clearly whether an ETA is required, the cost (currently £10), and that it must be obtained before travel via the official UK ETA app or website.`;
 
     const requestBody = {
       model: 'google/gemini-2.5-flash',
