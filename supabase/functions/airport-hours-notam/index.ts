@@ -125,7 +125,7 @@ Return structured data about:
                 notes: { type: 'string', description: 'Additional operational notes' },
                 confidence: { type: 'string', enum: ['high', 'medium', 'low'], description: 'Confidence in the data' },
               },
-              required: ['is24Hours', 'operatingDays', 'activeNotams', 'arrivalOutsideHours', 'departureOutsideHours', 'arrivalDuringCurfew', 'departureDuringCurfew', 'confidence'],
+              required: ['is24Hours', 'operatingDays', 'activeNotams', 'arrivalOutsideHours', 'departureOutsideHours', 'arrivalDuringCurfew', 'departureDuringCurfew', 'fireCategory', 'fireCategoryUpgradable', 'confidence'],
               additionalProperties: false,
             },
           },
