@@ -105,7 +105,8 @@ For EACH nationality, determine:
 - Typical processing time
 - Maximum stay allowed without a visa (if visa-free)
 - Any special conditions or bilateral agreements${isAircrew ? ' for aviation crew' : ''}
-- Whether a transit visa is needed if only transiting through${isAircrew ? ' (airside transit for crew)' : ''}${isAircrew ? '\n- Any specific aircrew exemptions or facilitation provisions (ICAO Annex 9)' : ''}`;
+- Whether a transit visa is needed if only transiting through${isAircrew ? ' (airside transit for crew)' : ''}${isAircrew ? '\n- Any specific aircrew exemptions or facilitation provisions (ICAO Annex 9)' : ''}
+- IMPORTANT: For the United Kingdom, ALWAYS check and report on Electronic Travel Authorization (ETA) requirements. Many nationalities that are visa-free for the UK still require an ETA (introduced 2024-2025). State clearly whether an ETA is required, the cost, and how to obtain one.`;
 
     const requestBody = {
       model: 'google/gemini-2.5-flash',
