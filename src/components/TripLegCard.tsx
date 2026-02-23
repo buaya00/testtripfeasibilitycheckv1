@@ -649,11 +649,7 @@ export default function TripLegCard({
           {/* Airport + city */}
           <div className="flex items-center gap-1.5 min-w-0">
             <span className="font-semibold text-sm">
-              {leg.airportIcao
-                ? nextLegIcao
-                  ? `Leg ${legIndex + 1} — ${leg.airportIcao} → ${nextLegIcao}`
-                  : `Leg ${legIndex + 1} — ${leg.airportIcao}`
-                : `Leg ${legIndex + 1}`}
+              {leg.airportIcao ? `Leg ${legIndex + 1} — ${leg.airportIcao}` : `Leg ${legIndex + 1}`}
             </span>
             {(leg.airportCity || leg.runwayResult?.municipality) && (
               <span className="text-xs text-muted-foreground font-normal truncate">
@@ -697,6 +693,13 @@ export default function TripLegCard({
 
           <ChevronUp className={cn("h-4 w-4 ml-auto shrink-0 text-muted-foreground transition-transform", !expanded && "rotate-180")} />
         </button>
+        {/* Next destination label */}
+        {nextLegIcao && (
+          <div className="flex flex-col items-end mr-3 shrink-0">
+            <span className="text-[10px] uppercase tracking-wide text-muted-foreground leading-none">Destination</span>
+            <span className="text-sm font-semibold text-foreground leading-tight">{nextLegIcao}</span>
+          </div>
+        )}
         {/* Refresh button — re-runs all lookups for this leg */}
         <div className="flex items-center gap-1 ml-3 shrink-0">
           <button
