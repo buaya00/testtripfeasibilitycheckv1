@@ -26,6 +26,60 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Hardcoded fact sheets for airports where scraping is unreliable
+    const hardcodedFactSheets: Record<string, {
+      airportName: string;
+      operatingHours: ParsedHours;
+      detailUrl: string | null;
+      pdfUrl: string | null;
+      message: string;
+      contacts: string[];
+      specialProcedures: string;
+    }> = {
+      KSMF: {
+        airportName: 'Sacramento International Airport',
+        operatingHours: {
+          open: '17:00',
+          close: '02:00',
+          days: 'Daily',
+          notes: 'Hours in Pacific Time (PT). Requests for processing between 0900-1600 PT may be approved case-by-case, subject to resource availability. Landing rights airport – 24hr advance notice required. ETA tolerance +/- 30 minutes. All inbound international flights processed at Modern Aviation SMF.',
+          raw: '7 days per week, 1700-0200 Pacific Time (PT)',
+        },
+        detailUrl: 'https://www.cbp.gov/document/general-aviation/sacramento-international-airport-ksmf',
+        pdfUrl: null,
+        message: 'CBP services available at Sacramento International Airport (KSMF). Landing rights airport – 24hr advance notice required. Regular hours: 1700-0200 PT daily. Contact: (916) 649-3671.',
+        contacts: [
+          '(916) 649-3671 – CBP Area Port of Sacramento',
+          '(650) 877-4231 – SFO Watch Commander',
+          '(916) 317-1786 – Port Director Cell',
+          '(800) 973-2867 – SECTOR Communications',
+          '(415) 279-9089 – Outer Ports Watch Commander Cell',
+          'sacstaff@cbp.dhs.gov',
+        ],
+        specialProcedures: 'Pilots must secure permission to land by contacting CBP prior to departure from the foreign airport and at least 24 hours in advance. Permission granted with +/- 30 min tolerance. All inbound international flights processed at Modern Aviation SMF (https://modern-aviation.com/sacramento-international-airport/).',
+      },
+    };
+
+    if (hardcodedFactSheets[icao]) {
+      const fs = hardcodedFactSheets[icao];
+      return new Response(
+        JSON.stringify({
+          success: true,
+          found: true,
+          icao,
+          airportName: fs.airportName,
+          customsAvailable: true,
+          detailUrl: fs.detailUrl,
+          pdfUrl: fs.pdfUrl,
+          operatingHours: fs.operatingHours,
+          contacts: fs.contacts,
+          specialProcedures: fs.specialProcedures,
+          message: fs.message,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const searchUrl = `https://www.cbp.gov/newsroom/publications/general-aviation-airport-fact-sheets?field_airport_code_value=${icao}`;
     console.log('Fetching CBP page for:', icao, 'URL:', searchUrl);
 
