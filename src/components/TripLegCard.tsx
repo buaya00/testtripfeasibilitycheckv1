@@ -175,8 +175,10 @@ export function evaluateLegFeasibility(
   if (leg.pprRequired) notes.push("Prior Permission Required — contact airport ops");
   if (leg.slotRequired) notes.push("Slot coordination required — book slot in advance");
   // Only flag customs as unavailable if a lookup has actually completed (CBP or CIQ)
+  // Skip customs availability check for first-leg US departures (no inbound CIQ needed)
+  const isFirstLegUsDep = isFirstLeg && totalLegs > 1 && leg.airportIcao && isUsAirport(leg.airportIcao.toUpperCase());
   const customsLookupDone = !!(leg.cbpResult || leg.ciqResult);
-  if (customsLookupDone && !leg.customsAvailable) issues.push("Customs not available at this airport");
+  if (!isFirstLegUsDep && customsLookupDone && !leg.customsAvailable) issues.push("Customs not available at this airport");
 
   // Permit lead time check — for US airports, only add as guidance notes, not feasibility issues
   if (checkArrival && leg.arrivalDate && leg.permitResult?.success && leg.permitResult.permitRequired === 'yes' && leg.permitResult.leadTimeDays != null && leg.permitResult.leadTimeDays > 0) {
@@ -482,15 +484,45 @@ export default function TripLegCard({
     finally { setHoursLoading(false); }
   }, [leg.airportIcao, leg.arrivalDate, leg.arrivalTime, leg.departureDate, leg.departureTime, aircraftType, flightType]);
 
+  const isFirstLegUsDeparture = legIndex === 0 && totalLegs > 1 && leg.airportIcao.length === 4 && isUsAirport(leg.airportIcao);
+  const isCommercialFlight = flightType === 'non-scheduled-commercial' || flightType === 'commercial';
+
   const handleLookupAll = useCallback(() => {
     if (leg.airportIcao.length !== 4) return;
-    if (isUsAirport(leg.airportIcao)) { handleCbpLookup(); } else { update({ cbpResult: null }); handleCiqLookup(); }
+
+    // First departure from a US airport: no inbound CIQ/CBP needed
+    if (isFirstLegUsDeparture) {
+      // For commercial flights, show outbound customs notification guidance
+      if (isCommercialFlight) {
+        update({
+          cbpResult: null,
+          ciqResult: {
+            success: true,
+            icao: leg.airportIcao,
+            country: 'United States',
+            airportName: leg.airportCity || leg.airportIcao,
+            ciqAvailable: 'yes',
+            notes: 'Outbound US Customs notification is required. eAPIS (electronic Advance Passenger Information System) filing must be submitted prior to departure.',
+          },
+          customsAvailable: true,
+        });
+      } else {
+        // Private flights departing US: no CIQ card needed at all
+        update({ cbpResult: null, ciqResult: null });
+      }
+    } else if (isUsAirport(leg.airportIcao)) {
+      handleCbpLookup();
+    } else {
+      update({ cbpResult: null });
+      handleCiqLookup();
+    }
+
     handleRunwayLookup();
     handlePermitLookup();
     handleChargesLookup();
     handlePprLookup();
     handleAirportHoursLookup();
-  }, [leg.airportIcao, handleCbpLookup, handleCiqLookup, handleRunwayLookup, handlePermitLookup, handleChargesLookup, handlePprLookup, handleAirportHoursLookup]);
+  }, [leg.airportIcao, isFirstLegUsDeparture, isCommercialFlight, leg.airportCity, handleCbpLookup, handleCiqLookup, handleRunwayLookup, handlePermitLookup, handleChargesLookup, handlePprLookup, handleAirportHoursLookup]);
 
   // Register lookup function with parent
   useEffect(() => {
