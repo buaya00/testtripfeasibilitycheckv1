@@ -761,11 +761,11 @@ export default function FeasibilityForm() {
             </div>
           )}
 
-          {/* Current Leg */}
+          {/* All Legs (hidden when not current, so lookup refs stay registered) */}
           {legs.map((leg, idx) => {
-            if (idx !== currentLegIndex) return null;
+            const isCurrent = idx === currentLegIndex;
             return (
-            <div key={leg.id} id={`leg-${idx}`}>
+            <div key={leg.id} id={`leg-${idx}`} className={isCurrent ? undefined : "hidden"}>
               <TripLegCard
                 leg={leg}
                 legIndex={idx}
