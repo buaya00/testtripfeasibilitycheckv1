@@ -464,7 +464,14 @@ export default function TripLegCard({
         let errorMsg = error.message;
         try { const t = await (error as any).context?.text?.(); if (t) { const p = JSON.parse(t); if (p.error) errorMsg = p.error; } } catch { /* ignore */ }
         update({ pprResult: { success: false, icao: leg.airportIcao, error: errorMsg } });
-      } else { update({ pprResult: res as PprResult, ...(res?.pprRequired === 'yes' ? { pprRequired: true } : res?.pprRequired === 'no' ? { pprRequired: false } : {}), ...(res?.slotRequired === true ? { slotRequired: true } : res?.slotRequired === false ? { slotRequired: false } : {}) }); }
+      } else {
+        const pprRes = res as PprResult;
+        // US airports: slots are not required
+        if (isUsAirport(leg.airportIcao)) {
+          pprRes.slotRequired = false;
+        }
+        update({ pprResult: pprRes, ...(pprRes?.pprRequired === 'yes' ? { pprRequired: true } : pprRes?.pprRequired === 'no' ? { pprRequired: false } : {}), ...(pprRes?.slotRequired === true ? { slotRequired: true } : pprRes?.slotRequired === false ? { slotRequired: false } : {}) });
+      }
     } catch { update({ pprResult: { success: false, icao: leg.airportIcao, error: 'Failed to connect' } }); }
     finally { setPprLoading(false); }
   }, [leg.airportIcao, flightType, aircraftType]);
