@@ -219,7 +219,23 @@ export default function FeasibilityForm() {
         const result = res as OverflightResult;
         if (result.countries) {
           const icaoExemptPattern = /non[- ]?icao\s+member/i;
+          const isPrivateOrCharter = flightType === 'private' || flightType === 'non-scheduled-commercial';
           result.countries = result.countries.map(c => {
+            // Iceland: no permit needed for private & non-scheduled commercial
+            if (
+              (c.overflightPermitRequired === 'yes' || c.overflightPermitRequired === 'conditional') &&
+              isPrivateOrCharter &&
+              /iceland/i.test(c.country)
+            ) {
+              return {
+                ...c,
+                overflightPermitRequired: 'no' as const,
+                notes: c.notes
+                  ? `${c.notes} (No permit required for private/non-scheduled commercial flights)`
+                  : 'No permit required for private/non-scheduled commercial flights',
+              };
+            }
+            // Non-ICAO member exemption
             if (
               (c.overflightPermitRequired === 'yes' || c.overflightPermitRequired === 'conditional') &&
               (icaoExemptPattern.test(c.conditions || '') || icaoExemptPattern.test(c.notes || ''))
