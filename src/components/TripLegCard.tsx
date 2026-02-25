@@ -488,13 +488,28 @@ export default function TripLegCard({
   const isCommercialFlight = flightType === 'non-scheduled-commercial' || flightType === 'commercial';
   const isPrivateFlight = flightType === 'private';
   const isUsDeparture = leg.airportIcao.length === 4 && isUsAirport(leg.airportIcao);
+  const isDomesticUsLeg = isUsDeparture && !!nextLegIcao && nextLegIcao.length === 4 && isUsAirport(nextLegIcao);
 
   const handleLookupAll = useCallback(() => {
     if (leg.airportIcao.length !== 4) return;
 
-    if (isUsDeparture) {
+    if (isDomesticUsLeg) {
+      // Domestic US leg: no customs required
+      update({
+        cbpResult: null,
+        ciqResult: {
+          success: true,
+          icao: leg.airportIcao,
+          country: 'United States',
+          airportName: leg.airportCity || leg.airportIcao,
+          ciqAvailable: 'yes',
+          notes: 'Not Required',
+        },
+        customsAvailable: true,
+      });
+    } else if (isUsDeparture) {
       if (isPrivateFlight) {
-        // Private flights departing any US airport: green CIQ, only outbound APIS needed
+        // Private flights departing any US airport (international): green CIQ, only outbound APIS needed
         update({
           cbpResult: null,
           ciqResult: {
@@ -535,7 +550,7 @@ export default function TripLegCard({
     handleChargesLookup();
     handlePprLookup();
     handleAirportHoursLookup();
-  }, [leg.airportIcao, isUsDeparture, isPrivateFlight, isFirstLegUsDeparture, isCommercialFlight, leg.airportCity, handleCbpLookup, handleCiqLookup, handleRunwayLookup, handlePermitLookup, handleChargesLookup, handlePprLookup, handleAirportHoursLookup]);
+  }, [leg.airportIcao, isDomesticUsLeg, isUsDeparture, isPrivateFlight, isFirstLegUsDeparture, isCommercialFlight, leg.airportCity, handleCbpLookup, handleCiqLookup, handleRunwayLookup, handlePermitLookup, handleChargesLookup, handlePprLookup, handleAirportHoursLookup]);
 
   // Register lookup function with parent
   useEffect(() => {
