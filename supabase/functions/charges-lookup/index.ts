@@ -27,6 +27,22 @@ Deno.serve(async (req) => {
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    // ── Resolve airport name from OurAirports ──────────────────────────
+    let resolvedAirportName = '';
+    try {
+      const apRes = await fetch('https://davidmegginson.github.io/ourairports-data/airports.csv');
+      if (apRes.ok) {
+        const csv = await apRes.text();
+        const lines = csv.split('\n');
+        const hdr = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
+        const iIdent = hdr.indexOf('ident');
+        const iName = hdr.indexOf('name');
+        for (let i = 1; i < lines.length; i++) {
+          const cols = lines[i].split(',').map(c => c.replace(/"/g, '').trim());
+          if (cols[iIdent] === icao) { resolvedAirportName = cols[iName] || ''; break; }
+        }
+      }
+    } catch (e) { console.warn('Airport name lookup failed:', e); }
 
     const icaoPrefix = icao.substring(0, 2);
 
@@ -63,7 +79,7 @@ Deno.serve(async (req) => {
               },
               {
                 role: 'user',
-                content: `Find the official published landing and parking fees for airport ICAO "${icao}"${aircraftType ? ` for a ${aircraftType}` : ' for a mid-size business jet'}. Look for the airport authority or AIP official charge schedule. Include landing fee, parking fee per day, any passenger fees, and surcharges (night, noise, weekend).`,
+                content: `Find the official published landing and parking fees for airport ICAO "${icao}"${resolvedAirportName ? ` (${resolvedAirportName})` : ''}${aircraftType ? ` for a ${aircraftType}` : ' for a mid-size business jet'}. Look for the airport authority or AIP official charge schedule. Include landing fee, parking fee per day, any passenger fees, and surcharges (night, noise, weekend).`,
               },
             ],
             search_domain_filter: [

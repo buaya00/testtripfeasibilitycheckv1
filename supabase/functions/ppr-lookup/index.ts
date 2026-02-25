@@ -9,7 +9,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { icao, flightType, aircraftType, airportName } = await req.json();
+    const { icao, flightType, aircraftType, airportName: clientAirportName } = await req.json();
 
     if (!icao || typeof icao !== 'string' || !/^[A-Z]{4}$/.test(icao)) {
       return new Response(
@@ -26,6 +26,33 @@ Deno.serve(async (req) => {
         JSON.stringify({ success: false, error: 'AI API key not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // ── Resolve airport name from OurAirports if not provided ──────────
+    let airportName = clientAirportName || '';
+    if (!airportName) {
+      try {
+        const res = await fetch('https://davidmegginson.github.io/ourairports-data/airports.csv');
+        if (res.ok) {
+          const csv = await res.text();
+          const lines = csv.split('\n');
+          const hdr = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
+          const iIdent = hdr.indexOf('ident');
+          const iName = hdr.indexOf('name');
+          const iMuni = hdr.indexOf('municipality');
+          for (let i = 1; i < lines.length; i++) {
+            const cols = lines[i].split(',').map(c => c.replace(/"/g, '').trim());
+            if (cols[iIdent] === icao) {
+              airportName = cols[iName] || '';
+              if (cols[iMuni]) airportName += ` (${cols[iMuni]})`;
+              break;
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Airport name lookup failed (non-fatal):', e);
+      }
+      console.log(`Resolved airport name for ${icao}: ${airportName || 'unknown'}`);
     }
 
     const flightTypeDesc = flightType === 'private'

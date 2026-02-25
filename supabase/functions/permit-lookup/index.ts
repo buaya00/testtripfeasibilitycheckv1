@@ -67,6 +67,23 @@ Deno.serve(async (req) => {
       );
     }
 
+    // ── Resolve airport name from OurAirports ──────────────────────────
+    let resolvedAirportName = '';
+    try {
+      const apRes = await fetch('https://davidmegginson.github.io/ourairports-data/airports.csv');
+      if (apRes.ok) {
+        const csv = await apRes.text();
+        const lines = csv.split('\n');
+        const hdr = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
+        const iIdent = hdr.indexOf('ident');
+        const iName = hdr.indexOf('name');
+        for (let i = 1; i < lines.length; i++) {
+          const cols = lines[i].split(',').map(c => c.replace(/"/g, '').trim());
+          if (cols[iIdent] === icao) { resolvedAirportName = cols[iName] || ''; break; }
+        }
+      }
+    } catch (e) { console.warn('Airport name lookup failed:', e); }
+
     const icaoPrefix = icao.substring(0, 2);
     const flightTypeLabel = flightType === 'private'
       ? 'Private / general aviation — FAR Part 91 (non-commercial; owner or operator is aboard or flight is not-for-hire)'
@@ -98,7 +115,7 @@ Deno.serve(async (req) => {
               },
               {
                 role: 'user',
-                content: `Research the current landing permit and regulatory requirements for ICAO airport code "${icao}" (prefix "${icaoPrefix}"). Flight type: ${flightTypeLabel}.${aircraftRegistration ? ` Aircraft registration prefix: ${aircraftRegistration}.` : ''}${aircraftNationality ? ` Aircraft nationality/country of registration: ${aircraftNationality}.` : ''}
+                content: `Research the current landing permit and regulatory requirements for ICAO airport code "${icao}"${resolvedAirportName ? ` (${resolvedAirportName})` : ''} (prefix "${icaoPrefix}"). Flight type: ${flightTypeLabel}.${aircraftRegistration ? ` Aircraft registration prefix: ${aircraftRegistration}.` : ''}${aircraftNationality ? ` Aircraft nationality/country of registration: ${aircraftNationality}.` : ''}
 
 Please search official AIP publications, CAA websites, and ICAO documentation for:
 1. Whether a landing permit is required (yes/no/conditional) and from which authority — check the country's AIP GEN 1.2 or equivalent
