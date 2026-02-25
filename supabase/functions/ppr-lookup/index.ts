@@ -28,8 +28,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    // ── Resolve airport name from OurAirports if not provided ──────────
-    let airportName = clientAirportName || '';
+    // ── Hardcoded airport name overrides ──────────────────────────────
+    const AIRPORT_NAME_OVERRIDES: Record<string, string> = {
+      'KOPF': 'Miami-Opa Locka Executive Airport',
+    };
+    let airportName = AIRPORT_NAME_OVERRIDES[icao] || clientAirportName || '';
     if (!airportName) {
       try {
         const res = await fetch('https://davidmegginson.github.io/ourairports-data/airports.csv');
