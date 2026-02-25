@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
       console.log(`Resolved airport name for ${icao}: ${airportName || 'unknown'}`);
     }
 
-    // ── Iceland: no PPR requirements ────────────────────────────────
+    // ── Iceland: no PPR but slots are required ─────────────────────
     if (icao.startsWith('BI')) {
       return new Response(
         JSON.stringify({
@@ -68,9 +68,9 @@ Deno.serve(async (req) => {
           airportName: airportName || undefined,
           pprRequired: 'no',
           advanceNoticePeriod: 'N/A',
-          slotRequired: false,
-          conditions: 'Iceland does not have PPR requirements.',
-          notes: 'No PPR required for any flight type in Iceland.',
+          slotRequired: true,
+          conditions: 'Iceland does not have PPR requirements but slot coordination is required.',
+          notes: 'No PPR required for any flight type in Iceland. Slot coordination is required.',
           confidence: 'high',
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

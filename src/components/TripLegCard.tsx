@@ -1238,8 +1238,34 @@ export default function TripLegCard({
                 <div className="rounded bg-muted/40 px-2 py-1.5 text-xs space-y-0.5">
                   {leg.pprResult.advanceNoticePeriod && <p><span className="font-medium">Notice:</span> {leg.pprResult.advanceNoticePeriod}</p>}
                   {leg.pprResult.contactDetails && <p><span className="font-medium">Contact:</span> {leg.pprResult.contactDetails}</p>}
-                  {leg.pprResult.slotRequired !== undefined && <p><span className="font-medium">Slot:</span> {leg.pprResult.slotRequired ? 'Required' : 'Not required'}</p>}
+                  {/* Slot info moved to dedicated card below */}
                   {leg.pprResult.notes && <p className="text-muted-foreground italic">{leg.pprResult.notes}</p>}
+                </div>
+              </div>
+            )}
+
+            {/* Slot Coordination */}
+            {leg.pprResult && !pprLoading && leg.pprResult.slotRequired !== undefined && (
+              <div className={cn("rounded-md border-l-4 border border-border p-3 text-sm space-y-1.5",
+                leg.pprResult.slotRequired ? "border-l-warning" : "border-l-success"
+              )}>
+                <div className="flex items-center gap-1.5 font-medium">
+                  <Timer className="h-3.5 w-3.5 text-primary" />
+                  Slot Coordination — {leg.pprResult.airportName || leg.pprResult.icao}
+                </div>
+                <div className="rounded bg-muted/40 px-2 py-1.5 text-xs space-y-0.5">
+                  <p className="font-medium">
+                    {leg.pprResult.slotRequired ? '⚠️ Slot coordination required' : '✅ No slot coordination required'}
+                  </p>
+                  {leg.pprResult.slotRequired && leg.pprResult.contactMethod && (
+                    <p><span className="font-medium">How to book:</span> {leg.pprResult.contactMethod}</p>
+                  )}
+                  {leg.pprResult.slotRequired && leg.pprResult.contactDetails && (
+                    <p><span className="font-medium">Contact:</span> {leg.pprResult.contactDetails}</p>
+                  )}
+                  {leg.pprResult.slotRequired && leg.pprResult.operatingRestrictions && (
+                    <p><span className="font-medium">Restrictions:</span> {leg.pprResult.operatingRestrictions}</p>
+                  )}
                 </div>
               </div>
             )}
