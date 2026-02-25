@@ -27,8 +27,11 @@ Deno.serve(async (req) => {
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-    // ── Resolve airport name from OurAirports ──────────────────────────
-    let resolvedAirportName = '';
+    // ── Resolve airport name ──────────────────────────────────────────
+    const AIRPORT_NAME_OVERRIDES: Record<string, string> = {
+      'KOPF': 'Miami-Opa Locka Executive Airport',
+    };
+    let resolvedAirportName = AIRPORT_NAME_OVERRIDES[icao] || '';
     try {
       const apRes = await fetch('https://davidmegginson.github.io/ourairports-data/airports.csv');
       if (apRes.ok) {
