@@ -486,14 +486,29 @@ export default function TripLegCard({
 
   const isFirstLegUsDeparture = legIndex === 0 && totalLegs > 1 && leg.airportIcao.length === 4 && isUsAirport(leg.airportIcao);
   const isCommercialFlight = flightType === 'non-scheduled-commercial' || flightType === 'commercial';
+  const isPrivateFlight = flightType === 'private';
+  const isUsDeparture = leg.airportIcao.length === 4 && isUsAirport(leg.airportIcao);
 
   const handleLookupAll = useCallback(() => {
     if (leg.airportIcao.length !== 4) return;
 
-    // First departure from a US airport: no inbound CIQ/CBP needed
-    if (isFirstLegUsDeparture) {
-      // For commercial flights, show outbound customs notification guidance
-      if (isCommercialFlight) {
+    if (isUsDeparture) {
+      if (isPrivateFlight) {
+        // Private flights departing any US airport: green CIQ, only outbound APIS needed
+        update({
+          cbpResult: null,
+          ciqResult: {
+            success: true,
+            icao: leg.airportIcao,
+            country: 'United States',
+            airportName: leg.airportCity || leg.airportIcao,
+            ciqAvailable: 'yes',
+            notes: 'Only Outbound APIS is required.',
+          },
+          customsAvailable: true,
+        });
+      } else if (isCommercialFlight && isFirstLegUsDeparture) {
+        // Commercial first-leg US departure: outbound customs + eAPIS
         update({
           cbpResult: null,
           ciqResult: {
@@ -507,11 +522,9 @@ export default function TripLegCard({
           customsAvailable: true,
         });
       } else {
-        // Private flights departing US: no CIQ card needed at all
-        update({ cbpResult: null, ciqResult: null });
+        // Other flight types at US airports: do normal CBP lookup
+        handleCbpLookup();
       }
-    } else if (isUsAirport(leg.airportIcao)) {
-      handleCbpLookup();
     } else {
       update({ cbpResult: null });
       handleCiqLookup();
@@ -522,7 +535,7 @@ export default function TripLegCard({
     handleChargesLookup();
     handlePprLookup();
     handleAirportHoursLookup();
-  }, [leg.airportIcao, isFirstLegUsDeparture, isCommercialFlight, leg.airportCity, handleCbpLookup, handleCiqLookup, handleRunwayLookup, handlePermitLookup, handleChargesLookup, handlePprLookup, handleAirportHoursLookup]);
+  }, [leg.airportIcao, isUsDeparture, isPrivateFlight, isFirstLegUsDeparture, isCommercialFlight, leg.airportCity, handleCbpLookup, handleCiqLookup, handleRunwayLookup, handlePermitLookup, handleChargesLookup, handlePprLookup, handleAirportHoursLookup]);
 
   // Register lookup function with parent
   useEffect(() => {
