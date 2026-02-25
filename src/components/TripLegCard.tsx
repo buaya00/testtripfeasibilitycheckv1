@@ -398,8 +398,18 @@ export default function TripLegCard({
         try { const t = await (error as any).context?.text?.(); if (t) { const p = JSON.parse(t); if (p.error) errorMsg = p.error; } } catch { /* ignore */ }
         update({ permitResult: { success: false, icao: leg.airportIcao, error: errorMsg } });
       } else {
+        const permitRes = res as PermitResult;
+        // Iceland: no landing permit required for private & non-scheduled commercial
+        const isIceland = /iceland/i.test(permitRes.country || '');
+        const isPrivateOrCharter = flightType === 'private' || flightType === 'non-scheduled-commercial';
+        if (isIceland && isPrivateOrCharter && (permitRes.permitRequired === 'yes' || permitRes.permitRequired === 'conditional')) {
+          permitRes.permitRequired = 'no';
+          permitRes.notes = permitRes.notes
+            ? `${permitRes.notes}. No landing permit required for private/non-scheduled commercial flights.`
+            : 'No landing permit required for private/non-scheduled commercial flights.';
+        }
         // 'conditional' means PPR/slot requirements only — no formal permit required
-        update({ permitResult: res as PermitResult, permitRequired: res?.permitRequired === 'yes' });
+        update({ permitResult: permitRes, permitRequired: permitRes.permitRequired === 'yes' });
       }
     } catch { update({ permitResult: { success: false, icao: leg.airportIcao, error: 'Failed to connect' } }); }
     finally { setPermitLoading(false); }
