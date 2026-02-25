@@ -459,7 +459,7 @@ export default function TripLegCard({
     setPprLoading(true);
     update({ pprResult: null });
     try {
-      const { data: res, error } = await supabase.functions.invoke('ppr-lookup', { body: { icao: leg.airportIcao, flightType: flightType || undefined, aircraftType: aircraftType || undefined } });
+      const { data: res, error } = await supabase.functions.invoke('ppr-lookup', { body: { icao: leg.airportIcao, flightType: flightType || undefined, aircraftType: aircraftType || undefined, airportName: leg.airportCity || undefined } });
       if (error) {
         let errorMsg = error.message;
         try { const t = await (error as any).context?.text?.(); if (t) { const p = JSON.parse(t); if (p.error) errorMsg = p.error; } } catch { /* ignore */ }
