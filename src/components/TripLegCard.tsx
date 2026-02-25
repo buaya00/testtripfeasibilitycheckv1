@@ -528,7 +528,7 @@ export default function TripLegCard({
             country: 'United States',
             airportName: leg.airportCity || leg.airportIcao,
             ciqAvailable: 'yes',
-            notes: 'Outbound US Customs notification is not required for private flights.',
+            notes: 'Outbound US Customs notification is not required for private flights. eAPIS outbound filing is required prior to departure.',
           },
           customsAvailable: true,
         });
