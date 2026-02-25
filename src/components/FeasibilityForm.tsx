@@ -40,6 +40,8 @@ export default function FeasibilityForm() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [checkAllError, setCheckAllError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const dragCounter = useRef(0);
   // Convert logo to data URL for printable reports
   useEffect(() => {
     const img = new Image();
@@ -623,6 +625,26 @@ export default function FeasibilityForm() {
               if (f) handleDocumentUpload(f);
             }}
           />
+          <div
+            className={cn(
+              "relative rounded-lg border-2 border-dashed transition-colors p-3",
+              isDragOver ? "border-primary bg-primary/5" : "border-transparent"
+            )}
+            onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); dragCounter.current++; setIsDragOver(true); }}
+            onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+            onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); dragCounter.current--; if (dragCounter.current === 0) setIsDragOver(false); }}
+            onDrop={(e) => {
+              e.preventDefault(); e.stopPropagation();
+              dragCounter.current = 0; setIsDragOver(false);
+              const f = e.dataTransfer.files?.[0];
+              if (f) handleDocumentUpload(f);
+            }}
+          >
+            {isDragOver && (
+              <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-primary/10 z-10 pointer-events-none">
+                <p className="text-sm font-medium text-primary flex items-center gap-2"><Upload className="h-4 w-4" /> Drop schedule file here</p>
+              </div>
+            )}
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <h2 className="text-lg font-semibold">Trip Legs</h2>
             <div className="flex items-center gap-2 flex-wrap">
@@ -666,6 +688,7 @@ export default function FeasibilityForm() {
                 )}
               </Button>
             </div>
+          </div>
           </div>
 
           {/* Overflight auto-run toggle */}
