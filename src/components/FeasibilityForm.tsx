@@ -215,7 +215,31 @@ export default function FeasibilityForm() {
       if (error) {
         setOverflightResults(prev => ({ ...prev, [fromIdx]: { success: false, error: error.message } }));
       } else {
-        setOverflightResults(prev => ({ ...prev, [fromIdx]: res as OverflightResult }));
+        // Normalize: if permit is "required" only for non-ICAO member countries, treat as not required
+        const result = res as OverflightResult;
+        if (result.countries) {
+          const icaoExemptPattern = /non[- ]?icao\s+member/i;
+          result.countries = result.countries.map(c => {
+            if (
+              (c.overflightPermitRequired === 'yes' || c.overflightPermitRequired === 'conditional') &&
+              (icaoExemptPattern.test(c.conditions || '') || icaoExemptPattern.test(c.notes || ''))
+            ) {
+              return {
+                ...c,
+                overflightPermitRequired: 'no' as const,
+                notes: c.notes
+                  ? `${c.notes} (Permit only required for non-ICAO member states)`
+                  : 'Permit only required for non-ICAO member states',
+              };
+            }
+            return c;
+          });
+          // Recalculate totals
+          result.totalPermitsNeeded = result.countries.filter(
+            c => c.overflightPermitRequired === 'yes' || c.overflightPermitRequired === 'conditional'
+          ).length;
+        }
+        setOverflightResults(prev => ({ ...prev, [fromIdx]: result }));
       }
     } catch {
       setOverflightResults(prev => ({ ...prev, [fromIdx]: { success: false, error: 'Failed to connect' } }));
