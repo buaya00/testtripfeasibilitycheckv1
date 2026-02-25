@@ -519,7 +519,7 @@ export default function TripLegCard({
       });
     } else if (isUsDeparture) {
       if (isPrivateFlight) {
-        // Private flights departing any US airport (international): green CIQ, only outbound APIS needed
+        // Private flights departing US to non-US: no outbound customs notification required
         update({
           cbpResult: null,
           ciqResult: {
@@ -528,7 +528,7 @@ export default function TripLegCard({
             country: 'United States',
             airportName: leg.airportCity || leg.airportIcao,
             ciqAvailable: 'yes',
-            notes: 'Only Outbound APIS is required.',
+            notes: 'Outbound US Customs notification is not required for private flights.',
           },
           customsAvailable: true,
         });
