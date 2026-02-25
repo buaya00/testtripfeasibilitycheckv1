@@ -58,6 +58,25 @@ Deno.serve(async (req) => {
       console.log(`Resolved airport name for ${icao}: ${airportName || 'unknown'}`);
     }
 
+    // ── Iceland: no PPR requirements ────────────────────────────────
+    if (icao.startsWith('BI')) {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          icao,
+          country: 'Iceland',
+          airportName: airportName || undefined,
+          pprRequired: 'no',
+          advanceNoticePeriod: 'N/A',
+          slotRequired: false,
+          conditions: 'Iceland does not have PPR requirements.',
+          notes: 'No PPR required for any flight type in Iceland.',
+          confidence: 'high',
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const flightTypeDesc = flightType === 'private'
       ? 'Private / general aviation (non-commercial)'
       : flightType === 'non-scheduled-commercial'
