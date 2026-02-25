@@ -9,7 +9,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { icao, flightType, aircraftType } = await req.json();
+    const { icao, flightType, aircraftType, airportName } = await req.json();
 
     if (!icao || typeof icao !== 'string' || !/^[A-Z]{4}$/.test(icao)) {
       return new Response(
@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
               },
               {
                 role: 'user',
-                content: `Search for the current Prior Permission Required (PPR) and slot requirements for airport ICAO "${icao}" for a ${flightTypeDesc} operation${aircraftType ? ` in a ${aircraftType}` : ''}. Check the airport's official AIP entry, CAA website, or airport authority page. Include: whether PPR is mandatory, advance notice period, how to obtain it (contact details if available), and any slot or handling requirements.`,
+                content: `Search for the current Prior Permission Required (PPR) and slot requirements for airport ICAO "${icao}"${airportName ? ` (${airportName})` : ''} for a ${flightTypeDesc} operation${aircraftType ? ` in a ${aircraftType}` : ''}. Check the airport's official AIP entry, CAA website, or airport authority page. Include: whether PPR is mandatory, advance notice period, how to obtain it (contact details if available), and any slot or handling requirements.`,
               },
             ],
             search_domain_filter: [
@@ -83,7 +83,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    const prompt = `Given the ICAO airport code "${icao}", determine if Prior Permission Required (PPR) applies for landing at this airport.
+    const prompt = `Given the ICAO airport code "${icao}"${airportName ? ` which is ${airportName}` : ''}, determine if Prior Permission Required (PPR) applies for landing at this airport.
 
 ${perplexityContext ? `## Official source research (use as primary reference):\n${perplexityContext}\n\n---\n` : ''}
 Consider:
