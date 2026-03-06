@@ -31,16 +31,45 @@ interface RouteMapPreviewProps {
   overflightResult: OverflightResult;
 }
 
+/**
+ * Interpolate points along a great circle arc between two coordinates.
+ */
+function greatCirclePoints(
+  lat1: number, lon1: number,
+  lat2: number, lon2: number,
+  numPoints = 100,
+): [number, number][] {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const toDeg = (r: number) => (r * 180) / Math.PI;
+  const φ1 = toRad(lat1), λ1 = toRad(lon1);
+  const φ2 = toRad(lat2), λ2 = toRad(lon2);
+  const d = 2 * Math.asin(
+    Math.sqrt(
+      Math.sin((φ2 - φ1) / 2) ** 2 +
+      Math.cos(φ1) * Math.cos(φ2) * Math.sin((λ2 - λ1) / 2) ** 2,
+    ),
+  );
+  if (d < 1e-10) return [[lon1, lat1], [lon2, lat2]];
+  const points: [number, number][] = [];
+  for (let i = 0; i <= numPoints; i++) {
+    const f = i / numPoints;
+    const A = Math.sin((1 - f) * d) / Math.sin(d);
+    const B = Math.sin(f * d) / Math.sin(d);
+    const x = A * Math.cos(φ1) * Math.cos(λ1) + B * Math.cos(φ2) * Math.cos(λ2);
+    const y = A * Math.cos(φ1) * Math.sin(λ1) + B * Math.cos(φ2) * Math.sin(λ2);
+    const z = A * Math.sin(φ1) + B * Math.sin(φ2);
+    points.push([toDeg(Math.atan2(y, x)), toDeg(Math.atan2(z, Math.sqrt(x * x + y * y)))]);
+  }
+  return points;
+}
+
 function buildRouteGeoJSON(origin: RoutePoint, destination: RoutePoint) {
   return {
     type: "Feature" as const,
     properties: {},
     geometry: {
       type: "LineString" as const,
-      coordinates: [
-        [origin.lon, origin.lat],
-        [destination.lon, destination.lat],
-      ],
+      coordinates: greatCirclePoints(origin.lat, origin.lon, destination.lat, destination.lon),
     },
   };
 }
