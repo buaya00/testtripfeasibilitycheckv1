@@ -22,6 +22,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import TripLegCard, { evaluateLegFeasibility } from "./TripLegCard";
+import RouteMapPreview from "./RouteMapPreview";
 import FuelTankeringPanel from "./FuelTankeringPanel";
 import type {
   LegData, OverflightResult, VisaCheckResult, PetCheckResult, CabotageResult,
