@@ -22,6 +22,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import TripLegCard, { evaluateLegFeasibility } from "./TripLegCard";
+import RouteMapPreview from "./RouteMapPreview";
 import FuelTankeringPanel from "./FuelTankeringPanel";
 import type {
   LegData, OverflightResult, VisaCheckResult, PetCheckResult, CabotageResult,
@@ -897,6 +898,15 @@ export default function FeasibilityForm() {
                         ? `Overflight: ${leg.airportIcao} → ${legs[idx + 1].airportIcao}`
                         : 'Overflight route'}
                     </span>
+                    {overflightResults[idx] && !overflightLoading[idx] &&
+                      leg.runwayResult?.latitude != null && leg.runwayResult?.longitude != null &&
+                      legs[idx + 1]?.runwayResult?.latitude != null && legs[idx + 1]?.runwayResult?.longitude != null && (
+                      <RouteMapPreview
+                        origin={{ icao: leg.airportIcao, lat: leg.runwayResult.latitude, lon: leg.runwayResult.longitude }}
+                        destination={{ icao: legs[idx + 1].airportIcao, lat: legs[idx + 1].runwayResult!.latitude!, lon: legs[idx + 1].runwayResult!.longitude! }}
+                        overflightResult={overflightResults[idx]!}
+                      />
+                    )}
                     <Button
                       type="button" variant="ghost" size="sm"
                       onClick={() => handleOverflightBetweenLegs(idx)}
