@@ -270,10 +270,11 @@ export default function RouteMapPreview({
           <button
             type="button"
             onClick={handleClick}
-            className="inline-flex items-center justify-center h-5 w-5 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+            className="inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/5 px-2.5 py-1 text-[11px] font-medium text-primary hover:bg-primary/15 hover:border-primary/40 transition-all shadow-sm"
             title="View route map"
           >
-            <MapPin className="h-3.5 w-3.5" />
+            <MapPin className="h-3 w-3" />
+            <span>Route Map</span>
           </button>
         </HoverCardTrigger>
         <HoverCardContent
