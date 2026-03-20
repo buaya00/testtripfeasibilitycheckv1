@@ -970,9 +970,12 @@ export default function TripLegCard({
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar mode="single" selected={leg.departureDate} onSelect={(d) => update({ departureDate: d })} initialFocus defaultMonth={leg.departureDate ?? leg.arrivalDate ?? previousLegDepartureDate} className="p-3 pointer-events-auto" />
+                      <Calendar mode="single" selected={leg.departureDate} onSelect={(d) => update({ departureDate: d })} initialFocus defaultMonth={leg.departureDate ?? leg.arrivalDate ?? previousLegDepartureDate} className="p-3 pointer-events-auto" disabled={(date) => isDateInPast(date)} />
                     </PopoverContent>
                   </Popover>
+                  {leg.departureDate && isDateInPast(leg.departureDate) && (
+                    <p className="text-[11px] text-destructive mt-0.5">{PAST_DATE_MSG}</p>
+                  )}
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Departure Time</Label>
@@ -994,6 +997,9 @@ export default function TripLegCard({
                         <SelectContent>{TIMES.map((t) => <SelectItem key={`d-lcl-${t}`} value={t}>{t}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
+                    {leg.departureDate && leg.departureTime && isDateTimeInPast(leg.departureDate, leg.departureTime) && !isDateInPast(leg.departureDate) && (
+                      <p className="text-[11px] text-destructive">{PAST_DATE_MSG}</p>
+                    )}
                   </div>
                 </div>
               </>
