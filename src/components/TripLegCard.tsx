@@ -95,6 +95,25 @@ function isTimeInRange(time: string, open: string, close: string): boolean {
   return t >= o || t <= c;
 }
 
+/** Returns true if the given date+utcTime combination is in the past */
+function isDateTimeInPast(date: Date | undefined, utcTime: string): boolean {
+  if (!date || !utcTime) return false;
+  const now = new Date();
+  const [h, m] = utcTime.split(':').map(Number);
+  const dt = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), h, m));
+  return dt.getTime() < now.getTime();
+}
+
+/** Returns true if a date is before today (UTC) */
+function isDateInPast(date: Date): boolean {
+  const now = new Date();
+  const todayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const dateUtc = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  return dateUtc.getTime() < todayUtc.getTime();
+}
+
+const PAST_DATE_MSG = "Past dates and times are not allowed. Please select a current or future value.";
+
 function isUsAirport(icao: string) {
   return icao.startsWith('K') || icao.startsWith('PA') || icao.startsWith('PH') || icao.startsWith('PG') || icao.startsWith('TJ');
 }
@@ -167,6 +186,18 @@ export function evaluateLegFeasibility(
 
   if (leg.arrivalDate && leg.departureDate && leg.arrivalDate > leg.departureDate) {
     issues.push("Departure date is before arrival date");
+  }
+
+  // Past date/time validation
+  if (showArrival && leg.arrivalDate && isDateInPast(leg.arrivalDate)) {
+    issues.push("Arrival date is in the past");
+  } else if (showArrival && leg.arrivalDate && leg.arrivalTime && isDateTimeInPast(leg.arrivalDate, leg.arrivalTime)) {
+    issues.push("Arrival date/time is in the past");
+  }
+  if (showDeparture && leg.departureDate && isDateInPast(leg.departureDate)) {
+    issues.push("Departure date is in the past");
+  } else if (showDeparture && leg.departureDate && leg.departureTime && isDateTimeInPast(leg.departureDate, leg.departureTime)) {
+    issues.push("Departure date/time is in the past");
   }
 
   const isUs = leg.airportIcao ? isUsAirport(leg.airportIcao.toUpperCase()) : false;
@@ -887,9 +918,12 @@ export default function TripLegCard({
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar mode="single" selected={leg.arrivalDate} onSelect={(d) => update({ arrivalDate: d })} initialFocus defaultMonth={leg.arrivalDate ?? previousLegDepartureDate} className="p-3 pointer-events-auto" />
+                      <Calendar mode="single" selected={leg.arrivalDate} onSelect={(d) => update({ arrivalDate: d })} initialFocus defaultMonth={leg.arrivalDate ?? previousLegDepartureDate} className="p-3 pointer-events-auto" disabled={(date) => isDateInPast(date)} />
                     </PopoverContent>
                   </Popover>
+                  {leg.arrivalDate && isDateInPast(leg.arrivalDate) && (
+                    <p className="text-[11px] text-destructive mt-0.5">{PAST_DATE_MSG}</p>
+                  )}
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Arrival Time</Label>
@@ -911,6 +945,9 @@ export default function TripLegCard({
                         <SelectContent>{TIMES.map((t) => <SelectItem key={`a-lcl-${t}`} value={t}>{t}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
+                    {leg.arrivalDate && leg.arrivalTime && isDateTimeInPast(leg.arrivalDate, leg.arrivalTime) && !isDateInPast(leg.arrivalDate) && (
+                      <p className="text-[11px] text-destructive">{PAST_DATE_MSG}</p>
+                    )}
                   </div>
                 </div>
               </>
@@ -933,9 +970,12 @@ export default function TripLegCard({
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar mode="single" selected={leg.departureDate} onSelect={(d) => update({ departureDate: d })} initialFocus defaultMonth={leg.departureDate ?? leg.arrivalDate ?? previousLegDepartureDate} className="p-3 pointer-events-auto" />
+                      <Calendar mode="single" selected={leg.departureDate} onSelect={(d) => update({ departureDate: d })} initialFocus defaultMonth={leg.departureDate ?? leg.arrivalDate ?? previousLegDepartureDate} className="p-3 pointer-events-auto" disabled={(date) => isDateInPast(date)} />
                     </PopoverContent>
                   </Popover>
+                  {leg.departureDate && isDateInPast(leg.departureDate) && (
+                    <p className="text-[11px] text-destructive mt-0.5">{PAST_DATE_MSG}</p>
+                  )}
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Departure Time</Label>
@@ -957,6 +997,9 @@ export default function TripLegCard({
                         <SelectContent>{TIMES.map((t) => <SelectItem key={`d-lcl-${t}`} value={t}>{t}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
+                    {leg.departureDate && leg.departureTime && isDateTimeInPast(leg.departureDate, leg.departureTime) && !isDateInPast(leg.departureDate) && (
+                      <p className="text-[11px] text-destructive">{PAST_DATE_MSG}</p>
+                    )}
                   </div>
                 </div>
               </>
