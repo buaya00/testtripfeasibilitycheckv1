@@ -188,6 +188,18 @@ export function evaluateLegFeasibility(
     issues.push("Departure date is before arrival date");
   }
 
+  // Past date/time validation
+  if (showArrival && leg.arrivalDate && isDateInPast(leg.arrivalDate)) {
+    issues.push("Arrival date is in the past");
+  } else if (showArrival && leg.arrivalDate && leg.arrivalTime && isDateTimeInPast(leg.arrivalDate, leg.arrivalTime)) {
+    issues.push("Arrival date/time is in the past");
+  }
+  if (showDeparture && leg.departureDate && isDateInPast(leg.departureDate)) {
+    issues.push("Departure date is in the past");
+  } else if (showDeparture && leg.departureDate && leg.departureTime && isDateTimeInPast(leg.departureDate, leg.departureTime)) {
+    issues.push("Departure date/time is in the past");
+  }
+
   const isUs = leg.airportIcao ? isUsAirport(leg.airportIcao.toUpperCase()) : false;
 
   if (leg.permitRequired) notes.push("Landing permit must be obtained prior to ops");
