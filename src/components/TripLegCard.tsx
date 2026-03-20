@@ -95,6 +95,25 @@ function isTimeInRange(time: string, open: string, close: string): boolean {
   return t >= o || t <= c;
 }
 
+/** Returns true if the given date+utcTime combination is in the past */
+function isDateTimeInPast(date: Date | undefined, utcTime: string): boolean {
+  if (!date || !utcTime) return false;
+  const now = new Date();
+  const [h, m] = utcTime.split(':').map(Number);
+  const dt = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), h, m));
+  return dt.getTime() < now.getTime();
+}
+
+/** Returns true if a date is before today (UTC) */
+function isDateInPast(date: Date): boolean {
+  const now = new Date();
+  const todayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const dateUtc = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  return dateUtc.getTime() < todayUtc.getTime();
+}
+
+const PAST_DATE_MSG = "Past dates and times are not allowed. Please select a current or future value.";
+
 function isUsAirport(icao: string) {
   return icao.startsWith('K') || icao.startsWith('PA') || icao.startsWith('PH') || icao.startsWith('PG') || icao.startsWith('TJ');
 }
