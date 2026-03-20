@@ -945,6 +945,9 @@ export default function TripLegCard({
                         <SelectContent>{TIMES.map((t) => <SelectItem key={`a-lcl-${t}`} value={t}>{t}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
+                    {leg.arrivalDate && leg.arrivalTime && isDateTimeInPast(leg.arrivalDate, leg.arrivalTime) && !isDateInPast(leg.arrivalDate) && (
+                      <p className="text-[11px] text-destructive">{PAST_DATE_MSG}</p>
+                    )}
                   </div>
                 </div>
               </>
