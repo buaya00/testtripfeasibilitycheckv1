@@ -3,7 +3,7 @@ import { format } from "date-fns";
 import {
   CalendarIcon, CheckCircle2, XCircle, AlertTriangle, Search, Loader2,
   ExternalLink, PlaneLanding, Shield, DollarSign, Clock, ChevronDown, ChevronUp,
-  FileText, Plus, Trash2, Tag, ShieldCheck, ClipboardList, Building2, Timer, RefreshCw,
+  FileText, Plus, Trash2, Tag, ShieldCheck, ClipboardList, Building2, Timer, RefreshCw, Plane,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -327,10 +327,11 @@ interface TripLegCardProps {
   onRegisterLookup?: (index: number, fn: (() => void) | null) => void;
   onNavigateLeg?: (toIndex: number) => void;
   onRefreshLeg?: (index: number) => void;
+  arrivalAutoCalculated?: boolean;
 }
 
 export default function TripLegCard({
-  leg, legIndex, totalLegs, aircraftType, flightType, aircraftNationality, overflightResult, previousLegDepartureDate, nextLegIcao, expanded: expandedProp, onToggleExpanded, onUpdateLeg, onRemoveLeg, onRegisterLookup, onNavigateLeg, onRefreshLeg,
+  leg, legIndex, totalLegs, aircraftType, flightType, aircraftNationality, overflightResult, previousLegDepartureDate, nextLegIcao, expanded: expandedProp, onToggleExpanded, onUpdateLeg, onRemoveLeg, onRegisterLookup, onNavigateLeg, onRefreshLeg, arrivalAutoCalculated,
 }: TripLegCardProps) {
   const [localExpanded, setLocalExpanded] = useState(true);
   const expanded = expandedProp !== undefined ? expandedProp : localExpanded;
@@ -904,7 +905,15 @@ export default function TripLegCard({
             {(totalLegs === 1 || legIndex > 0) && (
               <>
                 <div className="space-y-1">
-                  <Label className="text-xs">Arrival Date</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label className="text-xs">Arrival Date</Label>
+                    {arrivalAutoCalculated && (
+                      <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-medium text-primary border border-primary/20">
+                        <Plane className="h-2.5 w-2.5" />
+                        Auto
+                      </span>
+                    )}
+                  </div>
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !leg.arrivalDate && "text-muted-foreground")}>
@@ -926,7 +935,24 @@ export default function TripLegCard({
                   )}
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Arrival Time</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label className="text-xs">Arrival Time</Label>
+                    {arrivalAutoCalculated && (
+                      <TooltipProvider delayDuration={200}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-medium text-primary border border-primary/20 cursor-help">
+                              <Plane className="h-2.5 w-2.5" />
+                              Calculated
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-[220px] text-xs">
+                            Auto-calculated from previous leg departure time + estimated flight duration. You can override this manually.
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                  </div>
                   <div className="space-y-1.5">
                     <div className="space-y-0.5">
                       <span className="text-[10px] text-muted-foreground uppercase tracking-wide">UTC</span>

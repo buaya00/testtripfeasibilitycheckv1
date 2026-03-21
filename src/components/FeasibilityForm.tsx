@@ -519,6 +519,70 @@ export default function FeasibilityForm() {
     return calcs;
   }, [legs, aircraftType]);
 
+  // Track which legs have auto-calculated arrival times
+  const [autoCalcLegs, setAutoCalcLegs] = useState<Set<number>>(new Set());
+
+  // Auto-populate arrival date/time for each leg from previous leg's departure + flight time
+  useEffect(() => {
+    if (legs.length < 2) return;
+    const newAutoCalc = new Set<number>();
+    let needsUpdate = false;
+    const updates: { idx: number; arrivalDate: Date; arrivalTime: string }[] = [];
+
+    for (let i = 1; i < legs.length; i++) {
+      const prevLeg = legs[i - 1];
+      const calc = flightCalcs[i - 1];
+      if (!prevLeg.departureDate || !prevLeg.departureTime || !calc || calc.flightTimeMinutes <= 0) continue;
+
+      // Compute arrival = departure + flight time
+      const [dh, dm] = prevLeg.departureTime.split(':').map(Number);
+      const depUtc = new Date(Date.UTC(
+        prevLeg.departureDate.getFullYear(),
+        prevLeg.departureDate.getMonth(),
+        prevLeg.departureDate.getDate(),
+        dh, dm,
+      ));
+      const arrUtc = new Date(depUtc.getTime() + calc.flightTimeMinutes * 60 * 1000);
+
+      const arrDate = new Date(arrUtc.getUTCFullYear(), arrUtc.getUTCMonth(), arrUtc.getUTCDate());
+      const arrTime = `${String(arrUtc.getUTCHours()).padStart(2, '0')}:${String(arrUtc.getUTCMinutes()).padStart(2, '0')}`;
+
+      // Round to nearest 15 min
+      const totalMin = arrUtc.getUTCHours() * 60 + arrUtc.getUTCMinutes();
+      const rounded = Math.round(totalMin / 15) * 15;
+      const wrappedMin = ((rounded % 1440) + 1440) % 1440;
+      const roundedTime = `${String(Math.floor(wrappedMin / 60)).padStart(2, '0')}:${String(wrappedMin % 60).padStart(2, '0')}`;
+      // If rounded past midnight, adjust date
+      const finalDate = rounded >= 1440 ? new Date(arrDate.getTime() + 86400000) : arrDate;
+      const finalTime = roundedTime;
+
+      const currentLeg = legs[i];
+      // Only auto-populate if different from current value
+      const currentArrDateStr = currentLeg.arrivalDate?.toDateString();
+      const newArrDateStr = finalDate.toDateString();
+      if (currentArrDateStr !== newArrDateStr || currentLeg.arrivalTime !== finalTime) {
+        updates.push({ idx: i, arrivalDate: finalDate, arrivalTime: finalTime });
+      }
+      newAutoCalc.add(i);
+    }
+
+    setAutoCalcLegs(newAutoCalc);
+
+    if (updates.length > 0) {
+      setLegs(prev => prev.map((leg, i) => {
+        const upd = updates.find(u => u.idx === i);
+        if (!upd) return leg;
+        return { ...leg, arrivalDate: upd.arrivalDate, arrivalTime: upd.arrivalTime };
+      }));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    // Re-run when departure times, dates, or flight calcs change
+    ...legs.map(l => l.departureTime),
+    ...legs.map(l => l.departureDate?.getTime()),
+    JSON.stringify(Object.entries(flightCalcs).map(([k, v]) => [k, v.flightTimeMinutes])),
+  ]);
+
   // Compute trip totals
   const isFormReady = !!aircraftType && !!flightType;
 
@@ -840,6 +904,7 @@ export default function FeasibilityForm() {
                 overflightResult={overflightResults[idx] ?? null}
                 previousLegDepartureDate={idx > 0 ? legs[idx - 1].departureDate : undefined}
                 nextLegIcao={idx < legs.length - 1 ? legs[idx + 1].airportIcao : undefined}
+                arrivalAutoCalculated={autoCalcLegs.has(idx)}
                 expanded={isLegExpanded(idx)}
                 onToggleExpanded={() => toggleLegExpanded(idx)}
                 onUpdateLeg={updateLeg}
