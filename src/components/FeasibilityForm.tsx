@@ -586,16 +586,16 @@ export default function FeasibilityForm() {
   // ── Landing-country overflight exemption ────────────────────────────
   // Collect all countries where the aircraft lands (departs from or arrives at)
   // across the entire route. Overflight permits for these countries are waived.
-  const landingCountries = useMemo(() => {
+  const landingCountriesLower = useMemo(() => {
     const countries = new Set<string>();
     legs.forEach(leg => {
       const c = leg.permitResult?.country || leg.chargesResult?.country || leg.pprResult?.country;
-      if (c) countries.add(c);
+      if (c) countries.add(c.toLowerCase());
     });
     // Also include origin/destination from overflight results themselves
     Object.values(overflightResults).forEach(r => {
-      if (r?.originCountry) countries.add(r.originCountry);
-      if (r?.destinationCountry) countries.add(r.destinationCountry);
+      if (r?.originCountry) countries.add(r.originCountry.toLowerCase());
+      if (r?.destinationCountry) countries.add(r.destinationCountry.toLowerCase());
     });
     return countries;
   }, [legs, overflightResults]);
@@ -609,10 +609,15 @@ export default function FeasibilityForm() {
         processed[idx] = result;
         continue;
       }
+      // Build set of landing countries for THIS sector too (origin + destination)
+      const sectorLanding = new Set(landingCountriesLower);
+      if (result.originCountry) sectorLanding.add(result.originCountry.toLowerCase());
+      if (result.destinationCountry) sectorLanding.add(result.destinationCountry.toLowerCase());
+
       const updatedCountries = result.countries.map(c => {
         if (
           (c.overflightPermitRequired === 'yes' || c.overflightPermitRequired === 'conditional') &&
-          landingCountries.has(c.country)
+          sectorLanding.has(c.country.toLowerCase())
         ) {
           return {
             ...c,
@@ -628,7 +633,7 @@ export default function FeasibilityForm() {
       processed[idx] = { ...result, countries: updatedCountries, totalPermitsNeeded };
     }
     return processed;
-  }, [overflightResults, landingCountries]);
+  }, [overflightResults, landingCountriesLower]);
 
   // Compute trip totals
   const isFormReady = !!aircraftType && !!flightType;
