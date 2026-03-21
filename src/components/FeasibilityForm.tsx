@@ -530,6 +530,10 @@ export default function FeasibilityForm() {
     const updates: { idx: number; arrivalDate: Date; arrivalTime: string }[] = [];
 
     for (let i = 1; i < legs.length; i++) {
+      const currentLeg = legs[i];
+      // Skip legs where the user has manually edited arrival fields
+      if (currentLeg.arrivalManuallyEdited) continue;
+
       const prevLeg = legs[i - 1];
       const calc = flightCalcs[i - 1];
       if (!prevLeg.departureDate || !prevLeg.departureTime || !calc || calc.flightTimeMinutes <= 0) continue;
@@ -545,7 +549,6 @@ export default function FeasibilityForm() {
       const arrUtc = new Date(depUtc.getTime() + calc.flightTimeMinutes * 60 * 1000);
 
       const arrDate = new Date(arrUtc.getUTCFullYear(), arrUtc.getUTCMonth(), arrUtc.getUTCDate());
-      const arrTime = `${String(arrUtc.getUTCHours()).padStart(2, '0')}:${String(arrUtc.getUTCMinutes()).padStart(2, '0')}`;
 
       // Round to nearest 15 min
       const totalMin = arrUtc.getUTCHours() * 60 + arrUtc.getUTCMinutes();
@@ -556,7 +559,6 @@ export default function FeasibilityForm() {
       const finalDate = rounded >= 1440 ? new Date(arrDate.getTime() + 86400000) : arrDate;
       const finalTime = roundedTime;
 
-      const currentLeg = legs[i];
       // Only auto-populate if different from current value
       const currentArrDateStr = currentLeg.arrivalDate?.toDateString();
       const newArrDateStr = finalDate.toDateString();

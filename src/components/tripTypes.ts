@@ -369,6 +369,8 @@ export interface LegData {
   arrivalDate: Date | undefined;
   /** Stored as UTC HH:MM */
   arrivalTime: string;
+  /** True when the user has manually edited arrival date or time (prevents auto-calc overwrite) */
+  arrivalManuallyEdited: boolean;
   departureDate: Date | undefined;
   /** Stored as UTC HH:MM */
   departureTime: string;
@@ -403,6 +405,7 @@ export function createEmptyLeg(): LegData {
     airportCity: null,
     arrivalDate: undefined,
     arrivalTime: "",
+    arrivalManuallyEdited: false,
     departureDate: undefined,
     departureTime: "",
     utcOffsetHours: 0,

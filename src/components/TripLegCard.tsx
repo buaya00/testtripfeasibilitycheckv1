@@ -927,7 +927,7 @@ export default function TripLegCard({
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar mode="single" selected={leg.arrivalDate} onSelect={(d) => update({ arrivalDate: d })} initialFocus defaultMonth={leg.arrivalDate ?? previousLegDepartureDate} className="p-3 pointer-events-auto" disabled={(date) => isDateInPast(date)} />
+                      <Calendar mode="single" selected={leg.arrivalDate} onSelect={(d) => update({ arrivalDate: d, arrivalManuallyEdited: true })} initialFocus defaultMonth={leg.arrivalDate ?? previousLegDepartureDate} className="p-3 pointer-events-auto" disabled={(date) => isDateInPast(date)} />
                     </PopoverContent>
                   </Popover>
                   {leg.arrivalDate && isDateInPast(leg.arrivalDate) && (
@@ -956,7 +956,7 @@ export default function TripLegCard({
                   <div className="space-y-1.5">
                     <div className="space-y-0.5">
                       <span className="text-[10px] text-muted-foreground uppercase tracking-wide">UTC</span>
-                      <Select value={leg.arrivalTime} onValueChange={(v) => update({ arrivalTime: v })}>
+                      <Select value={leg.arrivalTime} onValueChange={(v) => update({ arrivalTime: v, arrivalManuallyEdited: true })}>
                         <SelectTrigger className="text-xs h-8"><SelectValue placeholder="HH:MM" /></SelectTrigger>
                         <SelectContent>{TIMES.map((t) => <SelectItem key={`a-utc-${t}`} value={t}>{t}</SelectItem>)}</SelectContent>
                       </Select>
@@ -965,7 +965,7 @@ export default function TripLegCard({
                       <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Local</span>
                       <Select
                         value={leg.arrivalTime ? utcToLocal(leg.arrivalTime, leg.utcOffsetHours) : ""}
-                        onValueChange={(v) => update({ arrivalTime: localToUtc(v, leg.utcOffsetHours) })}
+                        onValueChange={(v) => update({ arrivalTime: localToUtc(v, leg.utcOffsetHours), arrivalManuallyEdited: true })}
                       >
                         <SelectTrigger className="text-xs h-8"><SelectValue placeholder="HH:MM" /></SelectTrigger>
                         <SelectContent>{TIMES.map((t) => <SelectItem key={`a-lcl-${t}`} value={t}>{t}</SelectItem>)}</SelectContent>
