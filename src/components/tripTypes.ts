@@ -405,6 +405,7 @@ export function createEmptyLeg(): LegData {
     airportCity: null,
     arrivalDate: undefined,
     arrivalTime: "",
+    arrivalManuallyEdited: false,
     departureDate: undefined,
     departureTime: "",
     utcOffsetHours: 0,
