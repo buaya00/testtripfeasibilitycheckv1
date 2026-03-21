@@ -927,7 +927,24 @@ export default function TripLegCard({
                   )}
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Arrival Time</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label className="text-xs">Arrival Time</Label>
+                    {arrivalAutoCalculated && (
+                      <TooltipProvider delayDuration={200}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-medium text-primary border border-primary/20 cursor-help">
+                              <Plane className="h-2.5 w-2.5" />
+                              Calculated
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-[220px] text-xs">
+                            Auto-calculated from previous leg departure time + estimated flight duration. You can override this manually.
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                  </div>
                   <div className="space-y-1.5">
                     <div className="space-y-0.5">
                       <span className="text-[10px] text-muted-foreground uppercase tracking-wide">UTC</span>
