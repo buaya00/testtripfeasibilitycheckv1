@@ -927,7 +927,7 @@ export default function TripLegCard({
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar mode="single" selected={leg.arrivalDate} onSelect={(d) => update({ arrivalDate: d })} initialFocus defaultMonth={leg.arrivalDate ?? previousLegDepartureDate} className="p-3 pointer-events-auto" disabled={(date) => isDateInPast(date)} />
+                      <Calendar mode="single" selected={leg.arrivalDate} onSelect={(d) => update({ arrivalDate: d, arrivalManuallyEdited: true })} initialFocus defaultMonth={leg.arrivalDate ?? previousLegDepartureDate} className="p-3 pointer-events-auto" disabled={(date) => isDateInPast(date)} />
                     </PopoverContent>
                   </Popover>
                   {leg.arrivalDate && isDateInPast(leg.arrivalDate) && (
