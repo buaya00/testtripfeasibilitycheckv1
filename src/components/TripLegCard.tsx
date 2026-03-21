@@ -976,6 +976,13 @@ export default function TripLegCard({
                     )}
                   </div>
                 </div>
+                {/* Arrival auto-calc hint — shown when both arrival fields are empty */}
+                {!leg.arrivalDate && !leg.arrivalTime && (
+                  <p className="col-span-2 text-[11px] text-muted-foreground italic flex items-center gap-1">
+                    <Plane className="h-3 w-3 shrink-0" />
+                    Leave arrival fields blank to auto-calculate date &amp; time based on Great Circle routing.
+                  </p>
+                )}
               </>
             )}
             {/* Departure fields — hidden for the last leg when multi-leg */}
