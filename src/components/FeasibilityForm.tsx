@@ -1598,7 +1598,7 @@ export default function FeasibilityForm() {
                   className="justify-start gap-2 w-full"
                   onClick={() => {
                     const html = generatePrintableHtml({
-                      aircraftType, flightType, legs, overflightResults,
+                      aircraftType, flightType, legs, processedOverflightResults,
                       visaNationalities, visaResults, totalCharges, totalOverflightCharges, petTypes, petResults, logoDataUrl, flightCalcs,
                     });
                     const w = window.open("", "_blank");
@@ -1613,7 +1613,7 @@ export default function FeasibilityForm() {
                   className="justify-start gap-2 w-full"
                   onClick={() => {
                     const html = generatePrintableHtml({
-                      aircraftType, flightType, legs, overflightResults,
+                      aircraftType, flightType, legs, processedOverflightResults,
                       visaNationalities, visaResults, totalCharges, totalOverflightCharges, petTypes, petResults, logoDataUrl, flightCalcs,
                     });
                     const w = window.open("", "_blank");
