@@ -583,15 +583,62 @@ export default function FeasibilityForm() {
     JSON.stringify(Object.entries(flightCalcs).map(([k, v]) => [k, v.flightTimeMinutes])),
   ]);
 
+  // ── Landing-country overflight exemption ────────────────────────────
+  // Collect all countries where the aircraft lands (departs from or arrives at)
+  // across the entire route. Overflight permits for these countries are waived.
+  const landingCountries = useMemo(() => {
+    const countries = new Set<string>();
+    legs.forEach(leg => {
+      const c = leg.permitResult?.country || leg.chargesResult?.country || leg.pprResult?.country;
+      if (c) countries.add(c);
+    });
+    // Also include origin/destination from overflight results themselves
+    Object.values(overflightResults).forEach(r => {
+      if (r?.originCountry) countries.add(r.originCountry);
+      if (r?.destinationCountry) countries.add(r.destinationCountry);
+    });
+    return countries;
+  }, [legs, overflightResults]);
+
+  // Post-process overflight results: exempt landing countries from permit requirements
+  const processedOverflightResults = useMemo(() => {
+    const processed: Record<number, OverflightResult | null> = {};
+    for (const [key, result] of Object.entries(overflightResults)) {
+      const idx = Number(key);
+      if (!result || !result.countries) {
+        processed[idx] = result;
+        continue;
+      }
+      const updatedCountries = result.countries.map(c => {
+        if (
+          (c.overflightPermitRequired === 'yes' || c.overflightPermitRequired === 'conditional') &&
+          landingCountries.has(c.country)
+        ) {
+          return {
+            ...c,
+            overflightPermitRequired: 'no' as const,
+            notes: 'Not Required – Covered by Landing Permit',
+          };
+        }
+        return c;
+      });
+      const totalPermitsNeeded = updatedCountries.filter(
+        c => c.overflightPermitRequired === 'yes' || c.overflightPermitRequired === 'conditional'
+      ).length;
+      processed[idx] = { ...result, countries: updatedCountries, totalPermitsNeeded };
+    }
+    return processed;
+  }, [overflightResults, landingCountries]);
+
   // Compute trip totals
   const isFormReady = !!aircraftType && !!flightType;
 
   const totalCharges = legs.reduce((sum, l) => sum + (l.chargesResult?.totalEstimateUsd ?? 0), 0);
-  const totalOverflightCharges = Object.values(overflightResults).reduce(
+  const totalOverflightCharges = Object.values(processedOverflightResults).reduce(
     (sum, r) => sum + (r?.totalOverflightChargesUsd ?? 0), 0
   );
   const totalAegFees = legs.reduce((sum, leg) => {
-    const overflightResult = overflightResults[legs.indexOf(leg)] ?? null;
+    const overflightResult = processedOverflightResults[legs.indexOf(leg)] ?? null;
     const originCountry = overflightResult?.originCountry ?? null;
     const destinationCountry = overflightResult?.destinationCountry ?? null;
     const overflightPermitsNeeded = overflightResult?.countries?.filter(
@@ -901,7 +948,7 @@ export default function FeasibilityForm() {
                 aircraftType={aircraftType}
                 flightType={flightType}
                 aircraftNationality={aircraftNationality}
-                overflightResult={overflightResults[idx] ?? null}
+                overflightResult={processedOverflightResults[idx] ?? null}
                 previousLegDepartureDate={idx > 0 ? legs[idx - 1].departureDate : undefined}
                 nextLegIcao={idx < legs.length - 1 ? legs[idx + 1].airportIcao : undefined}
                 arrivalAutoCalculated={autoCalcLegs.has(idx)}
@@ -963,13 +1010,13 @@ export default function FeasibilityForm() {
                         ? `Overflight: ${leg.airportIcao} → ${legs[idx + 1].airportIcao}`
                         : 'Overflight route'}
                     </span>
-                    {overflightResults[idx] && !overflightLoading[idx] &&
+                    {processedOverflightResults[idx] && !overflightLoading[idx] &&
                       leg.runwayResult?.latitude != null && leg.runwayResult?.longitude != null &&
                       legs[idx + 1]?.runwayResult?.latitude != null && legs[idx + 1]?.runwayResult?.longitude != null && (
                       <RouteMapPreview
                         origin={{ icao: leg.airportIcao, lat: leg.runwayResult.latitude, lon: leg.runwayResult.longitude }}
                         destination={{ icao: legs[idx + 1].airportIcao, lat: legs[idx + 1].runwayResult!.latitude!, lon: legs[idx + 1].runwayResult!.longitude! }}
-                        overflightResult={overflightResults[idx]!}
+                        overflightResult={processedOverflightResults[idx]!}
                       />
                     )}
                     <Button
@@ -989,36 +1036,38 @@ export default function FeasibilityForm() {
                     </div>
                   )}
 
-                  {overflightResults[idx] && !overflightLoading[idx] && isLegExpanded(idx) && (
+                  {processedOverflightResults[idx] && !overflightLoading[idx] && isLegExpanded(idx) && (
                     <div className={cn("rounded-md border p-3 text-xs space-y-1.5",
-                      overflightResults[idx]!.success ? "border-primary/30 bg-primary/5" : "border-muted bg-muted/50"
+                      processedOverflightResults[idx]!.success ? "border-primary/30 bg-primary/5" : "border-muted bg-muted/50"
                     )}>
-                      {overflightResults[idx]!.routeSummary && (
-                        <p className="text-muted-foreground">{overflightResults[idx]!.routeSummary}</p>
+                      {processedOverflightResults[idx]!.routeSummary && (
+                        <p className="text-muted-foreground">{processedOverflightResults[idx]!.routeSummary}</p>
                       )}
-                      {overflightResults[idx]!.totalPermitsNeeded != null && (
+                      {processedOverflightResults[idx]!.totalPermitsNeeded != null && (
                         <p className="font-medium">
-                          {overflightResults[idx]!.totalPermitsNeeded === 0
+                          {processedOverflightResults[idx]!.totalPermitsNeeded === 0
                             ? '✅ No permits required'
-                            : `⚠️ ${overflightResults[idx]!.totalPermitsNeeded} permit${overflightResults[idx]!.totalPermitsNeeded! > 1 ? 's' : ''} required`}
+                            : `⚠️ ${processedOverflightResults[idx]!.totalPermitsNeeded} permit${processedOverflightResults[idx]!.totalPermitsNeeded! > 1 ? 's' : ''} required`}
                         </p>
                       )}
-                      {overflightResults[idx]!.totalOverflightChargesUsd != null && (
+                      {processedOverflightResults[idx]!.totalOverflightChargesUsd != null && (
                         <p className="font-medium flex items-center gap-1">
                           <DollarSign className="h-3 w-3 text-primary" />
-                          Navigation fees: ${overflightResults[idx]!.totalOverflightChargesUsd!.toLocaleString(undefined, { maximumFractionDigits: 0 })} USD
+                          Navigation fees: ${processedOverflightResults[idx]!.totalOverflightChargesUsd!.toLocaleString(undefined, { maximumFractionDigits: 0 })} USD
                         </p>
                       )}
-                      {overflightResults[idx]!.countries && (
+                      {processedOverflightResults[idx]!.countries && (
                         <div className="space-y-1">
-                          {overflightResults[idx]!.countries!.map((c, ci) => (
+                          {processedOverflightResults[idx]!.countries!.map((c, ci) => (
                             <div key={ci} className={cn("rounded bg-background/50 px-2 py-1 space-y-0.5",
                               c.overflightPermitRequired === 'yes' ? "border-l-2 border-l-warning" : c.overflightPermitRequired === 'no' ? "border-l-2 border-l-success" : "border-l-2 border-l-muted-foreground"
                             )}>
                               <p className="font-medium">
                                 {c.overflightPermitRequired === 'yes' ? '⚠️' : '✅'} {c.country}
                                 <span className="font-normal text-muted-foreground ml-1">
-                                  — {c.overflightPermitRequired === 'yes' ? 'Permit required' : c.overflightPermitRequired === 'no' ? 'No permit' : 'Conditional'}
+                                  — {c.notes === 'Not Required – Covered by Landing Permit'
+                                    ? 'Not Required – Covered by Landing Permit'
+                                    : c.overflightPermitRequired === 'yes' ? 'Permit required' : c.overflightPermitRequired === 'no' ? 'No permit' : 'Conditional'}
                                 </span>
                               </p>
                               {c.leadTimeDays != null && <p>Lead time: {c.leadTimeDays}d</p>}
@@ -1028,8 +1077,8 @@ export default function FeasibilityForm() {
                           ))}
                         </div>
                       )}
-                      {overflightResults[idx]!.error && (
-                        <p className="text-destructive">{overflightResults[idx]!.error}</p>
+                      {processedOverflightResults[idx]!.error && (
+                        <p className="text-destructive">{processedOverflightResults[idx]!.error}</p>
                       )}
                     </div>
                   )}
@@ -1549,7 +1598,7 @@ export default function FeasibilityForm() {
                   className="justify-start gap-2 w-full"
                   onClick={() => {
                     const html = generatePrintableHtml({
-                      aircraftType, flightType, legs, overflightResults,
+                      aircraftType, flightType, legs, processedOverflightResults,
                       visaNationalities, visaResults, totalCharges, totalOverflightCharges, petTypes, petResults, logoDataUrl, flightCalcs,
                     });
                     const w = window.open("", "_blank");
@@ -1564,7 +1613,7 @@ export default function FeasibilityForm() {
                   className="justify-start gap-2 w-full"
                   onClick={() => {
                     const html = generatePrintableHtml({
-                      aircraftType, flightType, legs, overflightResults,
+                      aircraftType, flightType, legs, processedOverflightResults,
                       visaNationalities, visaResults, totalCharges, totalOverflightCharges, petTypes, petResults, logoDataUrl, flightCalcs,
                     });
                     const w = window.open("", "_blank");
