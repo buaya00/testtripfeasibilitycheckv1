@@ -948,7 +948,7 @@ export default function FeasibilityForm() {
                 aircraftType={aircraftType}
                 flightType={flightType}
                 aircraftNationality={aircraftNationality}
-                overflightResult={overflightResults[idx] ?? null}
+                overflightResult={processedOverflightResults[idx] ?? null}
                 previousLegDepartureDate={idx > 0 ? legs[idx - 1].departureDate : undefined}
                 nextLegIcao={idx < legs.length - 1 ? legs[idx + 1].airportIcao : undefined}
                 arrivalAutoCalculated={autoCalcLegs.has(idx)}
@@ -1010,13 +1010,13 @@ export default function FeasibilityForm() {
                         ? `Overflight: ${leg.airportIcao} → ${legs[idx + 1].airportIcao}`
                         : 'Overflight route'}
                     </span>
-                    {overflightResults[idx] && !overflightLoading[idx] &&
+                    {processedOverflightResults[idx] && !overflightLoading[idx] &&
                       leg.runwayResult?.latitude != null && leg.runwayResult?.longitude != null &&
                       legs[idx + 1]?.runwayResult?.latitude != null && legs[idx + 1]?.runwayResult?.longitude != null && (
                       <RouteMapPreview
                         origin={{ icao: leg.airportIcao, lat: leg.runwayResult.latitude, lon: leg.runwayResult.longitude }}
                         destination={{ icao: legs[idx + 1].airportIcao, lat: legs[idx + 1].runwayResult!.latitude!, lon: legs[idx + 1].runwayResult!.longitude! }}
-                        overflightResult={overflightResults[idx]!}
+                        overflightResult={processedOverflightResults[idx]!}
                       />
                     )}
                     <Button
@@ -1036,29 +1036,29 @@ export default function FeasibilityForm() {
                     </div>
                   )}
 
-                  {overflightResults[idx] && !overflightLoading[idx] && isLegExpanded(idx) && (
+                  {processedOverflightResults[idx] && !overflightLoading[idx] && isLegExpanded(idx) && (
                     <div className={cn("rounded-md border p-3 text-xs space-y-1.5",
-                      overflightResults[idx]!.success ? "border-primary/30 bg-primary/5" : "border-muted bg-muted/50"
+                      processedOverflightResults[idx]!.success ? "border-primary/30 bg-primary/5" : "border-muted bg-muted/50"
                     )}>
-                      {overflightResults[idx]!.routeSummary && (
-                        <p className="text-muted-foreground">{overflightResults[idx]!.routeSummary}</p>
+                      {processedOverflightResults[idx]!.routeSummary && (
+                        <p className="text-muted-foreground">{processedOverflightResults[idx]!.routeSummary}</p>
                       )}
-                      {overflightResults[idx]!.totalPermitsNeeded != null && (
+                      {processedOverflightResults[idx]!.totalPermitsNeeded != null && (
                         <p className="font-medium">
-                          {overflightResults[idx]!.totalPermitsNeeded === 0
+                          {processedOverflightResults[idx]!.totalPermitsNeeded === 0
                             ? '✅ No permits required'
-                            : `⚠️ ${overflightResults[idx]!.totalPermitsNeeded} permit${overflightResults[idx]!.totalPermitsNeeded! > 1 ? 's' : ''} required`}
+                            : `⚠️ ${processedOverflightResults[idx]!.totalPermitsNeeded} permit${processedOverflightResults[idx]!.totalPermitsNeeded! > 1 ? 's' : ''} required`}
                         </p>
                       )}
-                      {overflightResults[idx]!.totalOverflightChargesUsd != null && (
+                      {processedOverflightResults[idx]!.totalOverflightChargesUsd != null && (
                         <p className="font-medium flex items-center gap-1">
                           <DollarSign className="h-3 w-3 text-primary" />
-                          Navigation fees: ${overflightResults[idx]!.totalOverflightChargesUsd!.toLocaleString(undefined, { maximumFractionDigits: 0 })} USD
+                          Navigation fees: ${processedOverflightResults[idx]!.totalOverflightChargesUsd!.toLocaleString(undefined, { maximumFractionDigits: 0 })} USD
                         </p>
                       )}
-                      {overflightResults[idx]!.countries && (
+                      {processedOverflightResults[idx]!.countries && (
                         <div className="space-y-1">
-                          {overflightResults[idx]!.countries!.map((c, ci) => (
+                          {processedOverflightResults[idx]!.countries!.map((c, ci) => (
                             <div key={ci} className={cn("rounded bg-background/50 px-2 py-1 space-y-0.5",
                               c.overflightPermitRequired === 'yes' ? "border-l-2 border-l-warning" : c.overflightPermitRequired === 'no' ? "border-l-2 border-l-success" : "border-l-2 border-l-muted-foreground"
                             )}>
@@ -1075,8 +1075,8 @@ export default function FeasibilityForm() {
                           ))}
                         </div>
                       )}
-                      {overflightResults[idx]!.error && (
-                        <p className="text-destructive">{overflightResults[idx]!.error}</p>
+                      {processedOverflightResults[idx]!.error && (
+                        <p className="text-destructive">{processedOverflightResults[idx]!.error}</p>
                       )}
                     </div>
                   )}
