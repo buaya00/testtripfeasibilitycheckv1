@@ -904,6 +904,7 @@ export default function FeasibilityForm() {
                 overflightResult={overflightResults[idx] ?? null}
                 previousLegDepartureDate={idx > 0 ? legs[idx - 1].departureDate : undefined}
                 nextLegIcao={idx < legs.length - 1 ? legs[idx + 1].airportIcao : undefined}
+                arrivalAutoCalculated={autoCalcLegs.has(idx)}
                 expanded={isLegExpanded(idx)}
                 onToggleExpanded={() => toggleLegExpanded(idx)}
                 onUpdateLeg={updateLeg}
