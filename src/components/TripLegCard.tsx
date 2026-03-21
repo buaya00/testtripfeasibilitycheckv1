@@ -965,7 +965,7 @@ export default function TripLegCard({
                       <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Local</span>
                       <Select
                         value={leg.arrivalTime ? utcToLocal(leg.arrivalTime, leg.utcOffsetHours) : ""}
-                        onValueChange={(v) => update({ arrivalTime: localToUtc(v, leg.utcOffsetHours) })}
+                        onValueChange={(v) => update({ arrivalTime: localToUtc(v, leg.utcOffsetHours), arrivalManuallyEdited: true })}
                       >
                         <SelectTrigger className="text-xs h-8"><SelectValue placeholder="HH:MM" /></SelectTrigger>
                         <SelectContent>{TIMES.map((t) => <SelectItem key={`a-lcl-${t}`} value={t}>{t}</SelectItem>)}</SelectContent>
