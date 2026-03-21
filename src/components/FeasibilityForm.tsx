@@ -1065,7 +1065,9 @@ export default function FeasibilityForm() {
                               <p className="font-medium">
                                 {c.overflightPermitRequired === 'yes' ? '⚠️' : '✅'} {c.country}
                                 <span className="font-normal text-muted-foreground ml-1">
-                                  — {c.overflightPermitRequired === 'yes' ? 'Permit required' : c.overflightPermitRequired === 'no' ? 'No permit' : 'Conditional'}
+                                  — {c.notes === 'Not Required – Covered by Landing Permit'
+                                    ? 'Not Required – Covered by Landing Permit'
+                                    : c.overflightPermitRequired === 'yes' ? 'Permit required' : c.overflightPermitRequired === 'no' ? 'No permit' : 'Conditional'}
                                 </span>
                               </p>
                               {c.leadTimeDays != null && <p>Lead time: {c.leadTimeDays}d</p>}
