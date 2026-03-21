@@ -227,14 +227,23 @@ export function evaluateLegFeasibility(
 
   // PPR lead time check
   if (checkArrival && leg.arrivalDate && leg.pprResult?.success && leg.pprResult.pprRequired === 'yes' && leg.pprResult.advanceNoticePeriod) {
-    const noticeDays = parseInt(leg.pprResult.advanceNoticePeriod, 10);
-    if (!isNaN(noticeDays) && noticeDays > 0) {
-      const now = new Date();
-      const daysUntilArrival = Math.floor((leg.arrivalDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-      if (daysUntilArrival < noticeDays) {
-        issues.push(
-          `Insufficient lead time for PPR: ${daysUntilArrival} day${daysUntilArrival !== 1 ? 's' : ''} until arrival, but ${leg.pprResult.advanceNoticePeriod} advance notice required. Contact airport operations to validate.`
-        );
+    const noticeStr = leg.pprResult.advanceNoticePeriod.toLowerCase();
+    // Parse the notice period, converting hours to days
+    const numMatch = noticeStr.match(/(\d+)/);
+    if (numMatch) {
+      let noticeDays = parseInt(numMatch[1], 10);
+      // Convert hours to days (round up)
+      if (noticeStr.includes('hour')) {
+        noticeDays = Math.ceil(noticeDays / 24);
+      }
+      if (noticeDays > 0) {
+        const now = new Date();
+        const daysUntilArrival = Math.floor((leg.arrivalDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        if (daysUntilArrival < noticeDays) {
+          issues.push(
+            `Insufficient lead time for PPR: ${daysUntilArrival} day${daysUntilArrival !== 1 ? 's' : ''} until arrival, but ${leg.pprResult.advanceNoticePeriod} advance notice required. Contact airport operations to validate.`
+          );
+        }
       }
     }
   }
