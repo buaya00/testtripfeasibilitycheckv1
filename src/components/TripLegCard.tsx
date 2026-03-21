@@ -956,7 +956,7 @@ export default function TripLegCard({
                   <div className="space-y-1.5">
                     <div className="space-y-0.5">
                       <span className="text-[10px] text-muted-foreground uppercase tracking-wide">UTC</span>
-                      <Select value={leg.arrivalTime} onValueChange={(v) => update({ arrivalTime: v })}>
+                      <Select value={leg.arrivalTime} onValueChange={(v) => update({ arrivalTime: v, arrivalManuallyEdited: true })}>
                         <SelectTrigger className="text-xs h-8"><SelectValue placeholder="HH:MM" /></SelectTrigger>
                         <SelectContent>{TIMES.map((t) => <SelectItem key={`a-utc-${t}`} value={t}>{t}</SelectItem>)}</SelectContent>
                       </Select>
