@@ -905,7 +905,15 @@ export default function TripLegCard({
             {(totalLegs === 1 || legIndex > 0) && (
               <>
                 <div className="space-y-1">
-                  <Label className="text-xs">Arrival Date</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label className="text-xs">Arrival Date</Label>
+                    {arrivalAutoCalculated && (
+                      <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-medium text-primary border border-primary/20">
+                        <Plane className="h-2.5 w-2.5" />
+                        Auto
+                      </span>
+                    )}
+                  </div>
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !leg.arrivalDate && "text-muted-foreground")}>
