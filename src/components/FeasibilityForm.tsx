@@ -583,15 +583,62 @@ export default function FeasibilityForm() {
     JSON.stringify(Object.entries(flightCalcs).map(([k, v]) => [k, v.flightTimeMinutes])),
   ]);
 
+  // ── Landing-country overflight exemption ────────────────────────────
+  // Collect all countries where the aircraft lands (departs from or arrives at)
+  // across the entire route. Overflight permits for these countries are waived.
+  const landingCountries = useMemo(() => {
+    const countries = new Set<string>();
+    legs.forEach(leg => {
+      const c = leg.permitResult?.country || leg.chargesResult?.country || leg.pprResult?.country;
+      if (c) countries.add(c);
+    });
+    // Also include origin/destination from overflight results themselves
+    Object.values(overflightResults).forEach(r => {
+      if (r?.originCountry) countries.add(r.originCountry);
+      if (r?.destinationCountry) countries.add(r.destinationCountry);
+    });
+    return countries;
+  }, [legs, overflightResults]);
+
+  // Post-process overflight results: exempt landing countries from permit requirements
+  const processedOverflightResults = useMemo(() => {
+    const processed: Record<number, OverflightResult | null> = {};
+    for (const [key, result] of Object.entries(overflightResults)) {
+      const idx = Number(key);
+      if (!result || !result.countries) {
+        processed[idx] = result;
+        continue;
+      }
+      const updatedCountries = result.countries.map(c => {
+        if (
+          (c.overflightPermitRequired === 'yes' || c.overflightPermitRequired === 'conditional') &&
+          landingCountries.has(c.country)
+        ) {
+          return {
+            ...c,
+            overflightPermitRequired: 'no' as const,
+            notes: 'Not Required – Covered by Landing Permit',
+          };
+        }
+        return c;
+      });
+      const totalPermitsNeeded = updatedCountries.filter(
+        c => c.overflightPermitRequired === 'yes' || c.overflightPermitRequired === 'conditional'
+      ).length;
+      processed[idx] = { ...result, countries: updatedCountries, totalPermitsNeeded };
+    }
+    return processed;
+  }, [overflightResults, landingCountries]);
+
   // Compute trip totals
   const isFormReady = !!aircraftType && !!flightType;
 
   const totalCharges = legs.reduce((sum, l) => sum + (l.chargesResult?.totalEstimateUsd ?? 0), 0);
-  const totalOverflightCharges = Object.values(overflightResults).reduce(
+  const totalOverflightCharges = Object.values(processedOverflightResults).reduce(
     (sum, r) => sum + (r?.totalOverflightChargesUsd ?? 0), 0
   );
   const totalAegFees = legs.reduce((sum, leg) => {
-    const overflightResult = overflightResults[legs.indexOf(leg)] ?? null;
+    const overflightResult = processedOverflightResults[legs.indexOf(leg)] ?? null;
     const originCountry = overflightResult?.originCountry ?? null;
     const destinationCountry = overflightResult?.destinationCountry ?? null;
     const overflightPermitsNeeded = overflightResult?.countries?.filter(
