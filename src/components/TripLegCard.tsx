@@ -3,7 +3,7 @@ import { format } from "date-fns";
 import {
   CalendarIcon, CheckCircle2, XCircle, AlertTriangle, Search, Loader2,
   ExternalLink, PlaneLanding, Shield, DollarSign, Clock, ChevronDown, ChevronUp,
-  FileText, Plus, Trash2, Tag, ShieldCheck, ClipboardList, Building2, Timer, RefreshCw,
+  FileText, Plus, Trash2, Tag, ShieldCheck, ClipboardList, Building2, Timer, RefreshCw, Plane,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
