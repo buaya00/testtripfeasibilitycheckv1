@@ -155,7 +155,7 @@ export default function FeasibilityForm() {
     // Initial evaluation with current data
     setLegs(prev => prev.map((leg, idx) => ({
       ...leg,
-      feasibilityResult: evaluateLegFeasibility(leg, aircraftType, idx, prev.length),
+      feasibilityResult: evaluateLegFeasibility(leg, aircraftType, idx, prev.length, idx > 0 ? prev[idx - 1].airportIcao : undefined),
     })));
     // If overflight toggle is on, also run overflight checks for all leg pairs
     if (autoRunOverflights) {
