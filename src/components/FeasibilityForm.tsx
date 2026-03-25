@@ -182,7 +182,7 @@ export default function FeasibilityForm() {
     setLegs(prev => {
       const updated = prev.map((leg, idx) => ({
         ...leg,
-        feasibilityResult: evaluateLegFeasibility(leg, aircraftType, idx, prev.length),
+        feasibilityResult: evaluateLegFeasibility(leg, aircraftType, idx, prev.length, idx > 0 ? prev[idx - 1].airportIcao : undefined),
       }));
       const changed = updated.some((u, i) =>
         u.feasibilityResult?.feasible !== prev[i].feasibilityResult?.feasible ||
