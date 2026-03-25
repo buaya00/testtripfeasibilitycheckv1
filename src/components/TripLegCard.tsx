@@ -352,6 +352,7 @@ interface TripLegCardProps {
   overflightResult?: OverflightResult | null;
   previousLegDepartureDate?: Date;
   nextLegIcao?: string;
+  prevLegIcao?: string;
   expanded?: boolean;
   onToggleExpanded?: () => void;
   onUpdateLeg: (index: number, updates: Partial<LegData>) => void;
