@@ -220,6 +220,11 @@ export function evaluateLegFeasibility(
 
   const isUs = leg.airportIcao ? isUsAirport(leg.airportIcao.toUpperCase()) : false;
 
+  // CBP Border Overflight Exemption auto-note: arriving at a US airport from south of the border
+  if (isUs && prevLegIcao && isSouthOfUsBorder(prevLegIcao.toUpperCase())) {
+    notes.push("CBP Border Overflight Exemption: Aircraft arriving into the US from south of the border may be subject to CBP border overflight inspection requirements. Ensure eAPIS is filed and CBP notification is completed prior to entry into US airspace.");
+  }
+
   if (leg.permitRequired) notes.push("Landing permit must be obtained prior to ops");
   if (leg.pprRequired) notes.push("Prior Permission Required — contact airport ops");
   if (leg.slotRequired) notes.push("Slot coordination required — book slot in advance");
