@@ -971,7 +971,7 @@ export default function FeasibilityForm() {
                   setTimeout(() => {
                     setLegs(prev => prev.map((l, i) =>
                       i === index
-                        ? { ...l, feasibilityResult: evaluateLegFeasibility(l, aircraftType, i, prev.length) }
+                        ? { ...l, feasibilityResult: evaluateLegFeasibility(l, aircraftType, i, prev.length, i > 0 ? prev[i - 1].airportIcao : undefined) }
                         : l
                     ));
                   }, 300);
