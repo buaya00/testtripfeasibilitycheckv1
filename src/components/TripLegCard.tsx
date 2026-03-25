@@ -364,7 +364,7 @@ interface TripLegCardProps {
 }
 
 export default function TripLegCard({
-  leg, legIndex, totalLegs, aircraftType, flightType, aircraftNationality, overflightResult, previousLegDepartureDate, nextLegIcao, expanded: expandedProp, onToggleExpanded, onUpdateLeg, onRemoveLeg, onRegisterLookup, onNavigateLeg, onRefreshLeg, arrivalAutoCalculated,
+  leg, legIndex, totalLegs, aircraftType, flightType, aircraftNationality, overflightResult, previousLegDepartureDate, nextLegIcao, prevLegIcao, expanded: expandedProp, onToggleExpanded, onUpdateLeg, onRemoveLeg, onRegisterLookup, onNavigateLeg, onRefreshLeg, arrivalAutoCalculated,
 }: TripLegCardProps) {
   const [localExpanded, setLocalExpanded] = useState(true);
   const expanded = expandedProp !== undefined ? expandedProp : localExpanded;
