@@ -118,6 +118,23 @@ function isUsAirport(icao: string) {
   return icao.startsWith('K') || icao.startsWith('PA') || icao.startsWith('PH') || icao.startsWith('PG') || icao.startsWith('TJ');
 }
 
+/** Returns true if the ICAO code is south of the US border (Mexico, Central America, Caribbean, South America) */
+function isSouthOfUsBorder(icao: string): boolean {
+  if (!icao || icao.length < 2) return false;
+  const upper = icao.toUpperCase();
+  // M* = Mexico (MM), Guatemala (MG), Belize (MZ), Honduras (MH), El Salvador (MS),
+  //      Nicaragua (MN), Costa Rica (MR), Panama (MP), Cuba (MU), Jamaica (MK),
+  //      Cayman Islands (MW), Bahamas (MY), Haiti (MT), Dominican Republic (MD),
+  //      Turks & Caicos (MB), etc.
+  // S* = South America (Brazil SB, Argentina SA, Chile SC, Colombia SK, Venezuela SV, etc.)
+  // T* = Caribbean (Trinidad TT, Barbados TB, Antigua TA, St. Lucia TL, etc.)
+  //      Exclude TJ (Puerto Rico - US territory)
+  if (upper.startsWith('M')) return true;
+  if (upper.startsWith('S')) return true;
+  if (upper.startsWith('T') && !upper.startsWith('TJ')) return true;
+  return false;
+}
+
 // UK ICAO prefix: EG
 // EU member state ICAO prefixes (ICAO Doc 7910 regions)
 const UK_EU_PREFIXES = [
