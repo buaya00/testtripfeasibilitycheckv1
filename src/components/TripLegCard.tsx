@@ -569,29 +569,19 @@ export default function TripLegCard({
   const isFirstLegUsDeparture = legIndex === 0 && totalLegs > 1 && leg.airportIcao.length === 4 && isUsAirport(leg.airportIcao);
   const isCommercialFlight = flightType === 'non-scheduled-commercial' || flightType === 'commercial';
   const isPrivateFlight = flightType === 'private';
-  const isUsDeparture = leg.airportIcao.length === 4 && isUsAirport(leg.airportIcao);
-  const isDomesticUsLeg = isUsDeparture && !!nextLegIcao && nextLegIcao.length === 4 && isUsAirport(nextLegIcao);
+  const isUsLocation = leg.airportIcao.length === 4 && isUsAirport(leg.airportIcao);
+  // Arrival into US: previous leg exists and is non-US (international inbound)
+  const isUsArrival = isUsLocation && !!prevLegIcao && prevLegIcao.length === 4 && !isUsAirport(prevLegIcao);
+  // Departure from US: next leg exists and is non-US (international outbound)
+  const isUsInternationalDeparture = isUsLocation && !!nextLegIcao && nextLegIcao.length === 4 && !isUsAirport(nextLegIcao);
+  const isDomesticUsLeg = isUsLocation && !!nextLegIcao && nextLegIcao.length === 4 && isUsAirport(nextLegIcao) && (!prevLegIcao || (prevLegIcao.length === 4 && isUsAirport(prevLegIcao)));
 
   const handleLookupAll = useCallback(() => {
     if (leg.airportIcao.length !== 4) return;
 
-    if (isDomesticUsLeg) {
-      // Domestic US leg: no customs required
-      update({
-        cbpResult: null,
-        ciqResult: {
-          success: true,
-          icao: leg.airportIcao,
-          country: 'United States',
-          airportName: leg.airportCity || leg.airportIcao,
-          ciqAvailable: 'yes',
-          notes: 'Not Required',
-        },
-        customsAvailable: true,
-      });
-    } else if (isUsDeparture) {
-      if (isPrivateFlight) {
-        // Private flights departing US to non-US: no outbound customs notification required
+    if (isUsLocation) {
+      if (isDomesticUsLeg && !isUsArrival) {
+        // Pure domestic US leg: no customs required
         update({
           cbpResult: null,
           ciqResult: {
@@ -600,27 +590,57 @@ export default function TripLegCard({
             country: 'United States',
             airportName: leg.airportCity || leg.airportIcao,
             ciqAvailable: 'yes',
-            notes: 'Outbound US Customs notification is not required for private flights. eAPIS outbound filing is required prior to departure.',
-          },
-          customsAvailable: true,
-        });
-      } else if (isCommercialFlight && isFirstLegUsDeparture) {
-        // Commercial first-leg US departure: outbound customs + eAPIS
-        update({
-          cbpResult: null,
-          ciqResult: {
-            success: true,
-            icao: leg.airportIcao,
-            country: 'United States',
-            airportName: leg.airportCity || leg.airportIcao,
-            ciqAvailable: 'yes',
-            notes: 'Outbound US Customs notification is required. eAPIS (electronic Advance Passenger Information System) filing must be submitted prior to departure.',
+            notes: 'Not Required',
           },
           customsAvailable: true,
         });
       } else {
-        // Other flight types at US airports: do normal CBP lookup
-        handleCbpLookup();
+        // Build combined CIQ notes for arrival and/or departure at US location
+        const ciqNotes: string[] = [];
+
+        // --- Arrival requirements ---
+        if (isUsArrival) {
+          ciqNotes.push('US Customs Notification is required for inbound international arrival.');
+          ciqNotes.push('eAPIS (electronic Advance Passenger Information System) inbound filing is required prior to arrival.');
+        }
+
+        // --- Departure requirements ---
+        if (isUsInternationalDeparture) {
+          if (isPrivateFlight) {
+            ciqNotes.push('Outbound US Customs notification is not required for private flights.');
+            ciqNotes.push('eAPIS outbound filing is required prior to departure.');
+          } else if (isCommercialFlight) {
+            ciqNotes.push('Outbound US Customs notification is required.');
+            ciqNotes.push('eAPIS outbound filing must be submitted prior to departure.');
+          }
+        } else if (isFirstLegUsDeparture && !isUsArrival) {
+          // First leg departing US (no arrival at this leg)
+          if (isPrivateFlight) {
+            ciqNotes.push('Outbound US Customs notification is not required for private flights.');
+            ciqNotes.push('eAPIS outbound filing is required prior to departure.');
+          } else if (isCommercialFlight) {
+            ciqNotes.push('Outbound US Customs notification is required.');
+            ciqNotes.push('eAPIS outbound filing must be submitted prior to departure.');
+          }
+        }
+
+        if (ciqNotes.length > 0) {
+          update({
+            cbpResult: null,
+            ciqResult: {
+              success: true,
+              icao: leg.airportIcao,
+              country: 'United States',
+              airportName: leg.airportCity || leg.airportIcao,
+              ciqAvailable: 'yes',
+              notes: ciqNotes.join(' '),
+            },
+            customsAvailable: true,
+          });
+        } else {
+          // Fallback: normal CBP lookup
+          handleCbpLookup();
+        }
       }
     } else {
       update({ cbpResult: null });
@@ -632,7 +652,7 @@ export default function TripLegCard({
     handleChargesLookup();
     handlePprLookup();
     handleAirportHoursLookup();
-  }, [leg.airportIcao, isDomesticUsLeg, isUsDeparture, isPrivateFlight, isFirstLegUsDeparture, isCommercialFlight, leg.airportCity, handleCbpLookup, handleCiqLookup, handleRunwayLookup, handlePermitLookup, handleChargesLookup, handlePprLookup, handleAirportHoursLookup]);
+  }, [leg.airportIcao, isUsLocation, isDomesticUsLeg, isUsArrival, isUsInternationalDeparture, isPrivateFlight, isFirstLegUsDeparture, isCommercialFlight, leg.airportCity, handleCbpLookup, handleCiqLookup, handleRunwayLookup, handlePermitLookup, handleChargesLookup, handlePprLookup, handleAirportHoursLookup]);
 
   // Register lookup function with parent
   useEffect(() => {
