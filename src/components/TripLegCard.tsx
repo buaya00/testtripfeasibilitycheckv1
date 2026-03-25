@@ -118,6 +118,23 @@ function isUsAirport(icao: string) {
   return icao.startsWith('K') || icao.startsWith('PA') || icao.startsWith('PH') || icao.startsWith('PG') || icao.startsWith('TJ');
 }
 
+/** Returns true if the ICAO code is south of the US border (Mexico, Central America, Caribbean, South America) */
+function isSouthOfUsBorder(icao: string): boolean {
+  if (!icao || icao.length < 2) return false;
+  const upper = icao.toUpperCase();
+  // M* = Mexico (MM), Guatemala (MG), Belize (MZ), Honduras (MH), El Salvador (MS),
+  //      Nicaragua (MN), Costa Rica (MR), Panama (MP), Cuba (MU), Jamaica (MK),
+  //      Cayman Islands (MW), Bahamas (MY), Haiti (MT), Dominican Republic (MD),
+  //      Turks & Caicos (MB), etc.
+  // S* = South America (Brazil SB, Argentina SA, Chile SC, Colombia SK, Venezuela SV, etc.)
+  // T* = Caribbean (Trinidad TT, Barbados TB, Antigua TA, St. Lucia TL, etc.)
+  //      Exclude TJ (Puerto Rico - US territory)
+  if (upper.startsWith('M')) return true;
+  if (upper.startsWith('S')) return true;
+  if (upper.startsWith('T') && !upper.startsWith('TJ')) return true;
+  return false;
+}
+
 // UK ICAO prefix: EG
 // EU member state ICAO prefixes (ICAO Doc 7910 regions)
 const UK_EU_PREFIXES = [
@@ -162,6 +179,7 @@ export function evaluateLegFeasibility(
   aircraftType: string,
   legIndex: number = 0,
   totalLegs: number = 1,
+  prevLegIcao?: string,
 ): FeasibilityResult {
   const issues: string[] = [];
   const notes: string[] = [];
@@ -201,6 +219,11 @@ export function evaluateLegFeasibility(
   }
 
   const isUs = leg.airportIcao ? isUsAirport(leg.airportIcao.toUpperCase()) : false;
+
+  // CBP Border Overflight Exemption auto-note: arriving at a US airport from south of the border
+  if (isUs && prevLegIcao && isSouthOfUsBorder(prevLegIcao.toUpperCase())) {
+    notes.push("CBP Border Overflight Exemption: Aircraft arriving into the US from south of the border may be subject to CBP border overflight inspection requirements. Ensure eAPIS is filed and CBP notification is completed prior to entry into US airspace.");
+  }
 
   if (leg.permitRequired) notes.push("Landing permit must be obtained prior to ops");
   if (leg.pprRequired) notes.push("Prior Permission Required — contact airport ops");
@@ -329,6 +352,7 @@ interface TripLegCardProps {
   overflightResult?: OverflightResult | null;
   previousLegDepartureDate?: Date;
   nextLegIcao?: string;
+  prevLegIcao?: string;
   expanded?: boolean;
   onToggleExpanded?: () => void;
   onUpdateLeg: (index: number, updates: Partial<LegData>) => void;
@@ -340,7 +364,7 @@ interface TripLegCardProps {
 }
 
 export default function TripLegCard({
-  leg, legIndex, totalLegs, aircraftType, flightType, aircraftNationality, overflightResult, previousLegDepartureDate, nextLegIcao, expanded: expandedProp, onToggleExpanded, onUpdateLeg, onRemoveLeg, onRegisterLookup, onNavigateLeg, onRefreshLeg, arrivalAutoCalculated,
+  leg, legIndex, totalLegs, aircraftType, flightType, aircraftNationality, overflightResult, previousLegDepartureDate, nextLegIcao, prevLegIcao, expanded: expandedProp, onToggleExpanded, onUpdateLeg, onRemoveLeg, onRegisterLookup, onNavigateLeg, onRefreshLeg, arrivalAutoCalculated,
 }: TripLegCardProps) {
   const [localExpanded, setLocalExpanded] = useState(true);
   const expanded = expandedProp !== undefined ? expandedProp : localExpanded;

@@ -155,7 +155,7 @@ export default function FeasibilityForm() {
     // Initial evaluation with current data
     setLegs(prev => prev.map((leg, idx) => ({
       ...leg,
-      feasibilityResult: evaluateLegFeasibility(leg, aircraftType, idx, prev.length),
+      feasibilityResult: evaluateLegFeasibility(leg, aircraftType, idx, prev.length, idx > 0 ? prev[idx - 1].airportIcao : undefined),
     })));
     // If overflight toggle is on, also run overflight checks for all leg pairs
     if (autoRunOverflights) {
@@ -182,7 +182,7 @@ export default function FeasibilityForm() {
     setLegs(prev => {
       const updated = prev.map((leg, idx) => ({
         ...leg,
-        feasibilityResult: evaluateLegFeasibility(leg, aircraftType, idx, prev.length),
+        feasibilityResult: evaluateLegFeasibility(leg, aircraftType, idx, prev.length, idx > 0 ? prev[idx - 1].airportIcao : undefined),
       }));
       const changed = updated.some((u, i) =>
         u.feasibilityResult?.feasible !== prev[i].feasibilityResult?.feasible ||
@@ -958,6 +958,7 @@ export default function FeasibilityForm() {
                 overflightResult={processedOverflightResults[idx] ?? null}
                 previousLegDepartureDate={idx > 0 ? legs[idx - 1].departureDate : undefined}
                 nextLegIcao={idx < legs.length - 1 ? legs[idx + 1].airportIcao : undefined}
+                prevLegIcao={idx > 0 ? legs[idx - 1].airportIcao : undefined}
                 arrivalAutoCalculated={autoCalcLegs.has(idx)}
                 expanded={isLegExpanded(idx)}
                 onToggleExpanded={() => toggleLegExpanded(idx)}
@@ -970,7 +971,7 @@ export default function FeasibilityForm() {
                   setTimeout(() => {
                     setLegs(prev => prev.map((l, i) =>
                       i === index
-                        ? { ...l, feasibilityResult: evaluateLegFeasibility(l, aircraftType, i, prev.length) }
+                        ? { ...l, feasibilityResult: evaluateLegFeasibility(l, aircraftType, i, prev.length, i > 0 ? prev[i - 1].airportIcao : undefined) }
                         : l
                     ));
                   }, 300);
