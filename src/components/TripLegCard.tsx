@@ -179,6 +179,7 @@ export function evaluateLegFeasibility(
   aircraftType: string,
   legIndex: number = 0,
   totalLegs: number = 1,
+  prevLegIcao?: string,
 ): FeasibilityResult {
   const issues: string[] = [];
   const notes: string[] = [];
