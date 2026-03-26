@@ -11,8 +11,8 @@ export default function VideoModal({ open, onClose, redirectUrl }: VideoModalPro
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const handleEnd = useCallback(() => {
-    window.open(redirectUrl, "_blank", "noopener,noreferrer");
     onClose();
+    window.location.href = redirectUrl;
   }, [redirectUrl, onClose]);
 
   const handleSkip = useCallback(() => {
