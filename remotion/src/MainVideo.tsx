@@ -246,7 +246,7 @@ function Scene5() {
       <GradientBg />
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%" }}>
         <div style={{ transform: `scale(${logoScale})` }}>
-          <Img src={staticFile("images/aeg-logo.png")} style={{ height: 140, width: "auto" }} />
+          <Img src={staticFile("images/aeg-logo.png")} style={{ height: 420, width: "auto", filter: "brightness(1.4)" }} />
         </div>
         <div style={{
           fontFamily: headingFont, fontSize: 52, fontWeight: 800, color: WHITE,
