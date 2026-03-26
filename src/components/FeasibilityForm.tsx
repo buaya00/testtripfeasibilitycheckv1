@@ -1653,6 +1653,11 @@ export default function FeasibilityForm() {
           </div>
         </div>
       )}
+      <VideoModal
+        open={showVideoModal}
+        onClose={() => setShowVideoModal(false)}
+        redirectUrl="https://www.aegfuels.com/flightsupport"
+      />
     </div>
   );
 }
