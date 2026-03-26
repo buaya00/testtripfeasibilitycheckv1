@@ -7,6 +7,20 @@
     "@types/bun": "latest"
   },
   "peerDependencies": {
-    "typescript": "^5"
+    "typescript": "^6.0.2"
+  },
+  "dependencies": {
+    "@remotion/bundler": "^4.0.441",
+    "@remotion/cli": "^4.0.441",
+    "@remotion/compositor-linux-x64-musl": "^4.0.441",
+    "@remotion/fonts": "^4.0.441",
+    "@remotion/google-fonts": "^4.0.441",
+    "@remotion/player": "^4.0.441",
+    "@remotion/renderer": "^4.0.441",
+    "@remotion/transitions": "^4.0.441",
+    "@types/react": "^19.2.14",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "remotion": "^4.0.441"
   }
 }
