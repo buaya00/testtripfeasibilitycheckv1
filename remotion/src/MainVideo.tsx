@@ -55,7 +55,7 @@ function Scene1() {
       <GoldLine y={780} delay={20} />
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%" }}>
         <div style={{ transform: `scale(${logoScale})`, opacity: logoOpacity }}>
-          <Img src={staticFile("images/aeg-logo.png")} style={{ height: 200, width: "auto" }} />
+          <Img src={staticFile("images/aeg-logo.png")} style={{ height: 600, width: "auto", filter: "brightness(1.4)" }} />
         </div>
         <div style={{
           opacity: tagOpacity, transform: `translateY(${tagY}px)`,
