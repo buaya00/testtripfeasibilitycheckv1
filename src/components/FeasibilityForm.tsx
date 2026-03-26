@@ -30,6 +30,7 @@ import type {
 import { createEmptyLeg } from "./tripTypes";
 import { generatePrintableHtml } from "./PrintableReport";
 import aegLogo from "@/assets/aeg-logo.png";
+import VideoModal from "./VideoModal";
 
 export default function FeasibilityForm() {
   const [logoDataUrl, setLogoDataUrl] = useState<string>("");
