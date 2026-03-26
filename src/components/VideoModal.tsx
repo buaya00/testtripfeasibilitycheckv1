@@ -10,15 +10,25 @@ interface VideoModalProps {
 export default function VideoModal({ open, onClose, redirectUrl }: VideoModalProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  const handleEnd = useCallback(() => {
+  const navigateToRedirect = useCallback(() => {
     onClose();
-    window.location.href = redirectUrl;
+
+    // In embedded preview, navigate the top-level context to avoid iframe blocking.
+    if (window.self !== window.top) {
+      window.open(redirectUrl, "_top");
+      return;
+    }
+
+    window.location.assign(redirectUrl);
   }, [redirectUrl, onClose]);
 
+  const handleEnd = useCallback(() => {
+    navigateToRedirect();
+  }, [navigateToRedirect]);
+
   const handleSkip = useCallback(() => {
-    onClose();
-    window.location.href = redirectUrl;
-  }, [redirectUrl, onClose]);
+    navigateToRedirect();
+  }, [navigateToRedirect]);
 
   useEffect(() => {
     if (open && videoRef.current) {
