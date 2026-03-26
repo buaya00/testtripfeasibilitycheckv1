@@ -14,25 +14,26 @@ export default function VideoModal({ open, onClose, redirectUrl }: VideoModalPro
   const navigateToRedirect = useCallback(
     (isUserInitiated: boolean) => {
       try {
-        if (window.self !== window.top) {
-          if (isUserInitiated) {
-            window.open(redirectUrl, "_top");
-          } else {
-            window.top?.location.assign(redirectUrl);
+        if (isUserInitiated) {
+          const opened = window.open(redirectUrl, "_blank", "noopener,noreferrer");
+          if (opened) {
+            onClose();
+            return;
           }
-        } else {
-          window.location.assign(redirectUrl);
         }
 
-        // If navigation is blocked by browser/iframe policies, show fallback CTA.
-        window.setTimeout(() => {
-          setShowFallback(true);
-        }, 700);
+        if (window.self === window.top) {
+          window.location.assign(redirectUrl);
+          return;
+        }
+
+        // Embedded previews often block top-level redirects from media callbacks.
+        setShowFallback(true);
       } catch {
         setShowFallback(true);
       }
     },
-    [redirectUrl]
+    [redirectUrl, onClose]
   );
 
   const handleEnd = useCallback(() => {
@@ -51,7 +52,6 @@ export default function VideoModal({ open, onClose, redirectUrl }: VideoModalPro
     }
   }, [open]);
 
-  // Keyboard: Escape to skip
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
@@ -92,13 +92,16 @@ export default function VideoModal({ open, onClose, redirectUrl }: VideoModalPro
       {showFallback && (
         <div className="mt-4 flex flex-wrap items-center justify-center gap-3 rounded-lg border border-white/20 bg-black/60 px-4 py-3 text-sm text-white">
           <span>Continue to AEG Flight Support</span>
-          <button
-            onClick={handleSkip}
+          <a
+            href={redirectUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={onClose}
             className="rounded-md bg-white/15 px-3 py-1.5 font-medium hover:bg-white/25"
             aria-label="Continue to AEG Flight Support"
           >
             Continue
-          </button>
+          </a>
           <button
             onClick={onClose}
             className="rounded-md border border-white/30 px-3 py-1.5 font-medium hover:bg-white/10"
