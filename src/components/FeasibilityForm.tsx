@@ -43,6 +43,7 @@ export default function FeasibilityForm() {
   const [checkAllError, setCheckAllError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [showVideoModal, setShowVideoModal] = useState(false);
   const dragCounter = useRef(0);
   // Convert logo to data URL for printable reports
   useEffect(() => {
