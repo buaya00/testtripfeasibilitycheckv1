@@ -703,6 +703,7 @@ export default function FeasibilityForm() {
               target="_blank"
               rel="noopener noreferrer"
               className="hidden sm:inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10 transition-colors"
+              onClick={(e) => { e.preventDefault(); setShowVideoModal(true); }}
             >
               <Globe className="h-3.5 w-3.5" />
               AEG Trip Planning
@@ -713,6 +714,7 @@ export default function FeasibilityForm() {
               rel="noopener noreferrer"
               className="sm:hidden flex items-center justify-center h-8 w-8 rounded-md border border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 transition-colors"
               aria-label="AEG Trip Planning"
+              onClick={(e) => { e.preventDefault(); setShowVideoModal(true); }}
             >
               <Globe className="h-4 w-4" />
             </a>
