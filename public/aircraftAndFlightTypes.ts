@@ -6,17 +6,22 @@ export interface AircraftTypeOption {
 
 export const aircraftTypes: AircraftTypeOption[] = [
   // ── Private Jets — Bombardier ─────────────────────────────
+  { type: "Bombardier Challenger 300", mtow: "38,850 lbs", category: "Heavy" },
   { type: "Bombardier Challenger 350", mtow: "40,600 lbs", category: "Heavy" },
   { type: "Bombardier Challenger 3500", mtow: "40,600 lbs", category: "Heavy" },
+  { type: "Bombardier Challenger 601-3R", mtow: "44,600 lbs", category: "Heavy" },
   { type: "Bombardier Challenger 604", mtow: "48,200 lbs", category: "Heavy" },
   { type: "Bombardier Challenger 605", mtow: "48,200 lbs", category: "Heavy" },
   { type: "Bombardier Challenger 650", mtow: "49,000 lbs", category: "Heavy" },
+  { type: "Bombardier Global Express", mtow: "98,000 lbs", category: "Heavy" },
+  { type: "Bombardier Global Express XRS", mtow: "98,000 lbs", category: "Heavy" },
   { type: "Bombardier Global 5000", mtow: "92,500 lbs", category: "Heavy" },
   { type: "Bombardier Global 5500", mtow: "92,500 lbs", category: "Heavy" },
   { type: "Bombardier Global 6000", mtow: "98,000 lbs", category: "Heavy" },
   { type: "Bombardier Global 6500", mtow: "98,000 lbs", category: "Heavy" },
   { type: "Bombardier Global 7500", mtow: "107,600 lbs", category: "Heavy" },
   { type: "Bombardier Global 8000", mtow: "107,600 lbs", category: "Heavy" },
+  { type: "Bombardier Learjet 31A", mtow: "17,000 lbs", category: "Medium" },
   { type: "Bombardier Learjet 40", mtow: "21,000 lbs", category: "Medium" },
   { type: "Bombardier Learjet 45", mtow: "21,500 lbs", category: "Medium" },
   { type: "Bombardier Learjet 60", mtow: "23,500 lbs", category: "Medium" },
@@ -24,27 +29,40 @@ export const aircraftTypes: AircraftTypeOption[] = [
   { type: "Bombardier Learjet 75", mtow: "21,500 lbs", category: "Medium" },
 
   // ── Private Jets — Cessna / Textron ───────────────────────
+  { type: "Cessna Citation Bravo", mtow: "14,800 lbs", category: "Light" },
+  { type: "Cessna Citation CJ1", mtow: "10,600 lbs", category: "Light" },
+  { type: "Cessna Citation CJ1+", mtow: "10,700 lbs", category: "Light" },
+  { type: "Cessna Citation CJ2", mtow: "12,500 lbs", category: "Light" },
+  { type: "Cessna Citation CJ2+", mtow: "12,500 lbs", category: "Light" },
   { type: "Cessna Citation CJ3", mtow: "13,870 lbs", category: "Light" },
   { type: "Cessna Citation CJ3+", mtow: "13,870 lbs", category: "Light" },
   { type: "Cessna Citation CJ4", mtow: "17,110 lbs", category: "Light" },
+  { type: "Cessna Citation Encore", mtow: "16,100 lbs", category: "Light" },
+  { type: "Cessna Citation Encore+", mtow: "16,100 lbs", category: "Light" },
+  { type: "Cessna Citation Excel", mtow: "20,000 lbs", category: "Medium" },
   { type: "Cessna Citation Latitude", mtow: "20,200 lbs", category: "Medium" },
   { type: "Cessna Citation Longitude", mtow: "39,500 lbs", category: "Medium" },
   { type: "Cessna Citation M2", mtow: "10,400 lbs", category: "Light" },
   { type: "Cessna Citation Mustang", mtow: "8,645 lbs", category: "Light" },
   { type: "Cessna Citation Sovereign", mtow: "30,575 lbs", category: "Medium" },
   { type: "Cessna Citation Sovereign+", mtow: "30,575 lbs", category: "Medium" },
+  { type: "Cessna Citation V Ultra", mtow: "15,900 lbs", category: "Light" },
   { type: "Cessna Citation X", mtow: "35,700 lbs", category: "Medium" },
   { type: "Cessna Citation X+", mtow: "35,700 lbs", category: "Medium" },
   { type: "Cessna Citation XLS", mtow: "20,000 lbs", category: "Medium" },
   { type: "Cessna Citation XLS+", mtow: "20,200 lbs", category: "Medium" },
 
   // ── Private Jets — Dassault ───────────────────────────────
+  { type: "Dassault Falcon 2000", mtow: "36,450 lbs", category: "Heavy" },
   { type: "Dassault Falcon 2000EX", mtow: "42,800 lbs", category: "Heavy" },
   { type: "Dassault Falcon 2000LXS", mtow: "42,800 lbs", category: "Heavy" },
   { type: "Dassault Falcon 2000S", mtow: "41,890 lbs", category: "Heavy" },
+  { type: "Dassault Falcon 50EX", mtow: "39,700 lbs", category: "Heavy" },
   { type: "Dassault Falcon 6X", mtow: "77,160 lbs", category: "Heavy" },
   { type: "Dassault Falcon 7X", mtow: "70,000 lbs", category: "Heavy" },
   { type: "Dassault Falcon 8X", mtow: "73,000 lbs", category: "Heavy" },
+  { type: "Dassault Falcon 900C", mtow: "45,500 lbs", category: "Heavy" },
+  { type: "Dassault Falcon 900EX", mtow: "48,300 lbs", category: "Heavy" },
   { type: "Dassault Falcon 900LX", mtow: "49,000 lbs", category: "Heavy" },
   { type: "Dassault Falcon 10X", mtow: "77,160 lbs", category: "Heavy" },
 
@@ -63,9 +81,16 @@ export const aircraftTypes: AircraftTypeOption[] = [
   { type: "Embraer Praetor 600", mtow: "49,604 lbs", category: "Heavy" },
 
   // ── Private Jets — Gulfstream ─────────────────────────────
+  { type: "Gulfstream G100", mtow: "24,000 lbs", category: "Medium" },
+  { type: "Gulfstream G150", mtow: "26,100 lbs", category: "Medium" },
+  { type: "Gulfstream G200", mtow: "35,450 lbs", category: "Heavy" },
   { type: "Gulfstream G280", mtow: "41,250 lbs", category: "Heavy" },
+  { type: "Gulfstream G300", mtow: "74,600 lbs", category: "Heavy" },
+  { type: "Gulfstream G350", mtow: "74,600 lbs", category: "Heavy" },
   { type: "Gulfstream G400", mtow: "66,990 lbs", category: "Heavy" },
+  { type: "Gulfstream GIV-SP", mtow: "74,600 lbs", category: "Heavy" },
   { type: "Gulfstream G450", mtow: "73,200 lbs", category: "Heavy" },
+  { type: "Gulfstream GV", mtow: "91,000 lbs", category: "Heavy" },
   { type: "Gulfstream G500", mtow: "79,600 lbs", category: "Heavy" },
   { type: "Gulfstream G550", mtow: "91,000 lbs", category: "Heavy" },
   { type: "Gulfstream G600", mtow: "93,500 lbs", category: "Heavy" },
@@ -73,6 +98,12 @@ export const aircraftTypes: AircraftTypeOption[] = [
   { type: "Gulfstream G650ER", mtow: "101,800 lbs", category: "Heavy" },
   { type: "Gulfstream G700", mtow: "107,600 lbs", category: "Heavy" },
   { type: "Gulfstream G800", mtow: "107,600 lbs", category: "Heavy" },
+
+  // ── Private Jets — Hawker ─────────────────────────────────
+  { type: "Hawker 400XP", mtow: "16,300 lbs", category: "Light" },
+  { type: "Hawker 800XP", mtow: "28,000 lbs", category: "Medium" },
+  { type: "Hawker 850XP", mtow: "28,000 lbs", category: "Medium" },
+  { type: "Hawker 4000", mtow: "39,500 lbs", category: "Heavy" },
 
   // ── Private Jets — Other ──────────────────────────────────
   { type: "HondaJet", mtow: "10,700 lbs", category: "Light" },
@@ -83,11 +114,14 @@ export const aircraftTypes: AircraftTypeOption[] = [
   { type: "SyberJet SJ30i", mtow: "12,500 lbs", category: "Light" },
 
   // ── Commercial — Airbus Narrowbody ────────────────────────
+  { type: "Airbus A318", mtow: "149,914 lbs", category: "Heavy" },
+  { type: "Airbus A319ceo", mtow: "166,449 lbs", category: "Heavy" },
   { type: "Airbus A220-100", mtow: "139,110 lbs", category: "Heavy" },
   { type: "Airbus A220-300", mtow: "149,030 lbs", category: "Heavy" },
   { type: "Airbus A319neo", mtow: "166,449 lbs", category: "Heavy" },
   { type: "Airbus A320", mtow: "171,960 lbs", category: "Heavy" },
   { type: "Airbus A320neo", mtow: "174,165 lbs", category: "Heavy" },
+  { type: "Airbus A321ceo", mtow: "206,132 lbs", category: "Heavy" },
   { type: "Airbus A321neo", mtow: "213,848 lbs", category: "Heavy" },
   { type: "Airbus A321XLR", mtow: "222,667 lbs", category: "Heavy" },
 
@@ -96,12 +130,15 @@ export const aircraftTypes: AircraftTypeOption[] = [
   { type: "Airbus A330-300", mtow: "533,519 lbs", category: "Heavy" },
   { type: "Airbus A330-800neo", mtow: "553,360 lbs", category: "Heavy" },
   { type: "Airbus A330-900neo", mtow: "553,360 lbs", category: "Heavy" },
+  { type: "Airbus A340-300", mtow: "609,579 lbs", category: "Heavy" },
+  { type: "Airbus A340-500", mtow: "820,109 lbs", category: "Heavy" },
   { type: "Airbus A340-600", mtow: "837,756 lbs", category: "Heavy" },
   { type: "Airbus A350-900", mtow: "617,295 lbs", category: "Heavy" },
   { type: "Airbus A350-1000", mtow: "696,659 lbs", category: "Heavy" },
   { type: "Airbus A380-800", mtow: "1,267,658 lbs", category: "Heavy" },
 
   // ── Commercial — Boeing Narrowbody ────────────────────────
+  { type: "Boeing 717-200", mtow: "121,000 lbs", category: "Heavy" },
   { type: "Boeing 737-700", mtow: "154,500 lbs", category: "Heavy" },
   { type: "Boeing 737-800", mtow: "174,200 lbs", category: "Heavy" },
   { type: "Boeing 737-900ER", mtow: "187,700 lbs", category: "Heavy" },
@@ -109,12 +146,16 @@ export const aircraftTypes: AircraftTypeOption[] = [
   { type: "Boeing 737 MAX 8", mtow: "181,200 lbs", category: "Heavy" },
   { type: "Boeing 737 MAX 9", mtow: "194,700 lbs", category: "Heavy" },
   { type: "Boeing 737 MAX 10", mtow: "197,900 lbs", category: "Heavy" },
+  { type: "Boeing 757-200", mtow: "255,000 lbs", category: "Heavy" },
+  { type: "Boeing 757-300", mtow: "272,500 lbs", category: "Heavy" },
 
   // ── Commercial — Boeing Widebody ──────────────────────────
   { type: "Boeing 747-8", mtow: "987,000 lbs", category: "Heavy" },
   { type: "Boeing 747-8F", mtow: "987,000 lbs", category: "Heavy" },
   { type: "Boeing 767-300ER", mtow: "412,775 lbs", category: "Heavy" },
   { type: "Boeing 767-300F", mtow: "412,000 lbs", category: "Heavy" },
+  { type: "Boeing 767-400ER", mtow: "450,000 lbs", category: "Heavy" },
+  { type: "Boeing 777-200ER", mtow: "656,000 lbs", category: "Heavy" },
   { type: "Boeing 777-200LR", mtow: "766,000 lbs", category: "Heavy" },
   { type: "Boeing 777-300ER", mtow: "775,000 lbs", category: "Heavy" },
   { type: "Boeing 777F", mtow: "766,800 lbs", category: "Heavy" },
@@ -123,11 +164,16 @@ export const aircraftTypes: AircraftTypeOption[] = [
   { type: "Boeing 787-8", mtow: "502,500 lbs", category: "Heavy" },
   { type: "Boeing 787-9", mtow: "560,000 lbs", category: "Heavy" },
   { type: "Boeing 787-10", mtow: "560,000 lbs", category: "Heavy" },
+  { type: "McDonnell Douglas MD-11", mtow: "625,500 lbs", category: "Heavy" },
 
   // ── Commercial — Regional ─────────────────────────────────
+  { type: "Bombardier CRJ-200", mtow: "51,000 lbs", category: "Heavy" },
   { type: "Bombardier CRJ-700", mtow: "75,000 lbs", category: "Heavy" },
   { type: "Bombardier CRJ-900", mtow: "84,500 lbs", category: "Heavy" },
   { type: "Bombardier CRJ-1000", mtow: "91,800 lbs", category: "Heavy" },
+  { type: "Embraer ERJ-135", mtow: "44,092 lbs", category: "Heavy" },
+  { type: "Embraer ERJ-140", mtow: "46,517 lbs", category: "Heavy" },
+  { type: "Embraer ERJ-145", mtow: "48,501 lbs", category: "Heavy" },
   { type: "Embraer E170", mtow: "82,012 lbs", category: "Heavy" },
   { type: "Embraer E175", mtow: "89,000 lbs", category: "Heavy" },
   { type: "Embraer E175-E2", mtow: "98,767 lbs", category: "Heavy" },
@@ -135,8 +181,15 @@ export const aircraftTypes: AircraftTypeOption[] = [
   { type: "Embraer E190-E2", mtow: "124,341 lbs", category: "Heavy" },
   { type: "Embraer E195", mtow: "115,280 lbs", category: "Heavy" },
   { type: "Embraer E195-E2", mtow: "135,584 lbs", category: "Heavy" },
+  { type: "Dornier 328JET", mtow: "34,524 lbs", category: "Medium" },
+  { type: "BAe Avro RJ85", mtow: "97,000 lbs", category: "Heavy" },
+  { type: "BAe Avro RJ100", mtow: "101,500 lbs", category: "Heavy" },
+  { type: "Fokker 70", mtow: "84,000 lbs", category: "Heavy" },
+  { type: "Fokker 100", mtow: "98,000 lbs", category: "Heavy" },
+  { type: "ATR 42-500", mtow: "41,005 lbs", category: "Heavy" },
   { type: "ATR 42-600", mtow: "41,005 lbs", category: "Heavy" },
   { type: "ATR 42-600S", mtow: "41,005 lbs", category: "Heavy" },
+  { type: "ATR 72-500", mtow: "50,265 lbs", category: "Heavy" },
   { type: "ATR 72-600", mtow: "50,706 lbs", category: "Heavy" },
 
   // ── Commercial — Other Manufacturers ──────────────────────
@@ -190,11 +243,14 @@ export const aircraftTypes: AircraftTypeOption[] = [
   { type: "Bombardier CC-144 Challenger", mtow: "48,200 lbs", category: "Heavy" },
 
   // ── Turboprops ────────────────────────────────────────────
+  { type: "Beechcraft 1900D", mtow: "16,950 lbs", category: "Light" },
   { type: "Beechcraft King Air 250", mtow: "12,500 lbs", category: "Light" },
   { type: "Beechcraft King Air 350i", mtow: "15,000 lbs", category: "Light" },
   { type: "Daher TBM 960", mtow: "7,394 lbs", category: "Light" },
+  { type: "de Havilland Dash 8-400", mtow: "65,200 lbs", category: "Heavy" },
   { type: "Pilatus PC-12 NGX", mtow: "10,450 lbs", category: "Light" },
   { type: "Piaggio Avanti EVO", mtow: "12,100 lbs", category: "Light" },
+  { type: "Saab 340B", mtow: "29,000 lbs", category: "Medium" },
 
   // ── Helicopters ───────────────────────────────────────────
   { type: "Airbus H125", mtow: "5,512 lbs", category: "Light" },
