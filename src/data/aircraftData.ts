@@ -27,6 +27,8 @@ export const AIRCRAFT_MTOW_KG: Record<string, number> = {
   "Bombardier Learjet 70": 9752,
   "Bombardier Learjet 75": 9752,
   // Cessna / Textron
+  "Cessna Citation III": 9979,
+  "Cessna Citation VI": 9979,
   "Cessna Citation Bravo": 6713,
   "Cessna Citation CJ1": 4808,
   "Cessna Citation CJ1+": 4853,
@@ -275,6 +277,8 @@ export const AIRCRAFT_RUNWAY_REQ: Record<string, number> = {
   "Bombardier Learjet 70": 3700,
   "Bombardier Learjet 75": 3700,
   // Cessna / Textron
+  "Cessna Citation III": 5140,
+  "Cessna Citation VI": 5140,
   "Cessna Citation Bravo": 3220,
   "Cessna Citation CJ1": 3250,
   "Cessna Citation CJ1+": 3250,
@@ -512,6 +516,8 @@ export const AIRCRAFT_CATEGORIES: AircraftCategory[] = [
   {
     label: "Private Jets — Cessna / Textron",
     types: [
+      "Cessna Citation III",
+      "Cessna Citation VI",
       "Cessna Citation Bravo",
       "Cessna Citation CJ1",
       "Cessna Citation CJ1+",

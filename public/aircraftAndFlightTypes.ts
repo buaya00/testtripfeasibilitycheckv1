@@ -29,6 +29,8 @@ export const aircraftTypes: AircraftTypeOption[] = [
   { type: "Bombardier Learjet 75", mtow: "21,500 lbs", category: "Medium" },
 
   // ── Private Jets — Cessna / Textron ───────────────────────
+  { type: "Cessna Citation III", mtow: "22,000 lbs", category: "Medium" },
+  { type: "Cessna Citation VI", mtow: "22,000 lbs", category: "Medium" },
   { type: "Cessna Citation Bravo", mtow: "14,800 lbs", category: "Light" },
   { type: "Cessna Citation CJ1", mtow: "10,600 lbs", category: "Light" },
   { type: "Cessna Citation CJ1+", mtow: "10,700 lbs", category: "Light" },
