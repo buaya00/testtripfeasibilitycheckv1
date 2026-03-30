@@ -253,6 +253,8 @@ export const AIRCRAFT_CRUISE_KTAS: Record<string, number> = {
   "Bombardier Learjet 70": 465,
   "Bombardier Learjet 75": 465,
   // ── Private Jets — Cessna / Textron ────────────────────────
+  "Cessna Citation III": 492,
+  "Cessna Citation VI": 492,
   "Cessna Citation Bravo": 404,
   "Cessna Citation CJ1": 389,
   "Cessna Citation CJ1+": 389,

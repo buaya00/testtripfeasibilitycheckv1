@@ -516,6 +516,8 @@ export const AIRCRAFT_CATEGORIES: AircraftCategory[] = [
   {
     label: "Private Jets — Cessna / Textron",
     types: [
+      "Cessna Citation III",
+      "Cessna Citation VI",
       "Cessna Citation Bravo",
       "Cessna Citation CJ1",
       "Cessna Citation CJ1+",
