@@ -25,6 +25,8 @@ export const AIRCRAFT_RANGE_NM: Record<string, number> = {
   "Bombardier Learjet 70": 2040,
   "Bombardier Learjet 75": 2040,
   // ── Private Jets — Cessna / Textron ────────────────────────
+  "Cessna Citation III": 2080,
+  "Cessna Citation VI": 2080,
   "Cessna Citation Bravo": 1800,
   "Cessna Citation CJ1": 1300,
   "Cessna Citation CJ1+": 1300,
