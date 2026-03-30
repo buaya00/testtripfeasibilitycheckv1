@@ -27,6 +27,8 @@ export const AIRCRAFT_MTOW_KG: Record<string, number> = {
   "Bombardier Learjet 70": 9752,
   "Bombardier Learjet 75": 9752,
   // Cessna / Textron
+  "Cessna Citation III": 9979,
+  "Cessna Citation VI": 9979,
   "Cessna Citation Bravo": 6713,
   "Cessna Citation CJ1": 4808,
   "Cessna Citation CJ1+": 4853,
