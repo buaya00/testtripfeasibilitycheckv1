@@ -277,6 +277,8 @@ export const AIRCRAFT_RUNWAY_REQ: Record<string, number> = {
   "Bombardier Learjet 70": 3700,
   "Bombardier Learjet 75": 3700,
   // Cessna / Textron
+  "Cessna Citation III": 5140,
+  "Cessna Citation VI": 5140,
   "Cessna Citation Bravo": 3220,
   "Cessna Citation CJ1": 3250,
   "Cessna Citation CJ1+": 3250,
