@@ -320,7 +320,7 @@ export const AIRCRAFT_MTOW_KG: Record<string, number> = {
   "Boeing BBJ 737 MAX": 82191,
   "Boeing BBJ 787": 227930,
 
-  // ── Military ──────────────────────────────────────────────
+  // ── Military — Transport ──────────────────────────────────
   "Boeing C-17 Globemaster III": 265352,
   "Airbus A400M Atlas": 141000,
   "Lockheed Martin C-130J Super Hercules": 79380,
@@ -330,21 +330,88 @@ export const AIRCRAFT_MTOW_KG: Record<string, number> = {
   "Antonov An-178": 51000,
   "Ilyushin Il-76MD-90A": 210000,
   "Xian Y-20": 220000,
+  // ── Military — Tanker / MRTT ────────────────────────────────
   "Airbus A330 MRTT": 233000,
   "Boeing KC-46 Pegasus": 188240,
+  // ── Military — Maritime Patrol / ISR ────────────────────────
   "Boeing P-8 Poseidon": 85820,
   "Kawasaki P-1": 79700,
   "Airbus C295": 23200,
   "Leonardo C-27J Spartan": 31800,
+  // ── Military — Training ─────────────────────────────────────
   "Boeing T-7A Red Hawk": 12680,
   "Leonardo M-346 Master": 9500,
   "KAI T-50 Golden Eagle": 13500,
   "Aero L-39NG": 5800,
   "Pilatus PC-21": 4250,
+  // ── Military — VIP / Government ─────────────────────────────
   "Boeing 747-8 (VC-25B)": 447696,
+  "Boeing VC-25A (747-200)": 377842,
+  "Gulfstream C-37A (GV)": 41277,
   "Gulfstream C-37B (G550)": 41277,
+  "Gulfstream C-20G (GIII)": 31615,
+  "Gulfstream C-20H (GIV)": 33838,
   "Boeing C-40 Clipper (737)": 79016,
+  "Boeing C-32A (757-200)": 115680,
   "Bombardier CC-144 Challenger": 21863,
+  "Dassault Falcon 900 (U-900)": 20640,
+  "Dassault Falcon 50 (Mystère 50)": 17600,
+  // ── Military — Gulfstream G550 Variants ─────────────────────
+  "EA-37B Compass Call (G550)": 41277,
+  "NC-37B (G550)": 41277,
+  "MC-55A Peregrine (G550)": 41277,
+  "G550 CAEW (Israeli AEW)": 41277,
+  "G550 Nachshon Eitam": 41277,
+  "G550 Nachshon Shavit": 41277,
+  // ── Military — Gulfstream Other Variants ────────────────────
+  "C-20A (GIII)": 31615,
+  "C-20B (GIII)": 31615,
+  "C-20C (GIII)": 31615,
+  "C-20D (GIII)": 31615,
+  "C-20E (GIV)": 33838,
+  "C-20F (GIV)": 33838,
+  "C-11A (GII)": 29711,
+  "SRA-4 (GIV)": 33838,
+  "U-4 (GIV) — Japan ASDF": 33838,
+  // ── Military — Bombardier Challenger Variants ───────────────
+  "CL-604 MMA (Denmark Maritime)": 21863,
+  "CL-605 MSA (Maritime Patrol)": 21863,
+  "C-143A (USCG Challenger 604)": 21863,
+  "Challenger 604 MPA (Malaysia)": 21863,
+  "CC-144B Challenger (EW Variant)": 21863,
+  // ── Military — Bombardier Global Variants ───────────────────
+  "CC-177 (Global Express — Canada)": 44452,
+  "Global 6000 JSTARS Recap": 44452,
+  "Raytheon Sentinel R1 (Global Express)": 44452,
+  "EL/W-2085 (G550 Conformal AEW)": 41277,
+  // ── Military — Boeing Variants ──────────────────────────────
+  "E-6B Mercury (707)": 152407,
+  "E-3 Sentry AWACS (707)": 147418,
+  "E-7A Wedgetail (737)": 79016,
+  "P-8I Poseidon (India)": 85820,
+  "C-40B (737-700 VIP)": 70080,
+  "C-40C (737-700 Congressional)": 70080,
+  "Boeing 737 AEW&C (Wedgetail)": 79016,
+  // ── Military — Airbus Variants ──────────────────────────────
+  "Airbus A310 MRTT": 150000,
+  "Airbus A340-200 (German Gov)": 275000,
+  "Airbus A319 CJ (Czech Air Force)": 75500,
+  "Airbus A330-200 (RAAF MRTT KC-30A)": 233000,
+  // ── Military — Dassault Variants ────────────────────────────
+  "Dassault Falcon 20 (HU-25 Guardian)": 13000,
+  "Dassault Falcon 900MPA (Coast Guard)": 20640,
+  "Dassault Falcon 2000MRA (Maritime)": 19414,
+  "Dassault Falcon 2000LXS (Maritime Surv)": 19414,
+  // ── Military — Embraer Variants ─────────────────────────────
+  "Embraer R-99A (E-99 AEW)": 22000,
+  "Embraer P-99 (ERJ-145 Maritime)": 22000,
+  "Embraer C-390 (Transport Variant)": 87000,
+  // ── Military — Other Variants ───────────────────────────────
+  "Beechcraft MC-12W Liberty (King Air 350)": 6804,
+  "Beechcraft RC-12 Guardrail (King Air)": 6804,
+  "Beechcraft C-12 Huron (King Air)": 5670,
+  "Beechcraft T-6 Texan II (PC-9 derivative)": 3310,
+  "Pilatus U-28A (PC-12)": 4740,
 };
 
 // Determine MTOW fee category (A-I) based on MTOW in tonnes
