@@ -358,9 +358,77 @@ export const aircraftTypes: AircraftTypeOption[] = [
 
   // ── Military — VIP / Government ───────────────────────────
   { type: "Boeing 747-8 (VC-25B)", mtow: "987,000 lbs", category: "Heavy" },
+  { type: "Boeing VC-25A (747-200)", mtow: "833,000 lbs", category: "Heavy" },
+  { type: "Gulfstream C-37A (GV)", mtow: "91,000 lbs", category: "Heavy" },
   { type: "Gulfstream C-37B (G550)", mtow: "91,000 lbs", category: "Heavy" },
+  { type: "Gulfstream C-20G (GIII)", mtow: "69,700 lbs", category: "Heavy" },
+  { type: "Gulfstream C-20H (GIV)", mtow: "74,600 lbs", category: "Heavy" },
   { type: "Boeing C-40 Clipper (737)", mtow: "174,200 lbs", category: "Heavy" },
+  { type: "Boeing C-32A (757-200)", mtow: "255,000 lbs", category: "Heavy" },
   { type: "Bombardier CC-144 Challenger", mtow: "48,200 lbs", category: "Heavy" },
+  { type: "Dassault Falcon 900 (U-900)", mtow: "45,500 lbs", category: "Heavy" },
+  { type: "Dassault Falcon 50 (Mystère 50)", mtow: "38,800 lbs", category: "Heavy" },
+
+  // ── Military — G550 Special Mission ───────────────────────
+  { type: "EA-37B Compass Call (G550)", mtow: "91,000 lbs", category: "Heavy" },
+  { type: "NC-37B (G550)", mtow: "91,000 lbs", category: "Heavy" },
+  { type: "MC-55A Peregrine (G550)", mtow: "91,000 lbs", category: "Heavy" },
+  { type: "G550 CAEW (Israeli AEW)", mtow: "91,000 lbs", category: "Heavy" },
+  { type: "G550 Nachshon Eitam", mtow: "91,000 lbs", category: "Heavy" },
+  { type: "G550 Nachshon Shavit", mtow: "91,000 lbs", category: "Heavy" },
+
+  // ── Military — Gulfstream Other Variants ──────────────────
+  { type: "C-20A (GIII)", mtow: "69,700 lbs", category: "Heavy" },
+  { type: "C-20B (GIII)", mtow: "69,700 lbs", category: "Heavy" },
+  { type: "C-20C (GIII)", mtow: "69,700 lbs", category: "Heavy" },
+  { type: "C-20D (GIII)", mtow: "69,700 lbs", category: "Heavy" },
+  { type: "C-20E (GIV)", mtow: "74,600 lbs", category: "Heavy" },
+  { type: "C-20F (GIV)", mtow: "74,600 lbs", category: "Heavy" },
+  { type: "C-11A (GII)", mtow: "65,500 lbs", category: "Heavy" },
+  { type: "SRA-4 (GIV)", mtow: "74,600 lbs", category: "Heavy" },
+  { type: "U-4 (GIV) — Japan ASDF", mtow: "74,600 lbs", category: "Heavy" },
+
+  // ── Military — Challenger / Global Variants ───────────────
+  { type: "CL-604 MMA (Denmark Maritime)", mtow: "48,200 lbs", category: "Heavy" },
+  { type: "CL-605 MSA (Maritime Patrol)", mtow: "48,200 lbs", category: "Heavy" },
+  { type: "C-143A (USCG Challenger 604)", mtow: "48,200 lbs", category: "Heavy" },
+  { type: "Challenger 604 MPA (Malaysia)", mtow: "48,200 lbs", category: "Heavy" },
+  { type: "CC-144B Challenger (EW Variant)", mtow: "48,200 lbs", category: "Heavy" },
+  { type: "CC-177 (Global Express — Canada)", mtow: "98,000 lbs", category: "Heavy" },
+  { type: "Global 6000 JSTARS Recap", mtow: "98,000 lbs", category: "Heavy" },
+  { type: "Raytheon Sentinel R1 (Global Express)", mtow: "98,000 lbs", category: "Heavy" },
+  { type: "EL/W-2085 (G550 Conformal AEW)", mtow: "91,000 lbs", category: "Heavy" },
+
+  // ── Military — Boeing Variants ────────────────────────────
+  { type: "E-6B Mercury (707)", mtow: "336,000 lbs", category: "Heavy" },
+  { type: "E-3 Sentry AWACS (707)", mtow: "325,000 lbs", category: "Heavy" },
+  { type: "E-7A Wedgetail (737)", mtow: "174,200 lbs", category: "Heavy" },
+  { type: "P-8I Poseidon (India)", mtow: "189,200 lbs", category: "Heavy" },
+  { type: "C-40B (737-700 VIP)", mtow: "154,500 lbs", category: "Heavy" },
+  { type: "C-40C (737-700 Congressional)", mtow: "154,500 lbs", category: "Heavy" },
+  { type: "Boeing 737 AEW&C (Wedgetail)", mtow: "174,200 lbs", category: "Heavy" },
+
+  // ── Military — Airbus Variants ────────────────────────────
+  { type: "Airbus A310 MRTT", mtow: "330,695 lbs", category: "Heavy" },
+  { type: "Airbus A340-200 (German Gov)", mtow: "606,271 lbs", category: "Heavy" },
+  { type: "Airbus A319 CJ (Czech Air Force)", mtow: "166,449 lbs", category: "Heavy" },
+  { type: "Airbus A330-200 (RAAF MRTT KC-30A)", mtow: "513,677 lbs", category: "Heavy" },
+
+  // ── Military — Dassault Variants ──────────────────────────
+  { type: "Dassault Falcon 20 (HU-25 Guardian)", mtow: "28,660 lbs", category: "Medium" },
+  { type: "Dassault Falcon 900MPA (Coast Guard)", mtow: "45,500 lbs", category: "Heavy" },
+  { type: "Dassault Falcon 2000MRA (Maritime)", mtow: "42,800 lbs", category: "Heavy" },
+  { type: "Dassault Falcon 2000LXS (Maritime Surv)", mtow: "42,800 lbs", category: "Heavy" },
+
+  // ── Military — Embraer / Beechcraft / Other ───────────────
+  { type: "Embraer R-99A (E-99 AEW)", mtow: "48,501 lbs", category: "Heavy" },
+  { type: "Embraer P-99 (ERJ-145 Maritime)", mtow: "48,501 lbs", category: "Heavy" },
+  { type: "Embraer C-390 (Transport Variant)", mtow: "191,802 lbs", category: "Heavy" },
+  { type: "Beechcraft MC-12W Liberty (King Air 350)", mtow: "15,000 lbs", category: "Light" },
+  { type: "Beechcraft RC-12 Guardrail (King Air)", mtow: "15,000 lbs", category: "Light" },
+  { type: "Beechcraft C-12 Huron (King Air)", mtow: "12,500 lbs", category: "Light" },
+  { type: "Beechcraft T-6 Texan II (PC-9 derivative)", mtow: "7,300 lbs", category: "Light" },
+  { type: "Pilatus U-28A (PC-12)", mtow: "10,450 lbs", category: "Light" },
 
   // ── Helicopters ───────────────────────────────────────────
   { type: "Airbus H125", mtow: "5,512 lbs", category: "Light" },
