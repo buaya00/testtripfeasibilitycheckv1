@@ -654,11 +654,22 @@ export default function TripLegCard({
     handleAirportHoursLookup();
   }, [leg.airportIcao, isUsLocation, isDomesticUsLeg, isUsArrival, isUsInternationalDeparture, isPrivateFlight, isFirstLegUsDeparture, isCommercialFlight, leg.airportCity, handleCbpLookup, handleCiqLookup, handleRunwayLookup, handlePermitLookup, handleChargesLookup, handlePprLookup, handleAirportHoursLookup]);
 
-  // Register lookup function with parent
+  // Keep a ref that always points to the latest handleLookupAll so the
+  // registered callback never uses a stale closure (e.g. old flightType).
+  const handleLookupAllRef = useRef(handleLookupAll);
+  handleLookupAllRef.current = handleLookupAll;
+
+  // Register a stable wrapper with the parent — it delegates to the ref,
+  // so the parent always invokes the most recent version of handleLookupAll
+  // even if the useEffect hasn't re-fired yet after a prop change.
+  const stableLookupAll = useCallback(() => {
+    handleLookupAllRef.current();
+  }, []);
+
   useEffect(() => {
-    onRegisterLookup?.(legIndex, handleLookupAll);
+    onRegisterLookup?.(legIndex, stableLookupAll);
     return () => onRegisterLookup?.(legIndex, null);
-  }, [legIndex, handleLookupAll, onRegisterLookup]);
+  }, [legIndex, stableLookupAll, onRegisterLookup]);
 
   // Ground handling data from invoice database
   interface GroundHandlingQuote {
