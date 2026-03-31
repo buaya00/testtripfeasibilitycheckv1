@@ -21,119 +21,158 @@ Deno.serve(async (req) => {
       });
     }
 
-    const fileText = await file.text();
-
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    const prompt = `You are an aviation trip itinerary parser. Extract the FULL trip schedule from the document below.
+    const isPdf = file.name?.toLowerCase().endsWith(".pdf") || file.type === "application/pdf";
+    const fileBytes = new Uint8Array(await file.arrayBuffer());
 
-ICAO codes are always exactly 4 uppercase letters (e.g. KAUS, GMMX, HRYR, HTKJ, EGGW, KJFK, EGLL).
+    // Determine if we have usable text or need vision/OCR
+    let fileText = "";
+    let useVision = false;
 
-VERY COMMON DOCUMENT FORMAT — read line by line, ignoring blank lines:
+    if (isPdf) {
+      // Try extracting text from the raw bytes (works for text-based PDFs)
+      const rawText = new TextDecoder("utf-8", { fatal: false }).decode(fileBytes);
 
-  DATE_OF_DEPARTURE (e.g. 2/2/2026)
-  ORIGIN_ICAO
-  DEPARTURE_TIME
-  ARRIVAL_TIME (may have "+1" meaning next calendar day)
-  DESTINATION_ICAO
-  DATE_OF_NEXT_DEPARTURE (e.g. 2/5/2026)
-  ORIGIN_ICAO (same as previous destination)
-  DEPARTURE_TIME
-  ARRIVAL_TIME
-  DESTINATION_ICAO
-  ... and so on
+      // Count alphabetic characters in extracted text to gauge quality
+      const letterCount = (rawText.match(/[A-Za-z]/g) || []).length;
+      const icaoMatches = rawText.match(/\b[A-Z]{4}\b/g) || [];
 
-EXAMPLE — this input:
-  2/2/2026
-  KAUS
-  2100
-  1233 (+1)
-  GMMX
-  2/5/2026
-  GMMX
-  700
-  1400
-  HRYR
-  2/8/2026
-  HRYR
-  900
-  1003
-  HTKJ
+      console.log(`PDF raw text stats: ${letterCount} letters, ${icaoMatches.length} potential ICAO codes, text length: ${rawText.length}`);
 
-Should produce legs: KAUS (departs 2026-02-02 21:00), GMMX (arrives 2026-02-03 12:33, departs 2026-02-05 07:00), HRYR (arrives 2026-02-05 14:00, departs 2026-02-08 09:00), HTKJ (arrives 2026-02-08 10:03)
+      // PDF binary will have lots of bytes but few meaningful words
+      // If we find ICAO-like codes in raw text, it might still work, but PDFs
+      // encode text in streams that file.text() can't decode properly.
+      // Always use vision for PDFs since raw byte decoding is unreliable.
+      useVision = true;
+      console.log("PDF detected — using vision model for extraction");
+    } else {
+      // Plain text, CSV, etc. — direct text extraction works fine
+      fileText = new TextDecoder("utf-8", { fatal: false }).decode(fileBytes);
+      const letterCount = (fileText.match(/[A-Za-z]/g) || []).length;
+      console.log(`Text file: ${letterCount} letters, length: ${fileText.length}`);
 
-TIME FORMAT RULES:
-- Times have NO colon: 2100 = 21:00, 700 = 07:00, 1233 = 12:33, 1003 = 10:03
-- Always output times in HH:MM 24-hour format
-- "(+1)" after an arrival time means arrival is the NEXT calendar day — add 1 day to the departure date
-- Dates like "2/5/2026" mean February 5, 2026 → ISO format 2026-02-05
+      if (letterCount < 50) {
+        console.log("Text file has very little text — falling back to vision");
+        useVision = true;
+      }
+    }
+
+    const prompt = `You are an aviation trip itinerary parser. Extract the FULL trip schedule from the document.
+
+ICAO codes are always exactly 4 uppercase letters (e.g. KAUS, GMMX, HRYR, HTKJ, EGGW, KJFK, EGLL, KHND, KGRB, LIPH, LMML, LFMD, EDDB, LEMG, TJIG).
+
+The document may be a Jeppesen trip sheet, flight plan, or similar aviation document. Look for:
+- Tables with columns like "City / Airport / Country", "ICAO", "IATA", "Date/Time UTC"
+- ETA and ETD lines with dates and times
+- Flight leg information spread across multiple pages
 
 PARSING RULES:
-- Each unique airport stop = one leg entry
-- The ICAO at the start of a block is the ORIGIN; the ICAO at the end is the DESTINATION
-- The destination of one leg becomes the origin of the next (they share arrival/departure info)
+- Each page typically represents one leg/stop of the trip
+- Look for ICAO codes in table cells, headers, or any structured data
+- Extract arrival (ETA) and departure (ETD) dates and times in UTC
+- Times may be in formats like "Thu 12-Mar-2026 0429Z" or "0429Z" or "04:29"
+- Convert all dates to ISO format YYYY-MM-DD
+- Convert all times to HH:MM 24-hour format
 - The VERY FIRST airport only has departureDate/departureTime (no arrival)
 - The VERY LAST airport only has arrivalDate/arrivalTime (no departure)
 - ALL intermediate airports have BOTH arrival AND departure info
-- Extract ALL legs — do not stop after the first two
+- Extract ALL legs — do not stop early
 - Skip any token that is NOT a valid 4-letter ICAO code
 
 Return ONLY a JSON object in this exact format, nothing else:
 {
   "legs": [
     {
-      "icao": "KAUS",
+      "icao": "KHND",
       "arrivalDate": null,
       "arrivalTime": null,
-      "departureDate": "2026-02-02",
-      "departureTime": "21:00"
+      "departureDate": "2026-03-12",
+      "departureTime": "01:30"
     },
     {
-      "icao": "GMMX",
-      "arrivalDate": "2026-02-03",
-      "arrivalTime": "12:33",
-      "departureDate": "2026-02-05",
-      "departureTime": "07:00"
-    },
-    {
-      "icao": "HRYR",
-      "arrivalDate": "2026-02-05",
-      "arrivalTime": "14:00",
-      "departureDate": "2026-02-08",
-      "departureTime": "09:00"
+      "icao": "KGRB",
+      "arrivalDate": "2026-03-12",
+      "arrivalTime": "04:29",
+      "departureDate": "2026-03-12",
+      "departureTime": "05:00"
     }
   ],
   "notes": "Brief description of what was parsed"
 }
 
-Use null for missing date/time fields (not empty string). Extract EVERY leg in the document.
+Use null for missing date/time fields (not empty string). Extract EVERY leg in the document.`;
 
-Document text:
-${fileText.slice(0, 8000)}`;
+    let aiRes: Response;
 
-    const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.1,
-      }),
-    });
+    if (useVision) {
+      // Send PDF as base64 to Gemini vision — it can read PDFs directly
+      const base64Data = btoa(String.fromCharCode(...fileBytes));
+      const mimeType = isPdf ? "application/pdf" : (file.type || "image/png");
+
+      console.log(`Sending ${mimeType} to vision model (${fileBytes.length} bytes, base64: ${base64Data.length} chars)`);
+
+      aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          messages: [
+            {
+              role: "user",
+              content: [
+                { type: "text", text: prompt },
+                {
+                  type: "image_url",
+                  image_url: {
+                    url: `data:${mimeType};base64,${base64Data}`,
+                  },
+                },
+              ],
+            },
+          ],
+          temperature: 0.1,
+        }),
+      });
+    } else {
+      // Text-based file — send as text content
+      console.log(`Sending text content to model (${fileText.length} chars)`);
+
+      aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          messages: [
+            {
+              role: "user",
+              content: prompt + "\n\nDocument text:\n" + fileText.slice(0, 8000),
+            },
+          ],
+          temperature: 0.1,
+        }),
+      });
+    }
 
     if (!aiRes.ok) {
       const errText = await aiRes.text();
+      console.error(`AI gateway error: ${errText}`);
       throw new Error(`AI gateway error: ${errText}`);
     }
 
     const aiData = await aiRes.json();
     const rawText = aiData?.choices?.[0]?.message?.content ?? "{}";
+
+    console.log(`AI raw response (first 500 chars): ${rawText.slice(0, 500)}`);
 
     // Strip markdown code fences if present
     const cleaned = rawText
@@ -155,6 +194,7 @@ ${fileText.slice(0, 8000)}`;
     try {
       parsed = JSON.parse(cleaned);
     } catch {
+      console.error(`Failed to parse AI response as JSON: ${cleaned.slice(0, 300)}`);
       parsed = { legs: [] };
     }
 
@@ -163,7 +203,18 @@ ${fileText.slice(0, 8000)}`;
       (l) => l.icao && /^[A-Z]{4}$/.test(l.icao)
     );
 
-    console.log(`Parsed ${validLegs.length} valid legs from document. Notes: ${parsed.notes}`);
+    console.log(`Parsed ${validLegs.length} valid legs from document. Vision used: ${useVision}. Notes: ${parsed.notes}`);
+
+    if (validLegs.length === 0) {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          legs: [],
+          notes: "No ICAO codes detected. Please verify the document formatting and ensure ICAO codes are present.",
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     return new Response(
       JSON.stringify({ success: true, legs: validLegs, notes: parsed.notes }),
