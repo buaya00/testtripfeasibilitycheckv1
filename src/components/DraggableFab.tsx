@@ -9,73 +9,53 @@ interface DraggableFabProps {
   className?: string;
 }
 
-const STORAGE_KEY = "fab-position-v2";
-const LEGACY_STORAGE_KEYS = ["fab-position"];
+const STORAGE_KEY = "fab-position-v3";
 const FAB_SIZE = 48;
-const MIN_MARGIN = 8;
-const DEFAULT_POSITION = { bottom: 24, right: 24 };
+const MARGIN = 8;
 
-const clampOffset = (value: number | undefined, max: number, fallback: number) => (
-  Number.isFinite(value) ? Math.max(MIN_MARGIN, Math.min(max, value as number)) : fallback
-);
-
-const clampPosition = (position: Partial<{ bottom: number; right: number }>) => {
-  if (typeof window === "undefined") {
-    return DEFAULT_POSITION;
-  }
-
-  const maxRight = Math.max(MIN_MARGIN, window.innerWidth - FAB_SIZE);
-  const maxBottom = Math.max(MIN_MARGIN, window.innerHeight - FAB_SIZE);
-
+function getDefaultPosition() {
+  if (typeof window === "undefined") return { left: 350, top: 600 };
   return {
-    bottom: clampOffset(position.bottom, maxBottom, DEFAULT_POSITION.bottom),
-    right: clampOffset(position.right, maxRight, DEFAULT_POSITION.right),
+    left: window.innerWidth - FAB_SIZE - 24,
+    top: window.innerHeight - FAB_SIZE - 24,
   };
-};
+}
+
+function clamp(pos: { left: number; top: number }) {
+  if (typeof window === "undefined") return pos;
+  return {
+    left: Math.max(MARGIN, Math.min(window.innerWidth - FAB_SIZE - MARGIN, pos.left)),
+    top: Math.max(MARGIN, Math.min(window.innerHeight - FAB_SIZE - MARGIN, pos.top)),
+  };
+}
 
 export function DraggableFab({ children, fabIcon, open, onOpenChange, className }: DraggableFabProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const dragState = useRef({ dragging: false, startX: 0, startY: 0, hasMoved: false });
+  const dragRef = useRef({ active: false, startX: 0, startY: 0, moved: false });
 
-  const [pos, setPos] = useState<{ bottom: number; right: number }>(() => {
+  const [pos, setPos] = useState<{ left: number; top: number }>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) return clampPosition(JSON.parse(saved) as Partial<{ bottom: number; right: number }>);
-
-      for (const legacyKey of LEGACY_STORAGE_KEYS) {
-        localStorage.removeItem(legacyKey);
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const p = JSON.parse(raw);
+        if (Number.isFinite(p.left) && Number.isFinite(p.top)) return clamp(p);
       }
-
-      return DEFAULT_POSITION;
-    } catch {
-      return DEFAULT_POSITION;
-    }
+    } catch {}
+    // Clear any legacy keys
+    try { localStorage.removeItem("fab-position"); localStorage.removeItem("fab-position-v2"); } catch {}
+    return getDefaultPosition();
   });
 
-  const savePos = useCallback((p: { bottom: number; right: number }) => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(clampPosition(p))); } catch {}
+  const save = useCallback((p: { left: number; top: number }) => {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(p)); } catch {}
   }, []);
 
+  // Re-clamp on window resize
   useEffect(() => {
-    const safePosition = clampPosition(pos);
-    if (safePosition.bottom !== pos.bottom || safePosition.right !== pos.right) {
-      setPos(safePosition);
-      savePos(safePosition);
-    }
-  }, [pos, savePos]);
-
-  useEffect(() => {
-    const handleResize = () => {
-      setPos((previous) => {
-        const safePosition = clampPosition(previous);
-        savePos(safePosition);
-        return safePosition;
-      });
-    };
-
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, [savePos]);
+    const onResize = () => setPos(prev => { const c = clamp(prev); save(c); return c; });
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [save]);
 
   // Close on outside tap
   useEffect(() => {
@@ -93,39 +73,35 @@ export function DraggableFab({ children, fabIcon, open, onOpenChange, className 
     };
   }, [open, onOpenChange]);
 
-  const getClientXY = (e: React.MouseEvent | React.TouchEvent | MouseEvent | TouchEvent) => {
+  const xy = (e: React.MouseEvent | React.TouchEvent | MouseEvent | TouchEvent) => {
     if ("touches" in e && e.touches.length) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
     if ("clientX" in e) return { x: (e as MouseEvent).clientX, y: (e as MouseEvent).clientY };
     return { x: 0, y: 0 };
   };
 
   const onPointerDown = useCallback((e: React.MouseEvent | React.TouchEvent) => {
-    const { x, y } = getClientXY(e);
-    dragState.current = { dragging: true, startX: x, startY: y, hasMoved: false };
+    const { x, y } = xy(e);
+    dragRef.current = { active: true, startX: x, startY: y, moved: false };
   }, []);
 
   useEffect(() => {
     const onMove = (e: MouseEvent | TouchEvent) => {
-      const ds = dragState.current;
-      if (!ds.dragging) return;
-      const { x, y } = getClientXY(e);
-      const dx = x - ds.startX;
-      const dy = y - ds.startY;
-      if (!ds.hasMoved && Math.abs(dx) < 5 && Math.abs(dy) < 5) return;
-      ds.hasMoved = true;
+      const d = dragRef.current;
+      if (!d.active) return;
+      const { x, y } = xy(e);
+      const dx = x - d.startX;
+      const dy = y - d.startY;
+      if (!d.moved && Math.abs(dx) < 5 && Math.abs(dy) < 5) return;
+      d.moved = true;
       e.preventDefault();
-      setPos(prev => {
-        const newRight = Math.max(8, Math.min(window.innerWidth - 64, prev.right - dx));
-        const newBottom = Math.max(8, Math.min(window.innerHeight - 64, prev.bottom - dy));
-        return { bottom: newBottom, right: newRight };
-      });
-      ds.startX = x;
-      ds.startY = y;
+      setPos(prev => clamp({ left: prev.left + dx, top: prev.top + dy }));
+      d.startX = x;
+      d.startY = y;
     };
     const onUp = () => {
-      if (dragState.current.dragging) {
-        dragState.current.dragging = false;
-        setPos(p => { savePos(p); return p; });
+      if (dragRef.current.active) {
+        dragRef.current.active = false;
+        setPos(p => { save(p); return p; });
       }
     };
     document.addEventListener("mousemove", onMove);
@@ -138,19 +114,17 @@ export function DraggableFab({ children, fabIcon, open, onOpenChange, className 
       document.removeEventListener("mouseup", onUp);
       document.removeEventListener("touchend", onUp);
     };
-  }, [savePos]);
+  }, [save]);
 
   const handleFabClick = useCallback(() => {
-    if (!dragState.current.hasMoved) {
-      onOpenChange(!open);
-    }
+    if (!dragRef.current.moved) onOpenChange(!open);
   }, [open, onOpenChange]);
 
   return (
     <div
       ref={containerRef}
       className={cn("fixed z-50", className)}
-      style={{ bottom: pos.bottom, right: pos.right }}
+      style={{ left: pos.left, top: pos.top }}
     >
       {/* Collapsed FAB — mobile only */}
       {!open && (
