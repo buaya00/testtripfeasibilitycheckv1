@@ -1573,14 +1573,38 @@ export default function FeasibilityForm() {
         </div> {/* end locked wrapper */}
       </main>
 
-      {/* Floating action toolbar */}
+      {/* Floating action toolbar — collapsible on mobile */}
       {legs.some(l => l.airportIcao.length === 4) && (
         <div className="fixed bottom-6 right-6 z-50">
-          <div className="flex flex-col gap-1 bg-background/95 backdrop-blur-sm border rounded-xl shadow-xl p-2 min-w-[160px]">
+          {/* Collapsed FAB — mobile only */}
+          {!toolbarOpen && (
+            <button
+              onClick={() => setToolbarOpen(true)}
+              className="sm:hidden flex items-center justify-center h-12 w-12 rounded-full bg-primary text-primary-foreground shadow-lg hover:scale-105 transition-transform"
+              aria-label="Open action toolbar"
+            >
+              <CheckCircle2 className="h-5 w-5" />
+            </button>
+          )}
+
+          {/* Expanded toolbar */}
+          <div className={cn(
+            "flex flex-col gap-1 bg-background/95 backdrop-blur-sm border rounded-xl shadow-xl p-2 min-w-[160px] transition-all duration-200 origin-bottom-right",
+            toolbarOpen ? "scale-100 opacity-100" : "sm:scale-100 sm:opacity-100 scale-0 opacity-0 pointer-events-none sm:pointer-events-auto"
+          )}>
+            {/* Close button — mobile only */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="sm:hidden justify-end gap-1 w-full text-muted-foreground"
+              onClick={() => setToolbarOpen(false)}
+            >
+              <X className="h-3.5 w-3.5" /> Collapse
+            </Button>
             <Button
               size="sm"
               className="justify-start gap-2 w-full"
-              onClick={handleCheckAll}
+              onClick={() => { handleCheckAll(); setToolbarOpen(false); }}
             >
               <CheckCircle2 className="h-3.5 w-3.5" /> Run Feasibility Check
             </Button>
@@ -1591,7 +1615,7 @@ export default function FeasibilityForm() {
               variant="secondary"
               size="sm"
               className="justify-start gap-2 w-full"
-              onClick={() => { handleCheckAll(); }}
+              onClick={() => { handleCheckAll(); setToolbarOpen(false); }}
             >
               <RefreshCw className="h-3.5 w-3.5" /> Refresh All
             </Button>
@@ -1600,7 +1624,7 @@ export default function FeasibilityForm() {
                 variant="secondary"
                 size="sm"
                 className="justify-start gap-2 w-full"
-                onClick={handleAllOverflights}
+                onClick={() => { handleAllOverflights(); setToolbarOpen(false); }}
               >
                 <Navigation className="h-3.5 w-3.5" /> Overflights
               </Button>
@@ -1619,6 +1643,7 @@ export default function FeasibilityForm() {
                     });
                     const w = window.open("", "_blank");
                     if (w) { w.document.write(html); w.document.close(); }
+                    setToolbarOpen(false);
                   }}
                 >
                   <Printer className="h-3.5 w-3.5" /> Print Report
@@ -1638,6 +1663,7 @@ export default function FeasibilityForm() {
                       w.document.close();
                       setTimeout(() => w.print(), 500);
                     }
+                    setToolbarOpen(false);
                   }}
                 >
                   <FileDown className="h-3.5 w-3.5" /> Save as PDF
@@ -1650,7 +1676,7 @@ export default function FeasibilityForm() {
               variant="ghost"
               size="sm"
               className="justify-start gap-2 w-full text-muted-foreground hover:text-destructive"
-              onClick={handleReset}
+              onClick={() => { handleReset(); setToolbarOpen(false); }}
             >
               <X className="h-3.5 w-3.5" /> Reset
             </Button>
