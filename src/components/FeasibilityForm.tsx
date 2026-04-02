@@ -1669,8 +1669,7 @@ export default function FeasibilityForm() {
             >
               <X className="h-3.5 w-3.5" /> Reset
             </Button>
-          </div>
-        </div>
+        </DraggableFab>
       )}
       <VideoModal
         open={showVideoModal}
