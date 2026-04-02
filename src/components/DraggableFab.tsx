@@ -10,32 +10,68 @@ interface DraggableFabProps {
 }
 
 const STORAGE_KEY = "fab-position";
+const FAB_SIZE = 48;
+const MIN_MARGIN = 8;
+const DEFAULT_POSITION = { bottom: 24, right: 24 };
+
+const clampOffset = (value: number | undefined, max: number) => (
+  Number.isFinite(value) ? Math.max(MIN_MARGIN, Math.min(max, value as number)) : DEFAULT_POSITION.bottom
+);
+
+const clampPosition = (position: Partial<{ bottom: number; right: number }>) => {
+  if (typeof window === "undefined") {
+    return DEFAULT_POSITION;
+  }
+
+  const maxRight = Math.max(MIN_MARGIN, window.innerWidth - FAB_SIZE);
+  const maxBottom = Math.max(MIN_MARGIN, window.innerHeight - FAB_SIZE);
+
+  return {
+    bottom: clampOffset(position.bottom, maxBottom),
+    right: clampOffset(position.right, maxRight),
+  };
+};
 
 export function DraggableFab({ children, fabIcon, open, onOpenChange, className }: DraggableFabProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const dragState = useRef({ dragging: false, startX: 0, startY: 0, hasMoved: false });
 
-  // Position stored as bottom/right offsets (safe for resize)
   const [pos, setPos] = useState<{ bottom: number; right: number }>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const p = JSON.parse(saved);
-        // Clamp to viewport so the FAB is never off-screen
-        const maxRight = Math.max(8, window.innerWidth - 64);
-        const maxBottom = Math.max(8, window.innerHeight - 64);
-        return {
-          bottom: Math.max(8, Math.min(maxBottom, p.bottom)),
-          right: Math.max(8, Math.min(maxRight, p.right)),
-        };
-      }
-    } catch {}
-    return { bottom: 24, right: 24 };
+      if (!saved) return DEFAULT_POSITION;
+
+      const parsed = JSON.parse(saved) as Partial<{ bottom: number; right: number }>;
+      return clampPosition(parsed);
+    } catch {
+      return DEFAULT_POSITION;
+    }
   });
 
   const savePos = useCallback((p: { bottom: number; right: number }) => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(p)); } catch {}
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(clampPosition(p))); } catch {}
   }, []);
+
+  useEffect(() => {
+    const safePosition = clampPosition(pos);
+    if (safePosition.bottom !== pos.bottom || safePosition.right !== pos.right) {
+      setPos(safePosition);
+      savePos(safePosition);
+    }
+  }, [pos, savePos]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setPos((previous) => {
+        const safePosition = clampPosition(previous);
+        savePos(safePosition);
+        return safePosition;
+      });
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [savePos]);
 
   // Close on outside tap
   useEffect(() => {
