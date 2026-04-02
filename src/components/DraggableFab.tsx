@@ -9,13 +9,14 @@ interface DraggableFabProps {
   className?: string;
 }
 
-const STORAGE_KEY = "fab-position";
+const STORAGE_KEY = "fab-position-v2";
+const LEGACY_STORAGE_KEYS = ["fab-position"];
 const FAB_SIZE = 48;
 const MIN_MARGIN = 8;
 const DEFAULT_POSITION = { bottom: 24, right: 24 };
 
-const clampOffset = (value: number | undefined, max: number) => (
-  Number.isFinite(value) ? Math.max(MIN_MARGIN, Math.min(max, value as number)) : DEFAULT_POSITION.bottom
+const clampOffset = (value: number | undefined, max: number, fallback: number) => (
+  Number.isFinite(value) ? Math.max(MIN_MARGIN, Math.min(max, value as number)) : fallback
 );
 
 const clampPosition = (position: Partial<{ bottom: number; right: number }>) => {
@@ -27,8 +28,8 @@ const clampPosition = (position: Partial<{ bottom: number; right: number }>) => 
   const maxBottom = Math.max(MIN_MARGIN, window.innerHeight - FAB_SIZE);
 
   return {
-    bottom: clampOffset(position.bottom, maxBottom),
-    right: clampOffset(position.right, maxRight),
+    bottom: clampOffset(position.bottom, maxBottom, DEFAULT_POSITION.bottom),
+    right: clampOffset(position.right, maxRight, DEFAULT_POSITION.right),
   };
 };
 
