@@ -40,10 +40,13 @@ export function DraggableFab({ children, fabIcon, open, onOpenChange, className 
   const [pos, setPos] = useState<{ bottom: number; right: number }>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
-      if (!saved) return DEFAULT_POSITION;
+      if (saved) return clampPosition(JSON.parse(saved) as Partial<{ bottom: number; right: number }>);
 
-      const parsed = JSON.parse(saved) as Partial<{ bottom: number; right: number }>;
-      return clampPosition(parsed);
+      for (const legacyKey of LEGACY_STORAGE_KEYS) {
+        localStorage.removeItem(legacyKey);
+      }
+
+      return DEFAULT_POSITION;
     } catch {
       return DEFAULT_POSITION;
     }
