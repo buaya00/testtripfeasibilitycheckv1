@@ -65,6 +65,7 @@ export default function FeasibilityForm() {
 
   // Overflight toggle — when true, overflights auto-run as part of 'Run Feasibility Check'
   const [autoRunOverflights, setAutoRunOverflights] = useState(false);
+  const [toolbarOpen, setToolbarOpen] = useState(false);
 
   const [currentLegIndex, setCurrentLegIndex] = useState(0);
 
