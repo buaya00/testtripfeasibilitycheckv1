@@ -57,7 +57,7 @@ const LiveClock = () => {
 
   return (
     <div
-      className="fixed top-3 right-4 z-50 text-xs font-mono text-muted-foreground select-none"
+      className="text-xs font-mono text-muted-foreground select-none"
       role="status"
       aria-label="Current UTC and local time"
     >
@@ -66,7 +66,7 @@ const LiveClock = () => {
         {" | "}
         <LocalTooltip now={now}>Local: {formatLocal(now)}</LocalTooltip>
       </span>
-      <span className="sm:hidden flex flex-col items-end leading-tight">
+      <span className="sm:hidden flex flex-col items-end leading-tight text-[10px]">
         <UtcTooltip now={now}>UTC: {formatUTC(now)}</UtcTooltip>
         <LocalTooltip now={now}>Local: {formatLocal(now)}</LocalTooltip>
       </span>

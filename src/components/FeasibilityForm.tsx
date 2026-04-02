@@ -14,6 +14,7 @@ import { NationalityCombobox } from "@/components/NationalityCombobox";
 import { AIRCRAFT_RANGE_NM, AIRCRAFT_CRUISE_KTAS } from "@/data/aircraftPerformance";
 import { calculateFlightLeg, type FlightLegCalculation } from "@/lib/flightCalculations";
 import { COUNTRIES } from "@/data/countries";
+import LiveClock from "@/components/LiveClock";
 
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
@@ -679,6 +680,9 @@ export default function FeasibilityForm() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-white shadow-sm sticky top-0 z-40">
+        <div className="container mx-auto flex items-center justify-end px-4 sm:px-6 pt-1 pb-0">
+          <LiveClock />
+        </div>
         <div className="container mx-auto flex items-center py-2 px-4 sm:px-6 gap-4">
           {/* Logo */}
           <a href="https://www.aegfuels.com" target="_blank" rel="noopener noreferrer" className="shrink-0 flex items-center">
