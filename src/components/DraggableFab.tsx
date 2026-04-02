@@ -19,7 +19,16 @@ export function DraggableFab({ children, fabIcon, open, onOpenChange, className 
   const [pos, setPos] = useState<{ bottom: number; right: number }>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const p = JSON.parse(saved);
+        // Clamp to viewport so the FAB is never off-screen
+        const maxRight = Math.max(8, window.innerWidth - 64);
+        const maxBottom = Math.max(8, window.innerHeight - 64);
+        return {
+          bottom: Math.max(8, Math.min(maxBottom, p.bottom)),
+          right: Math.max(8, Math.min(maxRight, p.right)),
+        };
+      }
     } catch {}
     return { bottom: 24, right: 24 };
   });
