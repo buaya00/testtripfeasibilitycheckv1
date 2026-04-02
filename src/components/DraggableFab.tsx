@@ -67,7 +67,7 @@ export function DraggableFab({ children, fabIcon, open, onOpenChange, className 
       e.preventDefault();
       setPos(prev => {
         const newRight = Math.max(8, Math.min(window.innerWidth - 64, prev.right - dx));
-        const newBottom = Math.max(8, Math.min(window.innerHeight - 64, prev.bottom + dy));
+        const newBottom = Math.max(8, Math.min(window.innerHeight - 64, prev.bottom - dy));
         return { bottom: newBottom, right: newRight };
       });
       ds.startX = x;
