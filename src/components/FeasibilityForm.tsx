@@ -15,6 +15,7 @@ import { AIRCRAFT_RANGE_NM, AIRCRAFT_CRUISE_KTAS } from "@/data/aircraftPerforma
 import { calculateFlightLeg, type FlightLegCalculation } from "@/lib/flightCalculations";
 import { COUNTRIES } from "@/data/countries";
 import LiveClock from "@/components/LiveClock";
+import { DraggableFab } from "@/components/DraggableFab";
 
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
@@ -1574,25 +1575,13 @@ export default function FeasibilityForm() {
         </div> {/* end locked wrapper */}
       </main>
 
-      {/* Floating action toolbar — collapsible on mobile */}
+      {/* Floating action toolbar — draggable & collapsible on mobile */}
       {legs.some(l => l.airportIcao.length === 4) && (
-        <div className="fixed bottom-6 right-6 z-50">
-          {/* Collapsed FAB — mobile only */}
-          {!toolbarOpen && (
-            <button
-              onClick={() => setToolbarOpen(true)}
-              className="sm:hidden flex items-center justify-center h-12 w-12 rounded-full bg-primary text-primary-foreground shadow-lg hover:scale-105 transition-transform"
-              aria-label="Open action toolbar"
-            >
-              <CheckCircle2 className="h-5 w-5" />
-            </button>
-          )}
-
-          {/* Expanded toolbar */}
-          <div className={cn(
-            "flex flex-col gap-1 bg-background/95 backdrop-blur-sm border rounded-xl shadow-xl p-2 min-w-[160px] transition-all duration-200 origin-bottom-right",
-            toolbarOpen ? "scale-100 opacity-100" : "sm:scale-100 sm:opacity-100 scale-0 opacity-0 pointer-events-none sm:pointer-events-auto"
-          )}>
+        <DraggableFab
+          open={toolbarOpen}
+          onOpenChange={setToolbarOpen}
+          fabIcon={<CheckCircle2 className="h-5 w-5" />}
+        >
             {/* Close button — mobile only */}
             <Button
               variant="ghost"
@@ -1681,8 +1670,7 @@ export default function FeasibilityForm() {
             >
               <X className="h-3.5 w-3.5" /> Reset
             </Button>
-          </div>
-        </div>
+        </DraggableFab>
       )}
       <VideoModal
         open={showVideoModal}
