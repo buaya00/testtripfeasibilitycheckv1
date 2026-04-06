@@ -87,7 +87,15 @@ Deno.serve(async (req) => {
           ? 'Scheduled commercial airline service'
           : 'Private / general aviation';
 
-    // ── Step 1: Perplexity grounding with official AIP/CAA sources ──────────
+    // ── Step 1a: Firecrawl — scrape official CAA/eAIP sources ──────────────
+    const { combinedContent: firecrawlContext } = await scrapeOfficialSources(icao, 'ppr', {
+      searchQuery: `${icao} ${airportName || ''} PPR prior permission required slot coordination`,
+    });
+    if (firecrawlContext) {
+      console.log(`Firecrawl PPR context: ${firecrawlContext.length} chars`);
+    }
+
+    // ── Step 1b: Perplexity grounding with official AIP/CAA sources ──────────
     let perplexityContext = '';
     if (perplexityApiKey) {
       try {
@@ -136,7 +144,7 @@ Deno.serve(async (req) => {
 
     const prompt = `Given the ICAO airport code "${icao}"${airportName ? ` which is ${airportName}` : ''}, determine if Prior Permission Required (PPR) applies for landing at this airport.
 
-${perplexityContext ? `## Official source research (use as primary reference):\n${perplexityContext}\n\n---\n` : ''}
+${firecrawlContext ? `## Official eAIP / CAA scraped data (highest priority source):\n${firecrawlContext}\n\n---\n` : ''}${perplexityContext ? `## Web research (secondary reference):\n${perplexityContext}\n\n---\n` : ''}
 Consider:
 - Whether the airport requires PPR for all traffic or only certain categories
 - Whether PPR requirements differ by flight type (private, charter, scheduled)

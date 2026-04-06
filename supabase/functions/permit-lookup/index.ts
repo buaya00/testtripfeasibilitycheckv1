@@ -98,7 +98,15 @@ Deno.serve(async (req) => {
           ? 'Scheduled commercial airline service (FAR Part 121 or equivalent)'
           : 'Private / general aviation — FAR Part 91 (assume non-commercial, owner/operator onboard)';
 
-    // ── Step 1: Use Perplexity to get real-time grounded regulatory data ──────
+    // ── Step 1a: Firecrawl — scrape official CAA/eAIP sources ──────────────
+    const { combinedContent: firecrawlContext } = await scrapeOfficialSources(icao, 'permit', {
+      searchQuery: `${icao} ${resolvedAirportName || ''} landing permit requirements foreign aircraft ${flightTypeLabel}`,
+    });
+    if (firecrawlContext) {
+      console.log(`Firecrawl permit context: ${firecrawlContext.length} chars`);
+    }
+
+    // ── Step 1b: Use Perplexity to get real-time grounded regulatory data ──────
     let perplexityContext = '';
     let citations: string[] = [];
 
@@ -163,7 +171,7 @@ Prioritize official CAA websites, EASA, UK CAA, FAA, and AIP sources. Provide sp
       }
     }
 
-    // ── Step 2: Use Lovable AI to extract structured data (using Perplexity context if available) ──
+    // ── Step 2: Use Lovable AI to extract structured data (using scraped + Perplexity context) ──
     if (!lovableApiKey) {
       return new Response(
         JSON.stringify({ success: false, error: 'AI API key not configured' }),
