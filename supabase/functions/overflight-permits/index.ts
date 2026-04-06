@@ -1,3 +1,5 @@
+import { scrapeOfficialSources } from '../_shared/firecrawl-scrape.ts';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
@@ -42,7 +44,15 @@ Deno.serve(async (req) => {
           ? 'Scheduled commercial airline service'
           : 'Private / general aviation';
 
-    // ── Step 1: Perplexity grounding for overflight requirements ─────────────
+    // ── Step 1a: Firecrawl — scrape official sources for overflight ─────────
+    const { combinedContent: firecrawlContext } = await scrapeOfficialSources(originIcao, 'overflight', {
+      searchQuery: `overflight permit requirements air navigation charges ${originIcao} to ${destinationIcao} ${flightTypeDesc}`,
+    });
+    if (firecrawlContext) {
+      console.log(`Firecrawl overflight context: ${firecrawlContext.length} chars`);
+    }
+
+    // ── Step 1b: Perplexity grounding for overflight requirements ─────────────
     let perplexityContext = '';
     if (perplexityApiKey) {
       try {
@@ -92,7 +102,7 @@ Deno.serve(async (req) => {
 
     const prompt = `A flight is planned from ${originIcao} to ${destinationIcao}.
 
-${perplexityContext ? `## Official regulatory research (use as primary source):\n${perplexityContext}\n\n---\n` : ''}
+${firecrawlContext ? `## Official eAIP / CAA scraped data (highest priority source):\n${firecrawlContext}\n\n---\n` : ''}${perplexityContext ? `## Web research (secondary reference):\n${perplexityContext}\n\n---\n` : ''}
 Determine the great circle route between these two airports. Identify ALL countries whose airspace would be crossed or closely skirted on this direct route (including the departure and arrival countries).
 
 For EACH country whose airspace is crossed, determine the overflight permit requirements AND estimated overflight charges/fees.

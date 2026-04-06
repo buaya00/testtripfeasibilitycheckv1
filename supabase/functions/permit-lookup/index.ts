@@ -1,3 +1,5 @@
+import { scrapeOfficialSources } from '../_shared/firecrawl-scrape.ts';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
@@ -96,7 +98,15 @@ Deno.serve(async (req) => {
           ? 'Scheduled commercial airline service (FAR Part 121 or equivalent)'
           : 'Private / general aviation — FAR Part 91 (assume non-commercial, owner/operator onboard)';
 
-    // ── Step 1: Use Perplexity to get real-time grounded regulatory data ──────
+    // ── Step 1a: Firecrawl — scrape official CAA/eAIP sources ──────────────
+    const { combinedContent: firecrawlContext } = await scrapeOfficialSources(icao, 'permit', {
+      searchQuery: `${icao} ${resolvedAirportName || ''} landing permit requirements foreign aircraft ${flightTypeLabel}`,
+    });
+    if (firecrawlContext) {
+      console.log(`Firecrawl permit context: ${firecrawlContext.length} chars`);
+    }
+
+    // ── Step 1b: Use Perplexity to get real-time grounded regulatory data ──────
     let perplexityContext = '';
     let citations: string[] = [];
 
@@ -161,7 +171,7 @@ Prioritize official CAA websites, EASA, UK CAA, FAA, and AIP sources. Provide sp
       }
     }
 
-    // ── Step 2: Use Lovable AI to extract structured data (using Perplexity context if available) ──
+    // ── Step 2: Use Lovable AI to extract structured data (using scraped + Perplexity context) ──
     if (!lovableApiKey) {
       return new Response(
         JSON.stringify({ success: false, error: 'AI API key not configured' }),
@@ -193,7 +203,11 @@ ${aircraftNationality ? `The aircraft is registered in ${aircraftNationality}. Y
 - For landing permits: Some countries grant permit-free access to aircraft from countries with open-skies or bilateral agreements with ${aircraftNationality}.
 - For charter permits: Requirements often differ based on whether the operator's home state (${aircraftNationality}) has a relevant BASA with the destination country. Not applicable for private flights.` : 'No aircraft nationality specified — provide general requirements applicable to international operators.'}
 
-${perplexityContext ? `## Real-time regulatory research (use this as primary source):
+${firecrawlContext ? `## Official eAIP / CAA scraped data (highest priority source):
+${firecrawlContext}
+
+---
+` : ''}${perplexityContext ? `## Web research (secondary reference):
 ${perplexityContext}
 
 ---

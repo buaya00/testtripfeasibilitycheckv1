@@ -1,3 +1,5 @@
+import { scrapeOfficialSources } from '../_shared/firecrawl-scrape.ts';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
@@ -66,7 +68,15 @@ Deno.serve(async (req) => {
     if (arrivalTime) scheduleInfo += `\nArrival time (UTC): ${arrivalTime}`;
     if (departureTime) scheduleInfo += `\nDeparture time (UTC): ${departureTime}`;
 
-    // ── Step 1: Perplexity grounding with official airport charge schedules ───
+    // ── Step 1a: Firecrawl — scrape official airport charge schedules ────────
+    const { combinedContent: firecrawlContext } = await scrapeOfficialSources(icao, 'charges', {
+      searchQuery: `${icao} ${resolvedAirportName || ''} airport charges landing fees parking fees tariff schedule`,
+    });
+    if (firecrawlContext) {
+      console.log(`Firecrawl charges context: ${firecrawlContext.length} chars`);
+    }
+
+    // ── Step 1b: Perplexity grounding with official airport charge schedules ───
     let perplexityContext = '';
     if (perplexityApiKey) {
       try {
@@ -113,7 +123,7 @@ Deno.serve(async (req) => {
     const prompt = `Estimate the airport landing and parking charges for airport ICAO "${icao}" (prefix "${icaoPrefix}") for the aircraft type "${aircraftType || 'mid-size business jet (~15,000 kg MTOW)'}".
 ${parkingInfo}${scheduleInfo}
 
-${perplexityContext ? `## Official published charge schedule research (use as primary source):\n${perplexityContext}\n\n---\n` : ''}
+${firecrawlContext ? `## Official eAIP / CAA scraped data (highest priority source):\n${firecrawlContext}\n\n---\n` : ''}${perplexityContext ? `## Web research (secondary reference):\n${perplexityContext}\n\n---\n` : ''}
 Provide realistic estimates in USD based on:
 - Published airport authority fee schedules where known
 - Regional averages for similar airports in the same country
