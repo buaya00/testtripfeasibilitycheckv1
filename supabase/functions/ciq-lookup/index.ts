@@ -30,8 +30,15 @@ Deno.serve(async (req) => {
 
     const icaoPrefix = icao.substring(0, 2);
 
+    // ── Firecrawl — scrape official sources for CIQ ──────────────────────
+    const { combinedContent: firecrawlContext } = await scrapeOfficialSources(icao, 'ciq');
+    if (firecrawlContext) {
+      console.log(`Firecrawl CIQ context: ${firecrawlContext.length} chars`);
+    }
+
     const prompt = `Given the ICAO airport code "${icao}" (prefix "${icaoPrefix}"), determine whether Customs, Immigration, and Quarantine (CIQ) services are available at this airport for general aviation and private jet operations.
 
+${firecrawlContext ? `## Official eAIP / CAA scraped data (highest priority source):\n${firecrawlContext}\n\n---\n` : ''}
 Consider:
 - The country this ICAO prefix belongs to
 - Whether this airport is an international airport or port of entry
