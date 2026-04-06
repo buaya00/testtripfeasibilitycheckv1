@@ -203,7 +203,11 @@ ${aircraftNationality ? `The aircraft is registered in ${aircraftNationality}. Y
 - For landing permits: Some countries grant permit-free access to aircraft from countries with open-skies or bilateral agreements with ${aircraftNationality}.
 - For charter permits: Requirements often differ based on whether the operator's home state (${aircraftNationality}) has a relevant BASA with the destination country. Not applicable for private flights.` : 'No aircraft nationality specified — provide general requirements applicable to international operators.'}
 
-${perplexityContext ? `## Real-time regulatory research (use this as primary source):
+${firecrawlContext ? `## Official eAIP / CAA scraped data (highest priority source):
+${firecrawlContext}
+
+---
+` : ''}${perplexityContext ? `## Web research (secondary reference):
 ${perplexityContext}
 
 ---
