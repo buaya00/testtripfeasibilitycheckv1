@@ -50,7 +50,9 @@ Deno.serve(async (req) => {
     const { data: quotes, error: quotesError } = await supabase
       .from('ground_handling_quotes')
       .select('id, provider_id, aircraft_type, currency, grand_total, quote_date')
-      .eq('icao', icao);
+      .eq('icao', icao)
+      .limit(MAX_QUOTES);
+
 
     if (quotesError) {
       console.error('ground-handling-quotes: quotes query error:', quotesError.message);
