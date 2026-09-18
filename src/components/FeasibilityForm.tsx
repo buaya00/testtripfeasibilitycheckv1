@@ -31,8 +31,7 @@ import type {
 } from "./tripTypes";
 import { createEmptyLeg } from "./tripTypes";
 import { generatePrintableHtml } from "./PrintableReport";
-import aegLogo from "@/assets/aeg-logo.png";
-import VideoModal from "./VideoModal";
+import jeppesenForeFlightLogo from "@/assets/jeppesen-foreflight-logo.jpg";
 
 export default function FeasibilityForm() {
   const [logoDataUrl, setLogoDataUrl] = useState<string>("");
@@ -45,7 +44,6 @@ export default function FeasibilityForm() {
   const [checkAllError, setCheckAllError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
-  const [showVideoModal, setShowVideoModal] = useState(false);
   const dragCounter = useRef(0);
   // Convert logo to data URL for printable reports
   useEffect(() => {
@@ -58,7 +56,7 @@ export default function FeasibilityForm() {
       canvas.getContext("2d")!.drawImage(img, 0, 0);
       setLogoDataUrl(canvas.toDataURL("image/png"));
     };
-    img.src = aegLogo;
+    img.src = jeppesenForeFlightLogo;
   }, []);
 
   
@@ -687,8 +685,8 @@ export default function FeasibilityForm() {
         </div>
         <div className="container mx-auto flex items-center py-2 px-4 sm:px-6 gap-4">
           {/* Logo */}
-          <a href="https://www.aegfuels.com" target="_blank" rel="noopener noreferrer" className="shrink-0 flex items-center">
-            <img src={aegLogo} alt="AEG Fuels" className="h-[60px] sm:h-[90px] md:h-[120px] w-auto" />
+          <a href="https://www.jeppesenforeflight.com/" target="_blank" rel="noopener noreferrer" className="shrink-0 flex items-center">
+            <img src={jeppesenForeFlightLogo} alt="Jeppesen ForeFlight" className="h-[60px] sm:h-[90px] md:h-[120px] w-auto" />
           </a>
 
           {/* Divider */}
@@ -702,29 +700,6 @@ export default function FeasibilityForm() {
             <p className="text-sm sm:text-base font-semibold text-foreground leading-none">Trip Feasibility Check</p>
           </div>
 
-          {/* Right side CTA */}
-          <div className="ml-auto flex items-center gap-3">
-            <a
-              href="https://www.aegfuels.com/flightsupport"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hidden sm:inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10 transition-colors"
-              onClick={(e) => { e.preventDefault(); setShowVideoModal(true); }}
-            >
-              <Globe className="h-3.5 w-3.5" />
-              AEG Trip Planning
-            </a>
-            <a
-              href="https://www.aegfuels.com/flightsupport"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="sm:hidden flex items-center justify-center h-8 w-8 rounded-md border border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 transition-colors"
-              aria-label="AEG Trip Planning"
-              onClick={(e) => { e.preventDefault(); setShowVideoModal(true); }}
-            >
-              <Globe className="h-4 w-4" />
-            </a>
-          </div>
         </div>
       </header>
 
@@ -1672,11 +1647,6 @@ export default function FeasibilityForm() {
             </Button>
         </DraggableFab>
       )}
-      <VideoModal
-        open={showVideoModal}
-        onClose={() => setShowVideoModal(false)}
-        redirectUrl="https://www.aegfuels.com/flightsupport"
-      />
     </div>
   );
 }
