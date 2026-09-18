@@ -775,36 +775,11 @@ export default function TripLegCard({
     setGhLoading(true);
     (async () => {
       try {
-        const { data: quotes, error } = await supabase
-          .from('ground_handling_quotes')
-          .select('id, provider_id, aircraft_type, currency, grand_total, quote_date')
-          .eq('icao', icao);
-        if (error || !quotes || quotes.length === 0) { if (!cancelled) { setGroundHandlingQuotes([]); setGhLoading(false); } return; }
-
-        // Get provider names
-        const providerIds = [...new Set(quotes.map(q => q.provider_id).filter(Boolean))];
-        const { data: providers } = providerIds.length > 0
-          ? await supabase.from('ground_handling_providers').select('id, name').in('id', providerIds)
-          : { data: [] };
-        const providerMap = new Map((providers || []).map(p => [p.id, p.name]));
-
-        // Get line items for all quotes
-        const quoteIds = quotes.map(q => q.id);
-        const { data: items } = await supabase
-          .from('ground_handling_line_items')
-          .select('quote_id, service_category, description, quantity, unit_price, vat_rate, subtotal, unit')
-          .in('quote_id', quoteIds);
-
-        const result: GroundHandlingQuote[] = quotes.map(q => ({
-          id: q.id,
-          provider_name: providerMap.get(q.provider_id) || 'Unknown',
-          aircraft_type: q.aircraft_type,
-          currency: q.currency,
-          grand_total: q.grand_total,
-          quote_date: q.quote_date,
-          line_items: (items || []).filter(i => i.quote_id === q.id),
-        }));
-        if (!cancelled) setGroundHandlingQuotes(result);
+        // Reads are performed server-side by the ground-handling-quotes Edge
+        // Function (service-role access), not via direct table reads here.
+        const { data: res, error } = await supabase.functions.invoke('ground-handling-quotes', { body: { icao } });
+        if (error || !res?.success) { if (!cancelled) { setGroundHandlingQuotes([]); setGhLoading(false); } return; }
+        if (!cancelled) setGroundHandlingQuotes(res.quotes as GroundHandlingQuote[]);
       } catch { if (!cancelled) setGroundHandlingQuotes([]); }
       finally { if (!cancelled) setGhLoading(false); }
     })();
