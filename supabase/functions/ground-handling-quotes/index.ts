@@ -11,14 +11,27 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { icao } = await req.json();
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      body = null;
+    }
 
-    if (!icao || typeof icao !== 'string' || !/^[A-Z]{4}$/.test(icao)) {
+    const icaoRaw = (body as { icao?: unknown } | null)?.icao;
+
+    if (typeof icaoRaw !== 'string' || !/^[A-Za-z]{4}$/.test(icaoRaw.trim())) {
       return new Response(
         JSON.stringify({ success: false, error: 'Valid 4-letter ICAO code required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // Exactly one normalised ICAO per request — no wildcards, lists or filters.
+    const icao = icaoRaw.trim().toUpperCase();
+    const MAX_QUOTES = 25;
+    const MAX_LINE_ITEMS = 400;
+
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -37,7 +50,9 @@ Deno.serve(async (req) => {
     const { data: quotes, error: quotesError } = await supabase
       .from('ground_handling_quotes')
       .select('id, provider_id, aircraft_type, currency, grand_total, quote_date')
-      .eq('icao', icao);
+      .eq('icao', icao)
+      .limit(MAX_QUOTES);
+
 
     if (quotesError) {
       console.error('ground-handling-quotes: quotes query error:', quotesError.message);
@@ -64,8 +79,11 @@ Deno.serve(async (req) => {
     const { data: items } = await supabase
       .from('ground_handling_line_items')
       .select('quote_id, service_category, description, quantity, unit_price, vat_rate, subtotal, unit')
-      .in('quote_id', quoteIds);
+      .in('quote_id', quoteIds)
+      .limit(MAX_LINE_ITEMS);
 
+    // Only the fields the UI renders are projected out; internal notes,
+    // references and provider records stay server-side.
     const result = quotes.map((q) => ({
       id: q.id,
       provider_name: providerMap.get(q.provider_id) || 'Unknown',
@@ -73,7 +91,17 @@ Deno.serve(async (req) => {
       currency: q.currency,
       grand_total: q.grand_total,
       quote_date: q.quote_date,
-      line_items: (items || []).filter((i) => i.quote_id === q.id),
+      line_items: (items || [])
+        .filter((i) => i.quote_id === q.id)
+        .map((i) => ({
+          service_category: i.service_category,
+          description: i.description,
+          quantity: i.quantity,
+          unit: i.unit,
+          unit_price: i.unit_price,
+          vat_rate: i.vat_rate,
+          subtotal: i.subtotal,
+        })),
     }));
 
     return new Response(
@@ -83,8 +111,9 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error('Error in ground-handling-quotes:', error);
     return new Response(
-      JSON.stringify({ success: false, error: error instanceof Error ? error.message : 'Unknown error' }),
+      JSON.stringify({ success: false, error: 'Failed to load ground handling quotes' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
+
 });
