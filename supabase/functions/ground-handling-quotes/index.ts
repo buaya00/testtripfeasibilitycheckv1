@@ -11,14 +11,27 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { icao } = await req.json();
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      body = null;
+    }
 
-    if (!icao || typeof icao !== 'string' || !/^[A-Z]{4}$/.test(icao)) {
+    const icaoRaw = (body as { icao?: unknown } | null)?.icao;
+
+    if (typeof icaoRaw !== 'string' || !/^[A-Za-z]{4}$/.test(icaoRaw.trim())) {
       return new Response(
         JSON.stringify({ success: false, error: 'Valid 4-letter ICAO code required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // Exactly one normalised ICAO per request — no wildcards, lists or filters.
+    const icao = icaoRaw.trim().toUpperCase();
+    const MAX_QUOTES = 25;
+    const MAX_LINE_ITEMS = 400;
+
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
