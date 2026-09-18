@@ -485,12 +485,32 @@ export default function TripLegCard({
     setCiqLoading(true);
     update({ ciqResult: null });
     try {
-      const { data: res, error } = await supabase.functions.invoke('ciq-lookup', { body: { icao: leg.airportIcao } });
-      if (error) {
-        let errorMsg = error.message;
-        try { const t = await (error as any).context?.text?.(); if (t) { const p = JSON.parse(t); if (p.error) errorMsg = p.error; } } catch { /* ignore */ }
+      // TEMPORARY TEST HARNESS: routes only this call to the migrated
+      // ciq-lookup function on the new Supabase project (VITE_CIQ_*),
+      // bypassing the shared `supabase` client so every other function/DB
+      // call in this app is unaffected. Request/response contract unchanged.
+      const testUrl = import.meta.env.VITE_CIQ_SUPABASE_URL;
+      const testAnonKey = import.meta.env.VITE_CIQ_SUPABASE_ANON_KEY;
+      if (!testUrl || !testAnonKey) {
+        update({ ciqResult: { success: false, icao: leg.airportIcao, error: 'CIQ config missing (VITE_CIQ_SUPABASE_URL/ANON_KEY)' } });
+        return;
+      }
+      const httpRes = await fetch(`${testUrl}/functions/v1/ciq-lookup`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${testAnonKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ icao: leg.airportIcao }),
+      });
+      if (!httpRes.ok) {
+        let errorMsg = `Request failed (${httpRes.status})`;
+        try { const p = await httpRes.json(); if (p?.error) errorMsg = p.error; } catch { /* ignore */ }
         update({ ciqResult: { success: false, icao: leg.airportIcao, error: errorMsg } });
-      } else { update({ ciqResult: res as CiqResult, ...(res?.ciqAvailable === 'yes' ? { customsAvailable: true } : res?.ciqAvailable === 'no' ? { customsAvailable: false } : {}) }); }
+      } else {
+        const res = await httpRes.json();
+        update({ ciqResult: res as CiqResult, ...(res?.ciqAvailable === 'yes' ? { customsAvailable: true } : res?.ciqAvailable === 'no' ? { customsAvailable: false } : {}) });
+      }
     } catch { update({ ciqResult: { success: false, icao: leg.airportIcao, error: 'Failed to connect' } }); }
     finally { setCiqLoading(false); }
   }, [leg.airportIcao]);
@@ -1257,6 +1277,9 @@ export default function TripLegCard({
                   )}
                 </div>
                 <div className="rounded bg-muted/40 px-2 py-1.5 text-xs space-y-0.5">
+                  {leg.ciqResult.success === false && leg.ciqResult.error && (
+                    <p className="text-destructive">{leg.ciqResult.error}</p>
+                  )}
                   {leg.ciqResult.operatingHours && <p><span className="font-medium">Hours:</span> {leg.ciqResult.operatingHours}</p>}
                   {leg.ciqResult.advanceNotice && <p><span className="font-medium">Notice:</span> {leg.ciqResult.advanceNotice}</p>}
                   {leg.ciqResult.notes && <p className="text-muted-foreground italic">{leg.ciqResult.notes}</p>}
