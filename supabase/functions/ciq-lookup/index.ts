@@ -20,7 +20,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const apiKey = Deno.env.get('LOVABLE_API_KEY');
+    const apiKey = Deno.env.get('OPENROUTER_API_KEY');
     if (!apiKey) {
       return new Response(
         JSON.stringify({ success: false, error: 'AI API key not configured' }),
@@ -50,7 +50,7 @@ Consider:
 
 Provide your best assessment based on known aviation information about this airport.`;
 
-    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const aiResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
