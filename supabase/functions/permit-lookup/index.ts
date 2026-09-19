@@ -3,6 +3,7 @@ import {
   assessNeedsVerification,
   resolveVerificationStatus,
   sanitizeCitations,
+  citationMatchesJurisdiction,
   type PermitVerification,
 } from './verification-logic.ts';
 import { runFocusedVerification } from './verification-runtime.ts';
@@ -362,32 +363,40 @@ Be specific and accurate. For the specific flight type "${flightTypeLabel}", be 
     // Deterministic, zero-cost gate first; only runs the (bounded, single-
     // attempt) follow-up search when the primary result actually needs it.
     // Citation count and "confidence: high" alone are never treated as proof
-    // of relevance — see assessNeedsVerification for the authoritative-domain
-    // and country-relevance checks this now requires.
+    // of relevance — see assessNeedsVerification for the jurisdiction-
+    // applicability check this now requires (does the citation belong to
+    // the DESTINATION country's own authority, not merely to some official-
+    // looking aviation domain).
     const sanitizedCitations = sanitizeCitations(citations);
     const trigger = assessNeedsVerification({
       permitRequired: permitInfo.permitRequired,
       confidence: permitInfo.confidence,
       citations: sanitizedCitations,
       country: permitInfo.country,
-      conditions: permitInfo.conditions,
-      notes: permitInfo.notes,
     });
 
     let verification: PermitVerification = { status: 'not_triggered', reason: trigger.reason };
 
     if (trigger.trigger) {
       const firecrawlApiKey = Deno.env.get('FIRECRAWL_API_KEY');
+      // Prefer a citation that is actually the destination's own authority
+      // over blindly taking the first citation the primary search returned —
+      // citation ordering alone must never decide which source gets treated
+      // as applicable evidence.
+      const jurisdictionApplicableCitation = sanitizedCitations.find(
+        (url) => citationMatchesJurisdiction(url, permitInfo.country),
+      );
       const { classification, evidenceQuality, sources, hadError } = await runFocusedVerification({
         icao,
         flightTypeLabel,
         aircraftNationality,
         resolvedAirportName,
         permitRequired: permitInfo.permitRequired,
+        country: permitInfo.country,
         perplexityApiKey,
         lovableApiKey,
         firecrawlApiKey,
-        topCitation: sanitizedCitations[0],
+        topCitation: jurisdictionApplicableCitation,
       });
       verification = {
         status: resolveVerificationStatus(classification, hadError, evidenceQuality),

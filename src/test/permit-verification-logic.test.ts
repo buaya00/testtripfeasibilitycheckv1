@@ -7,7 +7,8 @@ import {
   isValidHttpUrl,
   isPubliclyRoutableHostname,
   isSafeEvidenceUrl,
-  citationMatchesOfficialDomain,
+  jurisdictionDomainsForCountry,
+  citationMatchesJurisdiction,
   sanitizeCitations,
 } from "../../supabase/functions/permit-lookup/verification-logic";
 
@@ -15,36 +16,107 @@ import {
 // permit-lookup Edge Function at runtime (imported directly, not
 // reimplemented). No network/API calls are made — every scenario below
 // supplies a pre-determined input/outcome.
+//
+// The baseline destination is the UK (EGLL) — the airport involved in the
+// live-test regression this file guards against: a UAE GCAA citation was
+// previously accepted as "authoritative" evidence for a UK landing-permit
+// claim merely because it was on the global official-domain list, not
+// because it was the UK's own authority.
 
-const HK = 'Hong Kong';
-const OFFICIAL_URL = 'https://www.faa.gov/some/page';
-const OTHER_OFFICIAL_URL = 'https://www.dgca.gov.in/other';
-const UNOFFICIAL_URL = 'https://some-random-blog.example.com/post';
+const UK = 'United Kingdom';
+const UK_URL = 'https://www.caa.co.uk/some/page';
+const UAE_URL = 'https://www.gcaa.gov.ae/some/other/page';
+const USA_URL = 'https://www.faa.gov/some/page';
 
 function baseInput(overrides: Partial<Parameters<typeof assessNeedsVerification>[0]> = {}) {
   return {
     permitRequired: 'yes' as const,
     confidence: 'high' as const,
-    citations: [OFFICIAL_URL],
-    country: HK,
-    conditions: `A landing permit is required for all foreign aircraft arriving in ${HK}.`,
-    notes: '',
+    citations: [UK_URL],
+    country: UK,
     ...overrides,
   };
 }
 
+describe("jurisdictionDomainsForCountry — the destination-applicability map", () => {
+  it("maps the UK to its own authority only", () => {
+    expect(jurisdictionDomainsForCountry('United Kingdom')).toEqual(['caa.co.uk']);
+  });
+
+  it("resolves common aliases for the same country to the same domain", () => {
+    expect(jurisdictionDomainsForCountry('UK')).toEqual(['caa.co.uk']);
+    expect(jurisdictionDomainsForCountry('Great Britain')).toEqual(['caa.co.uk']);
+    expect(jurisdictionDomainsForCountry('britain')).toEqual(['caa.co.uk']);
+  });
+
+  it("is case- and whitespace-insensitive", () => {
+    expect(jurisdictionDomainsForCountry('  UNITED KINGDOM  ')).toEqual(['caa.co.uk']);
+  });
+
+  it("maps the other countries our fixed evidence-domain list can actually speak for", () => {
+    expect(jurisdictionDomainsForCountry('United States')).toEqual(['faa.gov']);
+    expect(jurisdictionDomainsForCountry('USA')).toEqual(['faa.gov']);
+    expect(jurisdictionDomainsForCountry('United Arab Emirates')).toEqual(['gcaa.gov.ae']);
+    expect(jurisdictionDomainsForCountry('UAE')).toEqual(['gcaa.gov.ae']);
+    expect(jurisdictionDomainsForCountry('China')).toEqual(['caac.gov.cn']);
+    expect(jurisdictionDomainsForCountry('India')).toEqual(['dgca.gov.in']);
+  });
+
+  it("returns [] for an unmapped country — fail safe, never assume applicability", () => {
+    expect(jurisdictionDomainsForCountry('Kenya')).toEqual([]);
+    expect(jurisdictionDomainsForCountry('France')).toEqual([]); // pan-European EAD/EASA membership is deliberately not modeled — see verification-logic.ts
+  });
+
+  it("returns [] for undefined/empty country", () => {
+    expect(jurisdictionDomainsForCountry(undefined)).toEqual([]);
+    expect(jurisdictionDomainsForCountry('')).toEqual([]);
+    expect(jurisdictionDomainsForCountry('   ')).toEqual([]);
+  });
+});
+
+describe("citationMatchesJurisdiction — this is THE fix for the reported bug", () => {
+  it("a UK CAA citation matches the UK jurisdiction", () => {
+    expect(citationMatchesJurisdiction(UK_URL, UK)).toBe(true);
+  });
+
+  it("a UAE GCAA citation does NOT match the UK jurisdiction, even though it is on the global official-domain list — this is exactly the reported defect", () => {
+    expect(citationMatchesJurisdiction(UAE_URL, UK)).toBe(false);
+  });
+
+  it("the same UAE citation DOES match the UAE jurisdiction — the check is about applicability, not blacklisting a domain outright", () => {
+    expect(citationMatchesJurisdiction(UAE_URL, 'United Arab Emirates')).toBe(true);
+  });
+
+  it("matches subdomains of the applicable authority", () => {
+    expect(citationMatchesJurisdiction('https://aip.caa.co.uk/x', UK)).toBe(true);
+  });
+
+  it("rejects near-miss lookalike domains", () => {
+    expect(citationMatchesJurisdiction('https://not-caa.co.uk.evil.com', UK)).toBe(false);
+    expect(citationMatchesJurisdiction('https://caa.co.uk.attacker.com', UK)).toBe(false);
+  });
+
+  it("an unmapped destination country can never be satisfied by ANY citation, including otherwise-official ones — fail safe, not a special case for any particular country", () => {
+    expect(citationMatchesJurisdiction(UK_URL, 'Kenya')).toBe(false);
+    expect(citationMatchesJurisdiction(USA_URL, 'Kenya')).toBe(false);
+    expect(citationMatchesJurisdiction(UAE_URL, 'Kenya')).toBe(false);
+  });
+
+  it("never throws on a malformed URL", () => {
+    expect(citationMatchesJurisdiction('not a url', UK)).toBe(false);
+    expect(citationMatchesJurisdiction('not a url', 'Kenya')).toBe(false);
+  });
+});
+
 describe("assessNeedsVerification — trigger rules", () => {
-  it("1. Required permit, authoritative citation, and evidence naming the country: no trigger", () => {
+  it("1. Required permit with a citation from the destination's own authority: no trigger", () => {
     const r = assessNeedsVerification(baseInput());
     expect(r.trigger).toBe(false);
     expect(r.reason).toBe('sufficient');
   });
 
   it("2. Not required, same evidentiary bar met: no trigger — 'yes' and 'no' are held to the same standard", () => {
-    const r = assessNeedsVerification(baseInput({
-      permitRequired: 'no',
-      conditions: `No landing permit is required for private flights into ${HK}.`,
-    }));
+    const r = assessNeedsVerification(baseInput({ permitRequired: 'no' }));
     expect(r.trigger).toBe(false);
     expect(r.reason).toBe('sufficient');
   });
@@ -55,18 +127,17 @@ describe("assessNeedsVerification — trigger rules", () => {
     expect(r.reason).toBe('no_citations');
   });
 
-  it("4. Medium confidence: always triggers now (previously only 'no' determinations did)", () => {
+  it("4. Medium confidence: always triggers, for both 'yes' and 'no' determinations", () => {
     const r = assessNeedsVerification(baseInput({ confidence: 'medium' }));
     expect(r.trigger).toBe(true);
     expect(r.reason).toBe('low_confidence');
-    // Same rule applies to a 'no' determination — no special-casing by permitRequired anymore.
     const r2 = assessNeedsVerification(baseInput({ permitRequired: 'no', confidence: 'medium' }));
     expect(r2.trigger).toBe(true);
     expect(r2.reason).toBe('low_confidence');
   });
 
   it("5. Low-confidence determination: triggers regardless of citations", () => {
-    const r = assessNeedsVerification(baseInput({ confidence: 'low', citations: [OFFICIAL_URL, OTHER_OFFICIAL_URL] }));
+    const r = assessNeedsVerification(baseInput({ confidence: 'low', citations: [UK_URL, USA_URL] }));
     expect(r.trigger).toBe(true);
     expect(r.reason).toBe('low_confidence');
   });
@@ -89,64 +160,50 @@ describe("assessNeedsVerification — trigger rules", () => {
     expect(r.reason).toBe('low_confidence');
   });
 
-  it("9. High confidence + citation present, but citation is NOT from an officially-targeted domain: triggers — closes the bypass where any citation counted as 'sufficient'", () => {
-    const r = assessNeedsVerification(baseInput({ citations: [UNOFFICIAL_URL] }));
-    expect(r.trigger).toBe(true);
-    expect(r.reason).toBe('citation_not_authoritative');
-  });
-
-  it("10. High confidence + authoritative citation, but the model's own justification never mentions the destination country: triggers — a single generic/off-topic citation must not count as sufficient", () => {
-    const r = assessNeedsVerification(baseInput({
-      conditions: 'A landing permit is required for all foreign aircraft.',
-      notes: '',
-    }));
+  it("9. Regression: a high-confidence UK determination whose only citation is a UAE GCAA page must still trigger — an official-looking domain from the wrong jurisdiction is not sufficient", () => {
+    const r = assessNeedsVerification(baseInput({ citations: [UAE_URL] }));
     expect(r.trigger).toBe(true);
     expect(r.reason).toBe('evidence_relevance_unconfirmed');
   });
 
-  it("11. Country relevance can be satisfied via the notes field instead of conditions", () => {
-    const r = assessNeedsVerification(baseInput({
-      conditions: 'A landing permit is required for all foreign aircraft.',
-      notes: `See the ${HK} CAD circular for details.`,
-    }));
-    expect(r.trigger).toBe(false);
+  it("10. Regression: this must NOT depend on any free-text field containing the literal country name — the check is against the structured `country` field via the domain map, so aliasing the country string changes nothing", () => {
+    const r1 = assessNeedsVerification(baseInput({ country: 'UK' }));
+    expect(r1.trigger).toBe(false);
+    const r2 = assessNeedsVerification(baseInput({ country: 'Great Britain' }));
+    expect(r2.trigger).toBe(false);
   });
 
-  it("12. Country relevance check is case-insensitive", () => {
-    const r = assessNeedsVerification(baseInput({
-      country: 'hong kong',
-      conditions: `Permit required for arrivals in ${HK}.`,
-    }));
-    expect(r.trigger).toBe(false);
-  });
-
-  it("13. Empty/missing country name cannot satisfy the relevance check even if text happens to be non-empty", () => {
-    const r = assessNeedsVerification(baseInput({ country: '' }));
+  it("11. A destination country with no known applicable-authority mapping always triggers, regardless of which citation is offered — proves this is not hardcoded to the UK/EGLL case", () => {
+    const r = assessNeedsVerification(baseInput({ country: 'Kenya', citations: [UK_URL, USA_URL, UAE_URL] }));
     expect(r.trigger).toBe(true);
     expect(r.reason).toBe('evidence_relevance_unconfirmed');
   });
 
-  it("14. At least one authoritative citation among several is enough to pass the domain check", () => {
-    const r = assessNeedsVerification(baseInput({ citations: [UNOFFICIAL_URL, OTHER_OFFICIAL_URL] }));
+  it("12. At least one jurisdiction-applicable citation among several is enough, even if other citations in the list are from unrelated jurisdictions", () => {
+    const r = assessNeedsVerification(baseInput({ citations: [UAE_URL, UK_URL] }));
     expect(r.trigger).toBe(false);
   });
-});
 
-describe("citationMatchesOfficialDomain", () => {
-  it("matches an exact configured domain and its subdomains", () => {
-    expect(citationMatchesOfficialDomain('https://www.faa.gov/x')).toBe(true);
-    expect(citationMatchesOfficialDomain('https://aip.faa.gov/x')).toBe(true);
-    expect(citationMatchesOfficialDomain('https://faa.gov')).toBe(true);
+  it("13. A non-UK destination (USA) with its own applicable citation also does not trigger — confirms the fix generalizes across countries", () => {
+    const r = assessNeedsVerification({
+      permitRequired: 'no',
+      confidence: 'high',
+      citations: [USA_URL],
+      country: 'United States',
+    });
+    expect(r.trigger).toBe(false);
+    expect(r.reason).toBe('sufficient');
   });
 
-  it("rejects domains not in the officially-targeted list, including near-miss lookalikes", () => {
-    expect(citationMatchesOfficialDomain('https://not-faa.gov.evil.com')).toBe(false);
-    expect(citationMatchesOfficialDomain('https://faa.gov.attacker.com')).toBe(false);
-    expect(citationMatchesOfficialDomain('https://example.com')).toBe(false);
-  });
-
-  it("never throws on malformed input", () => {
-    expect(citationMatchesOfficialDomain('not a url')).toBe(false);
+  it("14. That same non-UK destination (USA) with only a UK or UAE citation still triggers", () => {
+    const r = assessNeedsVerification({
+      permitRequired: 'no',
+      confidence: 'high',
+      citations: [UK_URL, UAE_URL],
+      country: 'United States',
+    });
+    expect(r.trigger).toBe(true);
+    expect(r.reason).toBe('evidence_relevance_unconfirmed');
   });
 });
 
@@ -209,7 +266,7 @@ describe("requiresVerificationWarning — UI safety gate", () => {
 });
 
 describe("Verification bypass ('not_triggered') is never conflated with 'confirmed'", () => {
-  it("a high-confidence result that skips the follow-up search (citation from an official domain + a country mention) produces trigger:false, and the caller's resulting status must be 'not_triggered', not 'confirmed' — the bypass is a heuristic shortcut, not an actual source check", () => {
+  it("a high-confidence result that skips the follow-up search (citation from the destination's own authority) produces trigger:false, and the caller's resulting status must be 'not_triggered', not 'confirmed' — the bypass is a heuristic shortcut, not an actual source check", () => {
     const trigger = assessNeedsVerification(baseInput());
     expect(trigger.trigger).toBe(false);
     // This mirrors exactly what the Edge Function does at the call site: when
@@ -292,19 +349,17 @@ describe("isPubliclyRoutableHostname / isSafeEvidenceUrl — SSRF pre-checks", (
 });
 
 describe("End-to-end scenario composition", () => {
-  it("Required + adequate, relevant, authoritative evidence -> not_triggered, no warning shown", () => {
+  it("Required + adequate, jurisdiction-applicable evidence -> not_triggered, no warning shown", () => {
     const trigger = assessNeedsVerification(baseInput());
     expect(trigger.trigger).toBe(false);
     expect(requiresVerificationWarning('not_triggered')).toBe(false);
   });
 
-  it("Not required + evidence that is high-confidence but off-topic -> triggers -> classified insufficient -> inconclusive -> warning shown", () => {
-    const trigger = assessNeedsVerification(baseInput({
-      permitRequired: 'no',
-      conditions: 'General aviation information.',
-    }));
+  it("Regression scenario: UK claim, only a UAE citation available -> triggers -> classified insufficient (no applicable source found) -> inconclusive -> warning shown, but the original permitRequired is untouched by this module", () => {
+    const trigger = assessNeedsVerification(baseInput({ permitRequired: 'no', citations: [UAE_URL] }));
     expect(trigger.trigger).toBe(true);
-    const status = resolveVerificationStatus('insufficient', false, 'full_page');
+    expect(trigger.reason).toBe('evidence_relevance_unconfirmed');
+    const status = resolveVerificationStatus('insufficient', false, 'none');
     expect(status).toBe('inconclusive');
     expect(requiresVerificationWarning(status)).toBe(true);
   });
@@ -334,7 +389,7 @@ describe("End-to-end scenario composition", () => {
     expect(requiresVerificationWarning(status)).toBe(false);
   });
 
-  it("Conditional permit requirement -> always triggers regardless of confidence/citations/relevance", () => {
+  it("Conditional permit requirement -> always triggers regardless of confidence/citations/jurisdiction", () => {
     const trigger = assessNeedsVerification(baseInput({ permitRequired: 'conditional' }));
     expect(trigger.trigger).toBe(true);
     expect(trigger.reason).toBe('ambiguous_conditional');

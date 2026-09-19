@@ -19,6 +19,12 @@ if (typeof AbortSignal.timeout !== "function") {
 // classification flow end-to-end with a fake `fetch` injected via the
 // `fetchImpl` parameter. No live/paid API calls are made and no real network
 // access occurs.
+//
+// The primary scenario mirrors the live-test regression exactly: EGLL (UK),
+// private/non-commercial, US-registered Global 6000, permitRequired "no".
+// The bug was a UAE GCAA page being accepted as evidence for this UK claim.
+// A second, unrelated destination (USA/FAA) is included per the requirement
+// that the fix not be airport- or country-specific.
 
 function jsonResponse(body: unknown, ok = true, status = ok ? 200 : 500) {
   return {
@@ -47,11 +53,17 @@ function classifyBody(classification: string) {
   };
 }
 
+const UK_URL = 'https://www.caa.co.uk/notice';
+const UAE_URL = 'https://www.gcaa.gov.ae/eaip/some-page';
+const USA_URL = 'https://www.faa.gov/notice';
+
 const BASE_PARAMS = {
-  icao: 'VHHH',
+  icao: 'EGLL',
   flightTypeLabel: 'Private / general aviation',
-  resolvedAirportName: 'Hong Kong International Airport',
-  permitRequired: 'yes' as const,
+  aircraftNationality: 'United States',
+  resolvedAirportName: 'London Heathrow Airport',
+  permitRequired: 'no' as const,
+  country: 'United Kingdom',
   perplexityApiKey: 'pplx-key',
   lovableApiKey: 'lovable-key',
   firecrawlApiKey: 'firecrawl-key',
@@ -83,41 +95,83 @@ describe("fetchEvidenceViaFirecrawl — never fetches an untrusted URL directly"
   it("for a safe public URL, calls Firecrawl's scrape API itself — never fetches the target URL from this runtime", async () => {
     const fetchImpl = vi.fn(async (url: string) => {
       expect(url).toBe('https://api.firecrawl.dev/v1/scrape');
-      return jsonResponse(firecrawlBody('# Official page content about Hong Kong landing permits'));
+      return jsonResponse(firecrawlBody('# Official page content about UK landing permits'));
     });
-    const result = await fetchEvidenceViaFirecrawl('https://www.cad.gov.hk/page', 'key', fetchImpl as unknown as typeof fetch);
+    const result = await fetchEvidenceViaFirecrawl(UK_URL, 'key', fetchImpl as unknown as typeof fetch);
     expect(result.quality).toBe('full_page');
-    expect(result.text).toContain('Hong Kong landing permits');
+    expect(result.text).toContain('UK landing permits');
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
   it("degrades to unavailable (not an error) when Firecrawl itself returns a failure", async () => {
     const fetchImpl = vi.fn(async () => jsonResponse({}, false, 500));
-    const result = await fetchEvidenceViaFirecrawl('https://www.faa.gov/x', 'key', fetchImpl as unknown as typeof fetch);
+    const result = await fetchEvidenceViaFirecrawl(UK_URL, 'key', fetchImpl as unknown as typeof fetch);
     expect(result).toEqual({ text: '', quality: 'none' });
   });
 
   it("degrades gracefully when Firecrawl's response has no usable markdown", async () => {
     const fetchImpl = vi.fn(async () => jsonResponse({ data: {} }));
-    const result = await fetchEvidenceViaFirecrawl('https://www.faa.gov/x', 'key', fetchImpl as unknown as typeof fetch);
+    const result = await fetchEvidenceViaFirecrawl(UK_URL, 'key', fetchImpl as unknown as typeof fetch);
     expect(result.quality).toBe('none');
   });
 
   it("degrades gracefully on a network-level throw (e.g. timeout)", async () => {
     const fetchImpl = vi.fn(async () => { throw new Error('timeout'); });
-    const result = await fetchEvidenceViaFirecrawl('https://www.faa.gov/x', 'key', fetchImpl as unknown as typeof fetch);
+    const result = await fetchEvidenceViaFirecrawl(UK_URL, 'key', fetchImpl as unknown as typeof fetch);
     expect(result).toEqual({ text: '', quality: 'none' });
   });
 });
 
-describe("runFocusedVerification — end-to-end mocked flow", () => {
-  it("full_page evidence via Firecrawl -> classifier says supports -> confirmed classification with a source recorded", async () => {
+describe("runFocusedVerification — jurisdiction applicability (regression coverage for the EGLL/UAE defect)", () => {
+  it("REGRESSION: EGLL/UK claim, only a UAE GCAA source available -> rejected as irrelevant. No Firecrawl call and no classify call are made — the wrong-jurisdiction source never reaches evidence retrieval or classification at all", async () => {
     const fetchImpl = vi.fn(async (url: string) => {
       if (url === 'https://api.perplexity.ai/chat/completions') {
-        return jsonResponse(perplexityBody('See official notice', ['https://www.cad.gov.hk/notice']));
+        // Perplexity's own follow-up search also only turns up the UAE page.
+        return jsonResponse(perplexityBody('UAE GCAA guidance on foreign aircraft.', [UAE_URL]));
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const result = await runFocusedVerification({ ...BASE_PARAMS, topCitation: UAE_URL }, fetchImpl as unknown as typeof fetch);
+    expect(result).toEqual({ classification: 'insufficient', evidenceQuality: 'none', sources: [], hadError: false });
+    const calledUrls = fetchImpl.mock.calls.map((c) => c[0]);
+    expect(calledUrls).not.toContain('https://api.firecrawl.dev/v1/scrape');
+    expect(calledUrls).not.toContain('https://ai.gateway.lovable.dev/v1/chat/completions');
+  });
+
+  it("REGRESSION: even if the classifier WOULD have said 'contradicts' for the UAE source, it is never given the chance to — the jurisdiction gate runs first, so a wrong-jurisdiction source can never produce 'conflicting'", async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url === 'https://api.perplexity.ai/chat/completions') {
+        return jsonResponse(perplexityBody('UAE GCAA guidance.', [UAE_URL]));
       }
       if (url === 'https://api.firecrawl.dev/v1/scrape') {
-        return jsonResponse(firecrawlBody('Landing permits are required for all foreign aircraft at VHHH.'));
+        // If this were ever called, it would hand back UAE content...
+        return jsonResponse(firecrawlBody('UAE GCAA landing permit rules for foreign aircraft.'));
+      }
+      if (url === 'https://ai.gateway.lovable.dev/v1/chat/completions') {
+        // ...and if the classifier were ever called with it, it might wrongly say "contradicts" —
+        // exactly the reported bug. This must never be reached.
+        return jsonResponse(classifyBody('contradicts'));
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const result = await runFocusedVerification({ ...BASE_PARAMS, topCitation: UAE_URL }, fetchImpl as unknown as typeof fetch);
+    expect(result.classification).not.toBe('contradicts');
+    expect(result.classification).toBe('insufficient');
+    expect(result.hadError).toBe(false);
+    const calledUrls = fetchImpl.mock.calls.map((c) => c[0]);
+    expect(calledUrls).not.toContain('https://api.firecrawl.dev/v1/scrape');
+    expect(calledUrls).not.toContain('https://ai.gateway.lovable.dev/v1/chat/completions');
+  });
+
+  it("An applicable UK CAA source is accepted, retrieved via Firecrawl, and classified normally -> eligible for 'confirmed' (via evidenceQuality: 'full_page')", async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url === 'https://api.perplexity.ai/chat/completions') {
+        return jsonResponse(perplexityBody('See UK CAA notice', [UK_URL]));
+      }
+      if (url === 'https://api.firecrawl.dev/v1/scrape') {
+        return jsonResponse(firecrawlBody('No landing permit is required for private non-commercial flights arriving in the UK.'));
       }
       if (url === 'https://ai.gateway.lovable.dev/v1/chat/completions') {
         return jsonResponse(classifyBody('supports'));
@@ -128,53 +182,181 @@ describe("runFocusedVerification — end-to-end mocked flow", () => {
     const result = await runFocusedVerification(BASE_PARAMS, fetchImpl as unknown as typeof fetch);
     expect(result.hadError).toBe(false);
     expect(result.classification).toBe('supports');
-    // full_page evidence quality is what allows the caller to map this to 'confirmed'.
     expect(result.evidenceQuality).toBe('full_page');
     expect(result.sources).toEqual([
-      { url: 'https://www.cad.gov.hk/notice', supports: 'supports', retrievedAt: expect.any(String), evidenceQuality: 'full_page' },
+      { url: UK_URL, supports: 'supports', retrievedAt: expect.any(String), evidenceQuality: 'full_page' },
     ]);
   });
 
-  it("Firecrawl fails -> falls back to the Perplexity search snippet -> classification still proceeds, but evidenceQuality is 'search_snippet' (never conflated with full_page)", async () => {
+  it("An applicable UK CAA source that genuinely contradicts the claim -> 'contradicts' with full_page evidence (eligible for 'conflicting')", async () => {
     const fetchImpl = vi.fn(async (url: string) => {
       if (url === 'https://api.perplexity.ai/chat/completions') {
-        return jsonResponse(perplexityBody('Snippet: permits are required.', ['https://www.faa.gov/notice']));
+        return jsonResponse(perplexityBody('See UK CAA notice', [UK_URL]));
+      }
+      if (url === 'https://api.firecrawl.dev/v1/scrape') {
+        return jsonResponse(firecrawlBody('A landing permit IS required for all non-EU-registered private aircraft arriving in the UK.'));
+      }
+      if (url === 'https://ai.gateway.lovable.dev/v1/chat/completions') {
+        return jsonResponse(classifyBody('contradicts'));
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const result = await runFocusedVerification(BASE_PARAMS, fetchImpl as unknown as typeof fetch);
+    expect(result.classification).toBe('contradicts');
+    expect(result.evidenceQuality).toBe('full_page');
+    expect(result.hadError).toBe(false);
+  });
+
+  it("Firecrawl fails for the applicable UK source -> falls back to the verify-call's OWN snippet (properly associated with that citation) -> classification proceeds with evidenceQuality 'search_snippet', never 'full_page'", async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url === 'https://api.perplexity.ai/chat/completions') {
+        return jsonResponse(perplexityBody('UK CAA snippet: no permit required for private flights.', [UK_URL]));
       }
       if (url === 'https://api.firecrawl.dev/v1/scrape') {
         return jsonResponse({}, false, 500);
       }
       if (url === 'https://ai.gateway.lovable.dev/v1/chat/completions') {
+        return jsonResponse(classifyBody('supports'));
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const result = await runFocusedVerification(BASE_PARAMS, fetchImpl as unknown as typeof fetch);
+    expect(result.classification).toBe('supports');
+    expect(result.evidenceQuality).toBe('search_snippet'); // caller must map this to 'provisional', never 'confirmed'
+    expect(result.sources[0].evidenceQuality).toBe('search_snippet');
+  });
+
+  it("No applicable source anywhere (only a UAE citation on offer, and the caller-supplied topCitation is also UAE) -> insufficient/none, no warning-worthy error, no paid calls beyond the initial Perplexity check", async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url === 'https://api.perplexity.ai/chat/completions') {
+        return jsonResponse(perplexityBody('', [UAE_URL]));
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const result = await runFocusedVerification({ ...BASE_PARAMS, topCitation: UAE_URL }, fetchImpl as unknown as typeof fetch);
+    expect(result).toEqual({ classification: 'insufficient', evidenceQuality: 'none', sources: [], hadError: false });
+  });
+
+  it("The initial (caller-supplied) topCitation is re-validated for jurisdiction even if the caller already filtered it — a UAE topCitation is never trusted just because it was passed in", async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url === 'https://api.perplexity.ai/chat/completions') {
+        return jsonResponse(perplexityBody('', [])); // follow-up search finds nothing at all
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const result = await runFocusedVerification({ ...BASE_PARAMS, topCitation: UAE_URL }, fetchImpl as unknown as typeof fetch);
+    expect(result).toEqual({ classification: 'insufficient', evidenceQuality: 'none', sources: [], hadError: false });
+    const calledUrls = fetchImpl.mock.calls.map((c) => c[0]);
+    expect(calledUrls).not.toContain('https://api.firecrawl.dev/v1/scrape');
+  });
+
+  it("A mix of citations in the follow-up response (UAE first, UK second) -> the applicable UK one is selected, not simply the first one returned — citation ORDER must not decide applicability", async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url === 'https://api.perplexity.ai/chat/completions') {
+        return jsonResponse(perplexityBody('Mixed results.', [UAE_URL, UK_URL]));
+      }
+      if (url === 'https://api.firecrawl.dev/v1/scrape') {
+        expect(url).toBe('https://api.firecrawl.dev/v1/scrape');
+        return jsonResponse(firecrawlBody('UK guidance content.'));
+      }
+      if (url === 'https://ai.gateway.lovable.dev/v1/chat/completions') {
+        return jsonResponse(classifyBody('supports'));
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const result = await runFocusedVerification(BASE_PARAMS, fetchImpl as unknown as typeof fetch);
+    expect(result.classification).toBe('supports');
+    expect(result.sources[0].url).toBe(UK_URL);
+  });
+
+  it("NON-UK destination (USA/FAA): an applicable FAA source is accepted and classified normally — proves the fix is not UK/EGLL-specific", async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url === 'https://api.perplexity.ai/chat/completions') {
+        return jsonResponse(perplexityBody('FAA guidance.', [USA_URL]));
+      }
+      if (url === 'https://api.firecrawl.dev/v1/scrape') {
+        return jsonResponse(firecrawlBody('No landing permit is required for private non-commercial flights arriving in the US.'));
+      }
+      if (url === 'https://ai.gateway.lovable.dev/v1/chat/completions') {
+        return jsonResponse(classifyBody('supports'));
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const result = await runFocusedVerification(
+      { ...BASE_PARAMS, icao: 'KJFK', resolvedAirportName: 'John F. Kennedy International Airport', country: 'United States' },
+      fetchImpl as unknown as typeof fetch,
+    );
+    expect(result.classification).toBe('supports');
+    expect(result.evidenceQuality).toBe('full_page');
+  });
+
+  it("NON-UK destination (USA): a UK or UAE citation is rejected for a US claim just as readily as a UAE citation was rejected for the UK claim — this is a general jurisdiction rule, not a UK-specific carve-out", async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url === 'https://api.perplexity.ai/chat/completions') {
+        return jsonResponse(perplexityBody('', [UK_URL, UAE_URL]));
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const result = await runFocusedVerification(
+      { ...BASE_PARAMS, icao: 'KJFK', country: 'United States', topCitation: UK_URL },
+      fetchImpl as unknown as typeof fetch,
+    );
+    expect(result).toEqual({ classification: 'insufficient', evidenceQuality: 'none', sources: [], hadError: false });
+  });
+
+  it("UNMAPPED destination (no entry in the static jurisdiction map, and no acronym-based fallback): rejected regardless of which citation is offered, and no source can be established — an unmapped country never fabricates applicability, it fails safe to inconclusive", async () => {
+    const KENYA_PARAMS = {
+      ...BASE_PARAMS,
+      icao: 'HKJK',
+      country: 'Kenya',
+    };
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url === 'https://api.perplexity.ai/chat/completions') {
+        return jsonResponse(perplexityBody('', [UK_URL, USA_URL, UAE_URL]));
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const result = await runFocusedVerification(KENYA_PARAMS, fetchImpl as unknown as typeof fetch);
+    expect(result).toEqual({ classification: 'insufficient', evidenceQuality: 'none', sources: [], hadError: false });
+    const calledUrls = fetchImpl.mock.calls.map((c) => c[0]);
+    expect(calledUrls).not.toContain('https://api.firecrawl.dev/v1/scrape');
+    expect(calledUrls).not.toContain('https://ai.gateway.lovable.dev/v1/chat/completions');
+  });
+
+  it("An applicable authority domain is NOT sufficient on its own: a UK CAA page that actually discusses an unrelated subject is still classified insufficient by the (mocked) classifier — jurisdiction match only gets evidence to classification, it does not shortcut past it", async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url === 'https://api.perplexity.ai/chat/completions') {
+        return jsonResponse(perplexityBody('UK CAA guidance found.', [UK_URL]));
+      }
+      if (url === 'https://api.firecrawl.dev/v1/scrape') {
+        // Genuinely from the UK's own authority, but about an unrelated topic (noise, not landing permits).
+        return jsonResponse(firecrawlBody('UK CAA guidance on airport noise abatement procedures and night flight restrictions.'));
+      }
+      if (url === 'https://ai.gateway.lovable.dev/v1/chat/completions') {
+        // Reflects what the classifier's existing prompt instruction ("must
+        // specifically address... otherwise insufficient") should produce
+        // for genuinely off-topic content.
         return jsonResponse(classifyBody('insufficient'));
       }
       throw new Error(`unexpected fetch: ${url}`);
     });
 
     const result = await runFocusedVerification(BASE_PARAMS, fetchImpl as unknown as typeof fetch);
-    expect(result.hadError).toBe(false);
     expect(result.classification).toBe('insufficient');
-    expect(result.evidenceQuality).toBe('search_snippet');
+    expect(result.evidenceQuality).toBe('full_page'); // content WAS retrieved — it just didn't address the claim
+    expect(result.hadError).toBe(false);
   });
+});
 
-  it("Firecrawl fails and the snippet is classified as SUPPORTS -> evidenceQuality 'search_snippet' is still reported honestly — the caller (resolveVerificationStatus) is responsible for mapping this to 'provisional', never 'confirmed'", async () => {
-    const fetchImpl = vi.fn(async (url: string) => {
-      if (url === 'https://api.perplexity.ai/chat/completions') {
-        return jsonResponse(perplexityBody('Snippet: permits are required for all foreign aircraft at VHHH.', ['https://www.faa.gov/notice']));
-      }
-      if (url === 'https://api.firecrawl.dev/v1/scrape') {
-        return jsonResponse({}, false, 500);
-      }
-      if (url === 'https://ai.gateway.lovable.dev/v1/chat/completions') {
-        return jsonResponse(classifyBody('supports'));
-      }
-      throw new Error(`unexpected fetch: ${url}`);
-    });
-
-    const result = await runFocusedVerification(BASE_PARAMS, fetchImpl as unknown as typeof fetch);
-    expect(result.classification).toBe('supports');
-    expect(result.evidenceQuality).toBe('search_snippet');
-    expect(result.sources[0].evidenceQuality).toBe('search_snippet');
-  });
-
+describe("runFocusedVerification — no evidence / error paths (unchanged safe-warning behavior)", () => {
   it("no citation and no snippet content -> classified insufficient WITHOUT ever calling the classifier (no evidence to classify)", async () => {
     const fetchImpl = vi.fn(async (url: string) => {
       if (url === 'https://api.perplexity.ai/chat/completions') {
@@ -193,10 +375,10 @@ describe("runFocusedVerification — end-to-end mocked flow", () => {
   it("classifier API call fails (non-200) -> hadError true, classification null", async () => {
     const fetchImpl = vi.fn(async (url: string) => {
       if (url === 'https://api.perplexity.ai/chat/completions') {
-        return jsonResponse(perplexityBody('some content', ['https://www.faa.gov/x']));
+        return jsonResponse(perplexityBody('some content', [UK_URL]));
       }
       if (url === 'https://api.firecrawl.dev/v1/scrape') {
-        return jsonResponse(firecrawlBody('some page content about VHHH permits'));
+        return jsonResponse(firecrawlBody('some UK page content about EGLL permits'));
       }
       if (url === 'https://ai.gateway.lovable.dev/v1/chat/completions') {
         return jsonResponse({}, false, 502);
@@ -211,7 +393,7 @@ describe("runFocusedVerification — end-to-end mocked flow", () => {
   it("classifier returns a response with no tool call at all (malformed AI response) -> hadError true", async () => {
     const fetchImpl = vi.fn(async (url: string) => {
       if (url === 'https://api.perplexity.ai/chat/completions') {
-        return jsonResponse(perplexityBody('some content', ['https://www.faa.gov/x']));
+        return jsonResponse(perplexityBody('some content', [UK_URL]));
       }
       if (url === 'https://api.firecrawl.dev/v1/scrape') {
         return jsonResponse(firecrawlBody('some page content'));
@@ -229,7 +411,7 @@ describe("runFocusedVerification — end-to-end mocked flow", () => {
   it("classifier tool call arguments are malformed JSON -> hadError true, does not throw", async () => {
     const fetchImpl = vi.fn(async (url: string) => {
       if (url === 'https://api.perplexity.ai/chat/completions') {
-        return jsonResponse(perplexityBody('some content', ['https://www.faa.gov/x']));
+        return jsonResponse(perplexityBody('some content', [UK_URL]));
       }
       if (url === 'https://api.firecrawl.dev/v1/scrape') {
         return jsonResponse(firecrawlBody('some page content'));
@@ -247,7 +429,7 @@ describe("runFocusedVerification — end-to-end mocked flow", () => {
   it("classifier returns a classification value outside the allowed enum -> hadError true, never trusted verbatim", async () => {
     const fetchImpl = vi.fn(async (url: string) => {
       if (url === 'https://api.perplexity.ai/chat/completions') {
-        return jsonResponse(perplexityBody('some content', ['https://www.faa.gov/x']));
+        return jsonResponse(perplexityBody('some content', [UK_URL]));
       }
       if (url === 'https://api.firecrawl.dev/v1/scrape') {
         return jsonResponse(firecrawlBody('some page content'));
@@ -271,7 +453,6 @@ describe("runFocusedVerification — end-to-end mocked flow", () => {
   it("an unsafe topCitation (private/metadata address) is never fetched directly, and never sent to Firecrawl either", async () => {
     const fetchImpl = vi.fn(async (url: string) => {
       if (url === 'https://api.perplexity.ai/chat/completions') {
-        // Perplexity returns no citations of its own — only the (unsafe) topCitation passed in is available.
         return jsonResponse(perplexityBody('', []));
       }
       throw new Error(`unexpected fetch: ${url}`);
@@ -281,17 +462,16 @@ describe("runFocusedVerification — end-to-end mocked flow", () => {
       { ...BASE_PARAMS, topCitation: 'http://169.254.169.254/latest/meta-data/' },
       fetchImpl as unknown as typeof fetch,
     );
-    // No full-page evidence (Firecrawl never invoked for an unsafe URL) and no snippet -> insufficient, no classify call.
     expect(result).toEqual({ classification: 'insufficient', evidenceQuality: 'none', sources: [], hadError: false });
     const calledUrls = fetchImpl.mock.calls.map((c) => c[0]);
     expect(calledUrls).not.toContain('https://api.firecrawl.dev/v1/scrape');
     expect(calledUrls).not.toContain('https://ai.gateway.lovable.dev/v1/chat/completions');
   });
 
-  it("no Perplexity key configured: skips the Perplexity call entirely and still works off the provided topCitation via Firecrawl", async () => {
+  it("no Perplexity key configured: skips the Perplexity call entirely and still works off the provided (jurisdiction-applicable) topCitation via Firecrawl", async () => {
     const fetchImpl = vi.fn(async (url: string) => {
       if (url === 'https://api.firecrawl.dev/v1/scrape') {
-        return jsonResponse(firecrawlBody('Landing permits required at VHHH for all foreign aircraft.'));
+        return jsonResponse(firecrawlBody('Landing permits required at EGLL for all foreign aircraft.'));
       }
       if (url === 'https://ai.gateway.lovable.dev/v1/chat/completions') {
         return jsonResponse(classifyBody('supports'));
@@ -300,7 +480,7 @@ describe("runFocusedVerification — end-to-end mocked flow", () => {
     });
 
     const result = await runFocusedVerification(
-      { ...BASE_PARAMS, perplexityApiKey: undefined, topCitation: 'https://www.cad.gov.hk/notice' },
+      { ...BASE_PARAMS, perplexityApiKey: undefined, topCitation: UK_URL },
       fetchImpl as unknown as typeof fetch,
     );
     expect(result.classification).toBe('supports');

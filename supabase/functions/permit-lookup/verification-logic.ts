@@ -31,7 +31,6 @@ export type TriggerReason =
   | 'no_citations'
   | 'ambiguous_conditional'
   | 'indeterminate_result'
-  | 'citation_not_authoritative'
   | 'evidence_relevance_unconfirmed'
   | 'sufficient';
 
@@ -40,7 +39,7 @@ export interface TriggerResult {
   reason: TriggerReason;
 }
 
-/** Official CAA/AIP/ICAO domains the primary and follow-up searches are restricted to. */
+/** Official CAA/AIP/ICAO domains the primary and follow-up searches draw candidate sources from. Being on this list makes a domain a plausible aviation-regulatory source in general — it does NOT, by itself, mean the domain speaks for any particular country. See jurisdictionDomainsForCountry. */
 export const OFFICIAL_EVIDENCE_DOMAINS = [
   'ead.eurocontrol.int',
   'icao.int',
@@ -54,20 +53,84 @@ export const OFFICIAL_EVIDENCE_DOMAINS = [
   'dgca.gov.in',
 ] as const;
 
-/** Real, checkable signal (not fabricated): does this citation's own hostname match one of the officially-targeted domains? */
-export function citationMatchesOfficialDomain(url: string): boolean {
+/**
+ * Maps a destination country (normalized, case-insensitive) to the subset of
+ * OFFICIAL_EVIDENCE_DOMAINS that is actually THAT country's own civil
+ * aviation authority. Deliberately small and explicit: it covers only the
+ * countries our fixed evidence-domain list can actually speak for. A country
+ * with no entry here has NO applicable domain among our current evidence
+ * sources — see jurisdictionDomainsForCountry, which returns [] in that case
+ * rather than falling back to the full global list. That is the fix for the
+ * observed bug (a UAE GCAA page being accepted as evidence for a UK landing-
+ * permit claim merely because gcaa.gov.ae is *an* official aviation-authority
+ * domain): "official" is necessary but not sufficient — it must also be the
+ * destination's own authority.
+ *
+ * icao.int, iata.org and skybrary.aero are intentionally absent: none of
+ * them is a national regulator, so none of them can ever be "the applicable
+ * authority" for a specific country's landing-permit rules. ead.eurocontrol.int
+ * and easa.europa.eu (pan-European sources covering many states at once) are
+ * also intentionally absent — this codebase has no reliable, narrow way to
+ * confirm a given country is an EU/EASA/Eurocontrol member without a much
+ * larger country database, and guessing would reintroduce exactly the kind
+ * of unjustified applicability assumption this fix removes. The safe
+ * consequence is that EU-destination results verify less often via the
+ * bypass path and, when the only follow-up evidence is EAD/EASA, it is
+ * correctly rejected rather than trusted — see the "remaining limitations"
+ * note this ships with.
+ */
+const COUNTRY_JURISDICTION_DOMAINS: Record<string, readonly string[]> = {
+  'united kingdom': ['caa.co.uk'],
+  'uk': ['caa.co.uk'],
+  'great britain': ['caa.co.uk'],
+  'britain': ['caa.co.uk'],
+  'united states': ['faa.gov'],
+  'united states of america': ['faa.gov'],
+  'usa': ['faa.gov'],
+  'us': ['faa.gov'],
+  'united arab emirates': ['gcaa.gov.ae'],
+  'uae': ['gcaa.gov.ae'],
+  'china': ['caac.gov.cn'],
+  "people's republic of china": ['caac.gov.cn'],
+  'prc': ['caac.gov.cn'],
+  'india': ['dgca.gov.in'],
+};
+
+/** Normalizes a free-form country string the same way on both sides of a lookup. */
+function normalizeCountry(country: string | undefined): string {
+  return (country ?? '').trim().toLowerCase();
+}
+
+/** The domain(s) — a subset of OFFICIAL_EVIDENCE_DOMAINS — that are the given destination country's OWN authority. Returns [] when the country is unmapped: a deliberate "fail safe, do not assume" default, not a gap to silently paper over. */
+export function jurisdictionDomainsForCountry(country: string | undefined): readonly string[] {
+  return COUNTRY_JURISDICTION_DOMAINS[normalizeCountry(country)] ?? [];
+}
+
+/**
+ * Real, checkable signal (not fabricated): does this citation's own hostname
+ * belong to the DESTINATION COUNTRY'S OWN aviation authority — not merely to
+ * some official-looking domain from an unrelated jurisdiction? Decided
+ * outright by domain membership in the static map above. An unmapped
+ * country has no entry and therefore no domain can ever satisfy this check
+ * for it — deliberately: a prior acronym-matching fallback that tried to
+ * dynamically infer applicability for unmapped countries was removed after
+ * review, since it introduced a real acronym-collision risk (a country
+ * whose own authority happens to share a short name with, say, the UK's
+ * "CAA" would have wrongly matched caa.co.uk) for negligible actual
+ * coverage benefit given how few of OFFICIAL_EVIDENCE_DOMAINS' labels are
+ * even nameable this way. The caller must fail safe to an inconclusive
+ * result whenever this returns false rather than treat "unmapped" as
+ * license to trust any citation from the curated list.
+ */
+export function citationMatchesJurisdiction(url: string, country: string | undefined): boolean {
+  const applicable = jurisdictionDomainsForCountry(country);
+  if (applicable.length === 0) return false;
   try {
     const host = new URL(url).hostname.toLowerCase();
-    return OFFICIAL_EVIDENCE_DOMAINS.some((d) => host === d || host.endsWith(`.${d}`));
+    return applicable.some((d) => host === d || host.endsWith(`.${d}`));
   } catch {
     return false;
   }
-}
-
-function textMentionsCountry(text: string | undefined, country: string | undefined): boolean {
-  const needle = country?.trim().toLowerCase();
-  if (!text || !needle) return false;
-  return text.toLowerCase().includes(needle);
 }
 
 export interface VerificationTriggerInput {
@@ -76,23 +139,25 @@ export interface VerificationTriggerInput {
   /** Already-sanitized http(s) citation URLs (see sanitizeCitations). */
   citations: string[];
   country: string | undefined;
-  conditions?: string;
-  notes?: string;
 }
 
 /**
  * Deterministic, zero-cost gate: decides whether the primary pass's result
  * needs a follow-up verification pass. A citation count and "confidence: high"
- * are NOT, by themselves, evidence that the cited material is actually about
- * this country/airport/flight type — a single generic or off-topic citation
- * must not let a determination skip verification. Applies the same bar to
- * both "required" and "not required" determinations; only skips verification
- * when the citation evidence is both authoritative (from an officially-
- * targeted domain) AND demonstrably about the specific case (the model's own
- * stated justification names the destination country).
+ * are NOT, by themselves, evidence that the cited material is actually
+ * applicable to this destination — a citation from *some* official aviation
+ * authority is not evidence for *this* country's rules unless it is that
+ * country's own authority. Applicability is checked against the structured
+ * `country` field returned by the primary lookup (via jurisdictionDomainsForCountry),
+ * not by searching free-text `conditions`/`notes` prose for an exact country-name
+ * substring — that approach is fragile (it depends on incidental phrasing,
+ * e.g. "UK CAA" vs "United Kingdom") and was the source of a prior bug where
+ * this trigger fired for a correct UK determination merely because the
+ * free-text field happened not to spell out the country name literally.
+ * Applies the same bar to both "required" and "not required" determinations.
  */
 export function assessNeedsVerification(input: VerificationTriggerInput): TriggerResult {
-  const { permitRequired, confidence, citations, country, conditions, notes } = input;
+  const { permitRequired, confidence, citations, country } = input;
 
   if (confidence !== 'high') {
     return { trigger: true, reason: 'low_confidence' };
@@ -106,10 +171,7 @@ export function assessNeedsVerification(input: VerificationTriggerInput): Trigge
   if (permitRequired === 'conditional') {
     return { trigger: true, reason: 'ambiguous_conditional' };
   }
-  if (!citations.some(citationMatchesOfficialDomain)) {
-    return { trigger: true, reason: 'citation_not_authoritative' };
-  }
-  if (!textMentionsCountry(conditions, country) && !textMentionsCountry(notes, country)) {
+  if (!citations.some((url) => citationMatchesJurisdiction(url, country))) {
     return { trigger: true, reason: 'evidence_relevance_unconfirmed' };
   }
   return { trigger: false, reason: 'sufficient' };

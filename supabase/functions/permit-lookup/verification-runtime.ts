@@ -20,6 +20,9 @@
 import {
   isSafeEvidenceUrl,
   isValidHttpUrl,
+  citationMatchesJurisdiction,
+  jurisdictionDomainsForCountry,
+  OFFICIAL_EVIDENCE_DOMAINS,
   type EvidenceClassification,
   type EvidenceQuality,
 } from './verification-logic.ts';
@@ -63,9 +66,12 @@ export interface FocusedVerificationParams {
   aircraftNationality?: string;
   resolvedAirportName: string;
   permitRequired: 'yes' | 'no' | 'conditional' | undefined;
+  /** Destination country as returned by the primary lookup — used to enforce jurisdiction applicability, never inferred or guessed here. */
+  country: string | undefined;
   perplexityApiKey: string | undefined;
   lovableApiKey: string;
   firecrawlApiKey: string | undefined;
+  /** Must already be jurisdiction-applicable if the caller can determine that; this module re-checks it anyway and never trusts it blindly. */
   topCitation: string | undefined;
 }
 
@@ -83,14 +89,37 @@ export async function runFocusedVerification(
   fetchImpl: FetchLike = fetch,
 ): Promise<FocusedVerificationResult> {
   const {
-    icao, flightTypeLabel, aircraftNationality, resolvedAirportName, permitRequired,
+    icao, flightTypeLabel, aircraftNationality, resolvedAirportName, permitRequired, country,
     perplexityApiKey, lovableApiKey, firecrawlApiKey, topCitation,
   } = params;
   const claimText = `A landing permit is ${permitRequired === 'no' ? 'NOT required' : permitRequired === 'yes' ? 'required' : 'conditionally required'} for a ${flightTypeLabel} flight${aircraftNationality ? ` (aircraft registered in ${aircraftNationality})` : ''} at ${icao}${resolvedAirportName ? ` (${resolvedAirportName})` : ''}.`;
 
   try {
+    // Jurisdiction gate #1: the citation handed in by the caller (typically
+    // the primary lookup's top citation) is only trusted if it is valid AND
+    // is the DESTINATION COUNTRY's own authority — never merely "some
+    // official aviation domain". This module never re-derives or guesses a
+    // jurisdiction; it only ever checks a URL against jurisdictionDomainsForCountry(country).
+    let verifyCitation: string | undefined = topCitation && isValidHttpUrl(topCitation) && citationMatchesJurisdiction(topCitation, country)
+      ? topCitation
+      : undefined;
+    // The search snippet is only safe to use as fallback evidence when it is
+    // the AI's own summary of the specific citation we ended up accepting —
+    // never a snippet detached from (or describing a different source than)
+    // the citation actually in play.
     let verifyContext = '';
-    let verifyCitation: string | undefined = topCitation && isValidHttpUrl(topCitation) ? topCitation : undefined;
+    let verifyContextBackedByCitation = false;
+
+    // Scope the follow-up search itself to the destination's own authority
+    // when known, instead of the full global candidate-domain list — this
+    // reduces the chance of an irrelevant-jurisdiction citation being
+    // returned at all, rather than relying solely on filtering it out after
+    // the fact. When the country is unmapped, fall back to the broader
+    // global list (we have no narrower candidate set to offer); the
+    // deterministic jurisdiction check below still rejects anything that
+    // isn't the destination's own authority either way.
+    const jurisdictionDomains = jurisdictionDomainsForCountry(country);
+    const searchDomainFilter = jurisdictionDomains.length > 0 ? jurisdictionDomains : OFFICIAL_EVIDENCE_DOMAINS;
 
     if (perplexityApiKey) {
       const verifyRes = await fetchImpl('https://api.perplexity.ai/chat/completions', {
@@ -103,32 +132,51 @@ export async function runFocusedVerification(
             { role: 'system', content: 'You are verifying a specific aviation regulatory claim against official sources only. Cite the exact official CAA/AIP source that confirms or contradicts the claim. Do not hedge.' },
             { role: 'user', content: `Verify this claim against official sources: ${claimText}` },
           ],
-          search_domain_filter: ['ead.eurocontrol.int', 'icao.int', 'easa.europa.eu', 'caa.co.uk', 'faa.gov', 'iata.org', 'skybrary.aero', 'gcaa.gov.ae', 'caac.gov.cn', 'dgca.gov.in'],
+          search_domain_filter: [...searchDomainFilter],
           search_recency_filter: 'year',
           max_tokens: 500,
         }),
       });
       if (verifyRes.ok) {
         const verifyData = await verifyRes.json();
-        verifyContext = typeof verifyData?.choices?.[0]?.message?.content === 'string' ? verifyData.choices[0].message.content : '';
+        const rawContext = typeof verifyData?.choices?.[0]?.message?.content === 'string' ? verifyData.choices[0].message.content : '';
         const verifyCitations: unknown[] = Array.isArray(verifyData?.citations) ? verifyData.citations : [];
-        const firstValid = verifyCitations.find((c): c is string => typeof c === 'string' && isValidHttpUrl(c));
-        if (firstValid) verifyCitation = firstValid;
+        // Jurisdiction gate #2: among THIS call's own citations, only the
+        // first one that is both a valid URL and jurisdiction-applicable may
+        // override the citation selected above — never just the first valid
+        // URL regardless of what it is. This is the direct fix for citation
+        // ordering/selection picking an unrelated-jurisdiction source.
+        const firstApplicable = verifyCitations.find(
+          (c): c is string => typeof c === 'string' && isValidHttpUrl(c) && citationMatchesJurisdiction(c, country),
+        );
+        if (firstApplicable) {
+          verifyCitation = firstApplicable;
+          verifyContext = rawContext;
+          verifyContextBackedByCitation = true;
+        }
       }
+    }
+
+    // No jurisdiction-applicable citation could be established from either
+    // the caller-supplied top citation or this call's own results — fail
+    // safe rather than broadening to an unrelated authority. No Firecrawl
+    // call and no classification call are made: there is nothing applicable
+    // to classify, and skipping both avoids spending API calls on evidence
+    // that can never legitimately produce a verdict.
+    if (!verifyCitation) {
+      return { classification: 'insufficient', evidenceQuality: 'none', sources: [], hadError: false };
     }
 
     // Retrieve full page content via Firecrawl only — never a direct fetch
     // of the AI-supplied citation URL from this runtime.
     let evidenceText = '';
     let evidenceQuality: EvidenceQuality = 'none';
-    if (verifyCitation) {
-      const firecrawlResult = await fetchEvidenceViaFirecrawl(verifyCitation, firecrawlApiKey, fetchImpl);
-      if (firecrawlResult.text) {
-        evidenceText = firecrawlResult.text;
-        evidenceQuality = 'full_page';
-      }
+    const firecrawlResult = await fetchEvidenceViaFirecrawl(verifyCitation, firecrawlApiKey, fetchImpl);
+    if (firecrawlResult.text) {
+      evidenceText = firecrawlResult.text;
+      evidenceQuality = 'full_page';
     }
-    if (!evidenceText && verifyContext.trim()) {
+    if (!evidenceText && verifyContextBackedByCitation && verifyContext.trim()) {
       evidenceText = verifyContext.slice(0, 4000);
       evidenceQuality = 'search_snippet';
     }
