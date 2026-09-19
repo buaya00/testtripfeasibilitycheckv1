@@ -1,4 +1,11 @@
 import { scrapeOfficialSources } from '../_shared/firecrawl-scrape.ts';
+import {
+  assessNeedsVerification,
+  resolveVerificationStatus,
+  sanitizeCitations,
+  type PermitVerification,
+} from './verification-logic.ts';
+import { runFocusedVerification } from './verification-runtime.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -351,13 +358,53 @@ Be specific and accurate. For the specific flight type "${flightTypeLabel}", be 
       );
     }
 
+    // ── Selective, evidence-based verification ────────────────────────────
+    // Deterministic, zero-cost gate first; only runs the (bounded, single-
+    // attempt) follow-up search when the primary result actually needs it.
+    // Citation count and "confidence: high" alone are never treated as proof
+    // of relevance — see assessNeedsVerification for the authoritative-domain
+    // and country-relevance checks this now requires.
+    const sanitizedCitations = sanitizeCitations(citations);
+    const trigger = assessNeedsVerification({
+      permitRequired: permitInfo.permitRequired,
+      confidence: permitInfo.confidence,
+      citations: sanitizedCitations,
+      country: permitInfo.country,
+      conditions: permitInfo.conditions,
+      notes: permitInfo.notes,
+    });
+
+    let verification: PermitVerification = { status: 'not_triggered', reason: trigger.reason };
+
+    if (trigger.trigger) {
+      const firecrawlApiKey = Deno.env.get('FIRECRAWL_API_KEY');
+      const { classification, evidenceQuality, sources, hadError } = await runFocusedVerification({
+        icao,
+        flightTypeLabel,
+        aircraftNationality,
+        resolvedAirportName,
+        permitRequired: permitInfo.permitRequired,
+        perplexityApiKey,
+        lovableApiKey,
+        firecrawlApiKey,
+        topCitation: sanitizedCitations[0],
+      });
+      verification = {
+        status: resolveVerificationStatus(classification, hadError, evidenceQuality),
+        reason: trigger.reason,
+        checkedAt: new Date().toISOString(),
+        sources,
+      };
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
         icao,
         ...permitInfo,
-        citations,
-        groundedByPerplexity: citations.length > 0,
+        citations: sanitizedCitations,
+        groundedByPerplexity: sanitizedCitations.length > 0,
+        verification,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

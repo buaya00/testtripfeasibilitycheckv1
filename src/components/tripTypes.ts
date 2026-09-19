@@ -44,6 +44,23 @@ export interface RunwayResult {
   error?: string;
 }
 
+export type PermitVerificationStatus = 'not_triggered' | 'confirmed' | 'provisional' | 'inconclusive' | 'conflicting' | 'unavailable';
+
+export interface PermitVerificationSource {
+  url: string;
+  supports: 'supports' | 'contradicts' | 'insufficient';
+  retrievedAt: string;
+  /** 'full_page' = actual source content was retrieved and examined; 'search_snippet' = only a search engine's own summary text, not the source itself. */
+  evidenceQuality?: 'full_page' | 'search_snippet' | 'none';
+}
+
+export interface PermitVerification {
+  status: PermitVerificationStatus;
+  reason: string;
+  checkedAt?: string;
+  sources?: PermitVerificationSource[];
+}
+
 export interface PermitResult {
   success: boolean;
   icao: string;
@@ -74,6 +91,8 @@ export interface PermitResult {
   // Perplexity grounding
   citations?: string[];
   groundedByPerplexity?: boolean;
+  // Selective follow-up verification (additive — existing consumers unaffected)
+  verification?: PermitVerification;
   error?: string;
 }
 

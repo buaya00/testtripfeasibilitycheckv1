@@ -174,6 +174,18 @@ function isUkOrEuAirport(icao: string): boolean {
   return UK_EU_PREFIXES.some(prefix => upper.startsWith(prefix));
 }
 
+// Validates a string is a well-formed http(s) URL before it is ever rendered
+// as an external link (defensive check on top of server-side sanitization).
+function isValidHttpUrl(value: string | null | undefined): boolean {
+  if (!value) return false;
+  try {
+    const u = new URL(value);
+    return u.protocol === 'http:' || u.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 export function evaluateLegFeasibility(
   leg: LegData,
   aircraftType: string,
@@ -1264,9 +1276,12 @@ export default function TripLegCard({
 
             {/* Permit */}
             {permitLoading && <div className="rounded-md border p-3 text-sm flex items-center gap-2 text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Permit lookup…</div>}
-            {leg.permitResult && !permitLoading && (
+            {leg.permitResult && !permitLoading && (() => {
+              const verificationStatus = leg.permitResult.verification?.status;
+              const needsWarning = verificationStatus === 'inconclusive' || verificationStatus === 'conflicting' || verificationStatus === 'unavailable';
+              return (
               <div className={cn("rounded-md border-l-4 border border-border p-3 text-sm space-y-2",
-                leg.permitResult.permitRequired === 'no' ? "border-l-success" : leg.permitResult.permitRequired === 'yes' ? "border-l-warning" : "border-l-muted-foreground/40"
+                needsWarning ? "border-l-destructive" : leg.permitResult.permitRequired === 'no' ? "border-l-success" : leg.permitResult.permitRequired === 'yes' ? "border-l-warning" : "border-l-muted-foreground/40"
               )}>
                 <div className="flex items-center gap-1.5 font-medium">
                   <Shield className="h-3.5 w-3.5 text-primary" />
@@ -1276,11 +1291,30 @@ export default function TripLegCard({
                 {/* Landing Permit */}
                 <div className="rounded bg-muted/40 px-2 py-1.5 text-xs space-y-0.5">
                   <p className="font-semibold text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Landing Permit</p>
-                  <p className="font-medium">
-                    {leg.permitResult.permitRequired === 'yes' && '⚠️ Required'}
-                    {leg.permitResult.permitRequired === 'no' && '✅ Not required'}
-                    {leg.permitResult.permitRequired === 'conditional' && '⚠️ Conditionally required'}
-                  </p>
+                  {needsWarning ? (
+                    <>
+                      <p className="font-semibold text-destructive">
+                        ⚠️ Verification required
+                      </p>
+                      <p className="text-muted-foreground">
+                        {verificationStatus === 'conflicting'
+                          ? 'Sources conflict on this determination.'
+                          : verificationStatus === 'unavailable'
+                            ? 'Follow-up verification could not be completed (network/API error or timeout).'
+                            : 'Available evidence was insufficient to confirm this determination.'}
+                        {' '}Do not rely on this result — confirm with the relevant civil aviation authority or a qualified trip-support provider before dispatch.
+                      </p>
+                      <p className="text-muted-foreground italic">
+                        Preliminary, unverified indication: {leg.permitResult.permitRequired === 'yes' ? 'required' : leg.permitResult.permitRequired === 'no' ? 'not required' : 'conditional'}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="font-medium">
+                      {leg.permitResult.permitRequired === 'yes' && '⚠️ Required'}
+                      {leg.permitResult.permitRequired === 'no' && '✅ Not required'}
+                      {leg.permitResult.permitRequired === 'conditional' && '⚠️ Conditionally required'}
+                    </p>
+                  )}
                   {leg.permitResult.permitType && <p><span className="font-medium">Type:</span> {leg.permitResult.permitType}</p>}
                   {leg.permitResult.leadTimeDays != null && <p><span className="font-medium">Lead time:</span> {leg.permitResult.leadTimeDays} business days</p>}
                   {leg.permitResult.issuingAuthority && <p><span className="font-medium">Authority:</span> {leg.permitResult.issuingAuthority}</p>}
@@ -1359,9 +1393,54 @@ export default function TripLegCard({
                       AI estimate — verify with official sources
                     </span>
                   )}
+                  {verificationStatus === 'confirmed' && (
+                    <span className="text-[10px] bg-success/10 text-success rounded-full px-2 py-0.5 font-medium">
+                      ✓ Verified against source
+                    </span>
+                  )}
+                  {verificationStatus === 'provisional' && (
+                    <span className="text-[10px] bg-warning/10 text-warning rounded-full px-2 py-0.5 font-medium" title="A search-engine summary appeared to support this determination, but no source page was actually retrieved and examined.">
+                      ◐ Provisionally supported — not checked against full source
+                    </span>
+                  )}
+                  {(!verificationStatus || verificationStatus === 'not_triggered') && (
+                    <span className="text-[10px] bg-muted text-muted-foreground rounded-full px-2 py-0.5" title="This determination has not been independently checked against source content.">
+                      Not independently verified
+                    </span>
+                  )}
+                  {needsWarning && (
+                    <span className="text-[10px] bg-destructive/10 text-destructive rounded-full px-2 py-0.5 font-medium">
+                      ⚠️ Verification required
+                    </span>
+                  )}
                 </div>
+
+                {/* Source attribution — validated links only, real retrieval times only */}
+                {leg.permitResult.citations && leg.permitResult.citations.filter(isValidHttpUrl).length > 0 && (
+                  <div className="text-[10px] text-muted-foreground space-y-0.5">
+                    <p className="font-semibold uppercase tracking-wide">Primary sources</p>
+                    {leg.permitResult.citations.filter(isValidHttpUrl).map((url, i) => (
+                      <p key={i}><a href={url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">{url}</a></p>
+                    ))}
+                  </div>
+                )}
+                {leg.permitResult.verification?.sources && leg.permitResult.verification.sources.filter(s => isValidHttpUrl(s.url)).length > 0 && (
+                  <div className="text-[10px] text-muted-foreground space-y-0.5">
+                    <p className="font-semibold uppercase tracking-wide">Verification check</p>
+                    {leg.permitResult.verification.sources.filter(s => isValidHttpUrl(s.url)).map((s, i) => (
+                      <p key={i}>
+                        <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">{s.url}</a>
+                        {' — '}
+                        {s.supports === 'supports' ? 'supports this determination' : s.supports === 'contradicts' ? 'contradicts this determination' : 'did not clearly establish this determination'}
+                        {s.evidenceQuality === 'search_snippet' && ' (search snippet only — full source page not retrieved)'}
+                        {s.retrievedAt && ` (retrieved ${new Date(s.retrievedAt).toLocaleString()})`}
+                      </p>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
+              );
+            })()}
 
             {/* PPR */}
             {pprLoading && <div className="rounded-md border p-3 text-sm flex items-center gap-2 text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />PPR lookup…</div>}
