@@ -1,8 +1,11 @@
 import { scrapeOfficialSources } from '../_shared/firecrawl-scrape.ts';
+import { searchIndustryEvidence } from '../_shared/industry-evidence-search.ts';
 import {
   shouldAttemptSecondPass,
+  shouldAttemptIndustryPass,
   resolveCiqAvailability,
   secondPassSearchQuery,
+  industryPassSearchQuery,
   type CiqPassResult,
 } from './verification-logic.ts';
 
@@ -211,13 +214,52 @@ Deno.serve(async (req) => {
 
     const resolved = resolveCiqAvailability(primaryPass, secondPass);
 
+    // ── Optional third pass: curated industry sources, only when BOTH
+    // generic passes above found no grounded answer at all. Uses
+    // Firecrawl's search directly (no scrapeOfficialSources — that
+    // function's Strategy 2 static-URL fallback is government-specific and
+    // not applicable here) filtered strictly to the curated industry
+    // domain list; a result from any other domain is never accepted, no
+    // matter how well it ranks. ──────────────────────────────────────────
+    let industryPass: CiqPassResult | null = null;
+    let industryExtraction: CiqExtraction | null = null;
+    if (shouldAttemptIndustryPass(primaryPass, secondPass)) {
+      console.log(`CIQ government/generic passes both ungrounded for ${icao} — attempting curated-industry-source pass`);
+      const firecrawlApiKey = Deno.env.get('FIRECRAWL_API_KEY');
+      const industryResult = await searchIndustryEvidence(industryPassSearchQuery(icao), firecrawlApiKey);
+      const industryContext = industryResult?.content ?? '';
+      if (industryContext) {
+        console.log(`Industry evidence context for ${icao}: ${industryContext.length} chars from ${industryResult?.sourceUrl}`);
+      }
+      const industryOutcome = await runCiqExtraction(icao, industryContext, apiKey);
+      if (industryOutcome.ok) {
+        industryExtraction = industryOutcome.extraction;
+        industryPass = {
+          ciqAvailable: industryOutcome.extraction.ciqAvailable,
+          confidence: industryOutcome.extraction.confidence,
+          grounded: industryOutcome.grounded,
+        };
+      } else {
+        // Same reasoning as the second-pass failure handling above:
+        // swallowed here, not propagated as the overall response — we
+        // still have the generic passes' results, and resolveCiqAvailability
+        // treats industryPass: null as "could not attempt".
+        console.warn(`CIQ industry pass call failed for ${icao}; treating as ungrounded`);
+      }
+    }
+
+    const finalResolved = resolveCiqAvailability(primaryPass, secondPass, industryPass);
+    console.log(`CIQ final resolution for ${icao}: ciqAvailable=${finalResolved.ciqAvailable}, evidenceQuality=${finalResolved.evidenceQuality}, sourceType=${finalResolved.sourceType ?? '(none)'}`);
+
     // Use whichever pass's extracted descriptive fields (country, hours,
     // etc.) actually produced the grounded answer; fall back to the
-    // primary extraction otherwise (including the both-ungrounded case,
+    // primary extraction otherwise (including the all-ungrounded case,
     // where ciqAvailable is overridden to 'unknown' regardless).
-    const sourceExtraction = (!primaryPass.grounded && secondExtraction)
-      ? secondExtraction
-      : primaryOutcome.extraction;
+    const sourceExtraction = finalResolved.sourceType === 'industry' && industryExtraction
+      ? industryExtraction
+      : (!primaryPass.grounded && secondExtraction)
+        ? secondExtraction
+        : primaryOutcome.extraction;
 
     return new Response(
       JSON.stringify({
@@ -225,18 +267,20 @@ Deno.serve(async (req) => {
         icao,
         country: sourceExtraction.country,
         airportName: sourceExtraction.airportName,
-        ciqAvailable: resolved.ciqAvailable,
+        ciqAvailable: finalResolved.ciqAvailable,
         isPortOfEntry: sourceExtraction.isPortOfEntry,
         operatingHours: sourceExtraction.operatingHours,
         advanceNotice: sourceExtraction.advanceNotice,
         fees: sourceExtraction.fees,
         alternateAirports: sourceExtraction.alternateAirports,
-        notes: resolved.evidenceQuality === 'ungrounded'
-          ? `Could not find grounded, official information about CIQ availability at ${icao} after two attempts.${sourceExtraction.notes ? ` ${sourceExtraction.notes}` : ''}`
+        notes: finalResolved.evidenceQuality === 'ungrounded'
+          ? `Could not find grounded, official information about CIQ availability at ${icao} after checking government and industry sources.${sourceExtraction.notes ? ` ${sourceExtraction.notes}` : ''}`
           : sourceExtraction.notes,
-        confidence: resolved.confidence,
-        evidenceQuality: resolved.evidenceQuality,
-        secondPassAttempted: resolved.secondPassAttempted,
+        confidence: finalResolved.confidence,
+        evidenceQuality: finalResolved.evidenceQuality,
+        secondPassAttempted: finalResolved.secondPassAttempted,
+        industryPassAttempted: finalResolved.industryPassAttempted,
+        sourceType: finalResolved.sourceType,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

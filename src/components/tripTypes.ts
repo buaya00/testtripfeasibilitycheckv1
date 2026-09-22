@@ -74,6 +74,8 @@ export interface PermitVerificationSource {
   retrievedAt: string;
   /** 'full_page' = actual source content was retrieved and examined; 'search_snippet' = only a search engine's own summary text, not the source itself. */
   evidenceQuality?: 'full_page' | 'search_snippet' | 'none';
+  /** 'government' = the destination's own official CAA/AIP authority. 'industry' = a curated business-aviation trip-support publisher, used only when no government evidence resolved the claim. Always shown to the user — these carry different weight. */
+  sourceType?: 'government' | 'industry';
 }
 
 export interface PermitVerification {
@@ -135,6 +137,10 @@ export interface CiqResult {
   evidenceQuality?: 'grounded' | 'ungrounded';
   /** True when the primary pass was ungrounded and a second, differently-worded verification pass was attempted. */
   secondPassAttempted?: boolean;
+  /** True when both generic passes were ungrounded and a third pass, scoped to curated industry trip-support sources, was attempted. */
+  industryPassAttempted?: boolean;
+  /** 'government' = a national/official source found via the generic search. 'industry' = a curated business-aviation trip-support publisher, used only when the generic passes found nothing. Always shown to the user — these carry different weight. Undefined when evidenceQuality is 'ungrounded'. */
+  sourceType?: 'government' | 'industry';
   error?: string;
 }
 

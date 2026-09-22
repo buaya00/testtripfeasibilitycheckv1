@@ -392,7 +392,7 @@ Be specific and accurate. For the specific flight type "${flightTypeLabel}", be 
         (url) => citationMatchesJurisdiction(url, permitInfo.country),
       );
       console.log(`Jurisdiction-applicable citation for ${permitInfo.country || 'unknown country'}: ${jurisdictionApplicableCitation || '(none found among ' + sanitizedCitations.length + ' primary citations)'}`);
-      const { classification, evidenceQuality, sources, hadError } = await runFocusedVerification({
+      const { classification, evidenceQuality, sources, hadError, sourceType } = await runFocusedVerification({
         icao,
         flightTypeLabel,
         aircraftNationality,
@@ -405,7 +405,7 @@ Be specific and accurate. For the specific flight type "${flightTypeLabel}", be 
         zenrowsApiKey,
         topCitation: jurisdictionApplicableCitation,
       });
-      console.log(`Focused verification result: classification=${classification}, evidenceQuality=${evidenceQuality}, hadError=${hadError}`);
+      console.log(`Focused verification result: classification=${classification}, evidenceQuality=${evidenceQuality}, sourceType=${sourceType ?? '(none)'}, hadError=${hadError}`);
       verification = {
         status: resolveVerificationStatus(classification, hadError, evidenceQuality),
         reason: trigger.reason,

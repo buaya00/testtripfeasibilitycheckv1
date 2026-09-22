@@ -1332,6 +1332,12 @@ export default function TripLegCard({
                   {leg.ciqResult.confidence && (
                     <p className="text-[10px] text-muted-foreground">Confidence: {leg.ciqResult.confidence}</p>
                   )}
+                  {leg.ciqResult.sourceType === 'industry' && (
+                    <p className="text-[10px] font-semibold text-warning">Source: industry trip-support publisher, not government-verified</p>
+                  )}
+                  {leg.ciqResult.sourceType === 'government' && (
+                    <p className="text-[10px] font-semibold text-success">Source: official government/CAA data</p>
+                  )}
                 </div>
               </div>
             )}
@@ -1494,6 +1500,12 @@ export default function TripLegCard({
                         <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">{s.url}</a>
                         {' — '}
                         {s.supports === 'supports' ? 'supports this determination' : s.supports === 'contradicts' ? 'contradicts this determination' : 'did not clearly establish this determination'}
+                        {s.sourceType === 'industry' && (
+                          <span className="font-semibold text-warning"> · industry source, not government-verified</span>
+                        )}
+                        {s.sourceType === 'government' && (
+                          <span className="font-semibold text-success"> · destination's own civil aviation authority</span>
+                        )}
                         {s.evidenceQuality === 'search_snippet' && ' (search snippet only — full source page not retrieved)'}
                         {s.retrievedAt && ` (retrieved ${new Date(s.retrievedAt).toLocaleString()})`}
                       </p>

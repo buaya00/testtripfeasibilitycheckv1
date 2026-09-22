@@ -1,9 +1,10 @@
-// Pure, side-effect-free decision logic for ciq-lookup's two-pass
-// verification. Deliberately has ZERO Deno-specific imports/globals so the
-// exact same module can be imported both by the Deno Edge Function at
-// runtime and by the Vite/vitest test suite for automated testing without a
-// Deno runtime or any live/paid API calls — same pattern as
-// permit-lookup/verification-logic.ts.
+// Pure, side-effect-free decision logic for ciq-lookup's three-tier
+// verification (government/generic search, a broader second attempt, then
+// a curated industry-source fallback). Deliberately has ZERO Deno-specific
+// imports/globals so the exact same module can be imported both by the
+// Deno Edge Function at runtime and by the Vite/vitest test suite for
+// automated testing without a Deno runtime or any live/paid API calls —
+// same pattern as permit-lookup/verification-logic.ts.
 //
 // THE BUG THIS FIXES: ciq-lookup asks an LLM to judge CIQ (Customs,
 // Immigration, Quarantine) availability at an airport, optionally grounded
@@ -16,15 +17,20 @@
 // as available on a re-run — a plain model-variance miss on an ungrounded
 // guess, not a scraping bug (Firecrawl itself was healthy at the time).
 //
-// THE FIX: never let an ungrounded guess stand as the final answer. If the
-// first pass has no grounding, attempt one differently-worded second pass.
-// If NEITHER pass is grounded, the final answer is 'unknown' — explicitly,
-// regardless of what either pass's LLM call guessed — not silently
-// defaulted to 'no' and not left as an unlabeled low-confidence 'no'/'yes'.
+// THE FIX (extended): never let an ungrounded guess stand as the final
+// answer. If the first pass has no grounding, attempt a differently-worded
+// second pass. If that is ALSO ungrounded, attempt a third pass scoped to a
+// small, independently-verified list of business-aviation trip-support
+// publishers (see ../_shared/industry-evidence-sources.ts) — the same
+// government-then-industry two-tier model used by permit-lookup. Only if
+// ALL THREE passes are ungrounded is the final answer 'unknown' —
+// explicitly, regardless of what any pass's LLM call guessed.
 
 export type CiqAvailability = 'yes' | 'no' | 'limited' | 'unknown';
 export type CiqConfidence = 'high' | 'medium' | 'low';
 export type CiqEvidenceQuality = 'grounded' | 'ungrounded';
+/** 'government' = a national/official source found via the generic Firecrawl search (primary or second pass). 'industry' = a curated business-aviation trip-support publisher, used only when neither generic pass grounded an answer. Always surfaced to the user — these carry different weight. */
+export type CiqSourceType = 'government' | 'industry';
 
 /** Result of one extraction attempt (one Firecrawl-context-then-LLM pass). */
 export interface CiqPassResult {
@@ -40,6 +46,10 @@ export interface ResolvedCiqResult {
   confidence: CiqConfidence | null;
   evidenceQuality: CiqEvidenceQuality;
   secondPassAttempted: boolean;
+  /** True only when the industry tier was actually attempted (both generic passes were ungrounded first). */
+  industryPassAttempted: boolean;
+  /** Which tier actually produced the grounded answer, when one was found — undefined when evidenceQuality is 'ungrounded'. */
+  sourceType?: CiqSourceType;
 }
 
 /**
@@ -53,17 +63,26 @@ export function shouldAttemptSecondPass(primary: Pick<CiqPassResult, 'grounded'>
   return !primary.grounded;
 }
 
+/** Whether the curated-industry-source tier should be attempted — only once both the primary and second generic passes have failed to ground an answer. */
+export function shouldAttemptIndustryPass(
+  primary: Pick<CiqPassResult, 'grounded'>,
+  secondPass: Pick<CiqPassResult, 'grounded'> | null,
+): boolean {
+  return !primary.grounded && !(secondPass?.grounded ?? false);
+}
+
 /**
- * Combines a primary pass and an optional second pass into the final,
- * caller-facing result. secondPass is null when a second pass was not
- * attempted at all (shouldAttemptSecondPass returned false) OR could not be
+ * Combines up to three passes into the final, caller-facing result.
+ * secondPass/industryPass are null when that tier was not attempted at all
+ * (the corresponding should-attempt check returned false) OR could not be
  * attempted (e.g. missing API key) — both are treated identically: fall
- * back to "no grounded evidence" handling rather than trusting the
- * ungrounded primary guess.
+ * through to the next tier, or to "no grounded evidence" handling, rather
+ * than trusting an ungrounded guess from any tier.
  */
 export function resolveCiqAvailability(
   primary: CiqPassResult,
-  secondPass: CiqPassResult | null
+  secondPass: CiqPassResult | null,
+  industryPass: CiqPassResult | null = null,
 ): ResolvedCiqResult {
   if (primary.grounded) {
     return {
@@ -71,6 +90,8 @@ export function resolveCiqAvailability(
       confidence: primary.confidence,
       evidenceQuality: 'grounded',
       secondPassAttempted: false,
+      industryPassAttempted: false,
+      sourceType: 'government',
     };
   }
 
@@ -80,16 +101,29 @@ export function resolveCiqAvailability(
       confidence: secondPass.confidence,
       evidenceQuality: 'grounded',
       secondPassAttempted: true,
+      industryPassAttempted: false,
+      sourceType: 'government',
     };
   }
 
-  // Neither pass was grounded (or no second pass could be attempted at
-  // all): never surface either pass's raw guess as the answer.
+  if (industryPass && industryPass.grounded) {
+    return {
+      ciqAvailable: industryPass.ciqAvailable,
+      confidence: industryPass.confidence,
+      evidenceQuality: 'grounded',
+      secondPassAttempted: secondPass !== null,
+      industryPassAttempted: true,
+      sourceType: 'industry',
+    };
+  }
+
+  // No tier was grounded: never surface any tier's raw guess as the answer.
   return {
     ciqAvailable: 'unknown',
     confidence: null,
     evidenceQuality: 'ungrounded',
     secondPassAttempted: secondPass !== null,
+    industryPassAttempted: industryPass !== null,
   };
 }
 
@@ -103,3 +137,9 @@ export function resolveCiqAvailability(
 export function secondPassSearchQuery(icao: string): string {
   return `${icao} airport customs hours general aviation international arrivals FBO`;
 }
+
+/** Query for the curated-industry-source tier — deliberately framed around trip-support/business-aviation terminology, matching the kind of content these specific publishers actually write. */
+export function industryPassSearchQuery(icao: string): string {
+  return `${icao} airport customs immigration business aviation trip support`;
+}
+

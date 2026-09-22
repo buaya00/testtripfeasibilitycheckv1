@@ -459,7 +459,12 @@ export interface VerificationSource {
   supports: EvidenceClassification;
   retrievedAt: string; // ISO timestamp — always the real time the check ran, never invented
   evidenceQuality: EvidenceQuality;
+  /** Whether this evidence came from the destination's own government/CAA authority, or a curated industry trip-support source used as a fallback. Always shown to the user — an industry-sourced confirmation carries different weight than a government one, and hiding that distinction would itself be a form of overclaiming confidence. */
+  sourceType: EvidenceSourceType;
 }
+
+/** 'government' = the destination's own official CAA/AIP authority (see COUNTRY_JURISDICTION_DOMAINS). 'industry' = a curated business-aviation trip-support publisher (see _shared/industry-evidence-sources.ts), used only as a fallback when no government evidence resolves the claim. Government is always attempted first and preferred; industry is never used to override a government result, only to fill a gap. */
+export type EvidenceSourceType = 'government' | 'industry';
 
 export interface PermitVerification {
   status: VerificationStatus;
