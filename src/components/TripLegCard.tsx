@@ -273,7 +273,17 @@ export function evaluateLegFeasibility(
   // Skip customs availability check for first-leg US departures (no inbound CIQ needed)
   const isFirstLegUsDep = isFirstLeg && totalLegs > 1 && leg.airportIcao && isUsAirport(leg.airportIcao.toUpperCase());
   const customsLookupDone = !!(leg.cbpResult || leg.ciqResult);
-  if (!isFirstLegUsDep && customsLookupDone && !leg.customsAvailable) issues.push("Customs not available at this airport");
+  // 'unknown' (CIQ could not find grounded evidence after two verification
+  // passes) is deliberately NOT treated as a confident "not available" —
+  // that conflation is exactly the bug this was built to prevent. It still
+  // gets its own distinct issue so it isn't silently dropped either.
+  if (!isFirstLegUsDep && customsLookupDone) {
+    if (leg.ciqResult?.ciqAvailable === 'unknown') {
+      issues.push("Customs availability could not be determined — verify manually");
+    } else if (!leg.customsAvailable) {
+      issues.push("Customs not available at this airport");
+    }
+  }
 
   // Permit lead time check — for US airports, only add as guidance notes, not feasibility issues
   if (checkArrival && leg.arrivalDate && leg.permitResult?.success && leg.permitResult.permitRequired === 'yes' && leg.permitResult.leadTimeDays != null && leg.permitResult.leadTimeDays > 0) {
@@ -1190,22 +1200,34 @@ export default function TripLegCard({
             </button>
 
             {/* Customs */}
-            <button
-              type="button"
-              onClick={() => update({ customsAvailable: !leg.customsAvailable })}
-              className={cn(
-                "flex flex-col items-center gap-1.5 rounded-lg border-2 p-3 text-center transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                leg.customsAvailable
-                  ? "border-success/60 bg-success/10 text-foreground"
-                  : "border-destructive/40 bg-destructive/5 text-muted-foreground hover:bg-destructive/10"
-              )}
-            >
-              <Building2 className={cn("h-4 w-4", leg.customsAvailable ? "text-success" : "text-destructive/60")} />
-              <span className="text-[11px] font-semibold leading-tight">Customs</span>
-              <span className={cn("text-[10px] leading-tight font-medium", leg.customsAvailable ? "text-success" : "text-destructive/70")}>
-                {leg.customsAvailable ? "Available" : "Not available"}
-              </span>
-            </button>
+            {(() => {
+              // 'unknown' means CIQ ran its full two-pass verification and
+              // still found no grounded official evidence — deliberately
+              // distinct from a confident "not available" (leg.customsAvailable
+              // === false). Rendering it the same as a hard "no" is exactly
+              // the failure mode this whole fix exists to prevent.
+              const isUnknown = leg.ciqResult?.ciqAvailable === 'unknown';
+              return (
+                <button
+                  type="button"
+                  onClick={() => update({ customsAvailable: !leg.customsAvailable })}
+                  className={cn(
+                    "flex flex-col items-center gap-1.5 rounded-lg border-2 p-3 text-center transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    isUnknown
+                      ? "border-warning/50 bg-warning/10 text-foreground"
+                      : leg.customsAvailable
+                        ? "border-success/60 bg-success/10 text-foreground"
+                        : "border-destructive/40 bg-destructive/5 text-muted-foreground hover:bg-destructive/10"
+                  )}
+                >
+                  <Building2 className={cn("h-4 w-4", isUnknown ? "text-warning" : leg.customsAvailable ? "text-success" : "text-destructive/60")} />
+                  <span className="text-[11px] font-semibold leading-tight">Customs</span>
+                  <span className={cn("text-[10px] leading-tight font-medium", isUnknown ? "text-warning" : leg.customsAvailable ? "text-success" : "text-destructive/70")}>
+                    {isUnknown ? "Unknown" : leg.customsAvailable ? "Available" : "Not available"}
+                  </span>
+                </button>
+              );
+            })()}
 
             {/* Slot */}
             <button
