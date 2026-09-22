@@ -1296,9 +1296,20 @@ export default function TripLegCard({
                   {leg.ciqResult.success === false && leg.ciqResult.error && (
                     <p className="text-destructive">{leg.ciqResult.error}</p>
                   )}
+                  {leg.ciqResult.success !== false && (
+                    <p className="font-medium">
+                      {leg.ciqResult.ciqAvailable === 'yes' && '✅ Available'}
+                      {leg.ciqResult.ciqAvailable === 'no' && '❌ Not available'}
+                      {leg.ciqResult.ciqAvailable === 'limited' && '⚠️ Limited'}
+                      {leg.ciqResult.ciqAvailable === 'unknown' && '❓ Unable to determine — no grounded official source found'}
+                    </p>
+                  )}
                   {leg.ciqResult.operatingHours && <p><span className="font-medium">Hours:</span> {leg.ciqResult.operatingHours}</p>}
                   {leg.ciqResult.advanceNotice && <p><span className="font-medium">Notice:</span> {leg.ciqResult.advanceNotice}</p>}
                   {leg.ciqResult.notes && <p className="text-muted-foreground italic">{leg.ciqResult.notes}</p>}
+                  {leg.ciqResult.confidence && (
+                    <p className="text-[10px] text-muted-foreground">Confidence: {leg.ciqResult.confidence}</p>
+                  )}
                 </div>
               </div>
             )}

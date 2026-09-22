@@ -123,14 +123,18 @@ export interface CiqResult {
   icao: string;
   country?: string;
   airportName?: string;
-  ciqAvailable?: 'yes' | 'no' | 'limited';
+  ciqAvailable?: 'yes' | 'no' | 'limited' | 'unknown';
   isPortOfEntry?: boolean;
   operatingHours?: string;
   advanceNotice?: string;
   fees?: string;
   alternateAirports?: string;
   notes?: string;
-  confidence?: 'high' | 'medium' | 'low';
+  confidence?: 'high' | 'medium' | 'low' | null;
+  /** 'ungrounded' means neither the primary nor a second verification pass found real official-source content — ciqAvailable will be 'unknown' in that case, not a guessed yes/no/limited. */
+  evidenceQuality?: 'grounded' | 'ungrounded';
+  /** True when the primary pass was ungrounded and a second, differently-worded verification pass was attempted. */
+  secondPassAttempted?: boolean;
   error?: string;
 }
 
