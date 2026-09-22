@@ -39,7 +39,7 @@ function baseInput(overrides: Partial<Parameters<typeof assessNeedsVerification>
 }
 
 describe("jurisdictionDomainsForCountry — the destination-applicability map", () => {
-  it("maps the UK to its own authority only", () => {
+  it("maps the UK to its own national authority only — neither EUROCONTROL nor EASA membership is used for permits (route/ATM body and AIP-structure-only body respectively; neither publishes any country's actual permit criteria)", () => {
     expect(jurisdictionDomainsForCountry('United Kingdom')).toEqual(['caa.co.uk']);
   });
 
@@ -62,9 +62,25 @@ describe("jurisdictionDomainsForCountry — the destination-applicability map", 
     expect(jurisdictionDomainsForCountry('India')).toEqual(['dgca.gov.in']);
   });
 
-  it("returns [] for an unmapped country — fail safe, never assume applicability", () => {
+  it("an EASA member state with no separately-modeled national CAA domain (France, Germany) gets NO pan-European domain — EASA standardizes AIP structure (which section covers permits), not the permit criteria themselves, so easa.europa.eu never contains a country's actual rules regardless of membership", () => {
+    expect(jurisdictionDomainsForCountry('France')).toEqual([]);
+    expect(jurisdictionDomainsForCountry('Germany')).toEqual([]);
+  });
+
+  it("an EFTA state inside the EASA system still gets no pan-European domain (Norway) — same reasoning as any other EASA member", () => {
+    expect(jurisdictionDomainsForCountry('Norway')).toEqual([]);
+  });
+
+  it("a EUROCONTROL member that is not an EU/EASA member also gets nothing — confirms neither pan-European list is wired in, independent of which membership a country holds", () => {
+    expect(jurisdictionDomainsForCountry('Turkey')).toEqual([]);
+    expect(jurisdictionDomainsForCountry('Ukraine')).toEqual([]);
+    expect(jurisdictionDomainsForCountry('Serbia')).toEqual([]);
+  });
+
+  it("returns [] for a country in neither the national list nor either pan-European list — fail safe, never assume applicability", () => {
     expect(jurisdictionDomainsForCountry('Kenya')).toEqual([]);
-    expect(jurisdictionDomainsForCountry('France')).toEqual([]); // pan-European EAD/EASA membership is deliberately not modeled — see verification-logic.ts
+    expect(jurisdictionDomainsForCountry('Israel')).toEqual([]);
+    expect(jurisdictionDomainsForCountry('Morocco')).toEqual([]);
   });
 
   it("returns [] for undefined/empty country", () => {
@@ -105,6 +121,30 @@ describe("citationMatchesJurisdiction — this is THE fix for the reported bug",
   it("never throws on a malformed URL", () => {
     expect(citationMatchesJurisdiction('not a url', UK)).toBe(false);
     expect(citationMatchesJurisdiction('not a url', 'Kenya')).toBe(false);
+  });
+
+  it("an EASA citation does NOT match any country's jurisdiction, including a genuine EASA member (France) — EASA standardizes AIP structure, not permit content, so it's never applicable permit evidence regardless of membership", () => {
+    expect(citationMatchesJurisdiction('https://www.easa.europa.eu/some/page', 'France')).toBe(false);
+    expect(citationMatchesJurisdiction('https://www.easa.europa.eu/some/page', 'Germany')).toBe(false);
+  });
+
+  it("an EAD/EUROCONTROL citation does NOT match any country's jurisdiction — EUROCONTROL is never applicable evidence for a permit determination, regardless of membership", () => {
+    expect(citationMatchesJurisdiction('https://ead.eurocontrol.int/some/page', 'Germany')).toBe(false);
+    expect(citationMatchesJurisdiction('https://ead.eurocontrol.int/some/page', UK)).toBe(false);
+    expect(citationMatchesJurisdiction('https://www.ead.eurocontrol.int/eAIP/x', 'France')).toBe(false);
+  });
+
+  it("an EASA citation does NOT match a EUROCONTROL-only, non-EASA member (Turkey) either — both pan-European domains are inert for permit matching, independent of any membership", () => {
+    expect(citationMatchesJurisdiction('https://www.easa.europa.eu/some/page', 'Turkey')).toBe(false);
+  });
+
+  it("an EASA citation does NOT match the UK — the UK is not an EASA member post-Brexit, and its EUROCONTROL membership never substitutes for it (nor would it if the UK were an EASA member — see above)", () => {
+    expect(citationMatchesJurisdiction('https://www.easa.europa.eu/some/page', UK)).toBe(false);
+  });
+
+  it("neither pan-European domain matches a non-European country (Kenya, USA) either — no blanket pass for pan-European-looking domains", () => {
+    expect(citationMatchesJurisdiction('https://www.easa.europa.eu/some/page', 'Kenya')).toBe(false);
+    expect(citationMatchesJurisdiction('https://ead.eurocontrol.int/some/page', 'United States')).toBe(false);
   });
 });
 

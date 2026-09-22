@@ -55,29 +55,21 @@ export const OFFICIAL_EVIDENCE_DOMAINS = [
 
 /**
  * Maps a destination country (normalized, case-insensitive) to the subset of
- * OFFICIAL_EVIDENCE_DOMAINS that is actually THAT country's own civil
- * aviation authority. Deliberately small and explicit: it covers only the
- * countries our fixed evidence-domain list can actually speak for. A country
- * with no entry here has NO applicable domain among our current evidence
- * sources — see jurisdictionDomainsForCountry, which returns [] in that case
- * rather than falling back to the full global list. That is the fix for the
- * observed bug (a UAE GCAA page being accepted as evidence for a UK landing-
- * permit claim merely because gcaa.gov.ae is *an* official aviation-authority
- * domain): "official" is necessary but not sufficient — it must also be the
- * destination's own authority.
+ * OFFICIAL_EVIDENCE_DOMAINS that is actually THAT country's own national
+ * civil aviation authority. Deliberately small and explicit: it covers only
+ * the countries our fixed evidence-domain list can actually speak for as a
+ * NATIONAL regulator. A country with no entry here simply has no known
+ * national-authority domain among our current evidence sources — it may
+ * still have applicable evidence via the pan-European bodies below (see
+ * jurisdictionDomainsForCountry, which combines both). That is the fix for
+ * the observed bug (a UAE GCAA page being accepted as evidence for a UK
+ * landing-permit claim merely because gcaa.gov.ae is *an* official
+ * aviation-authority domain): "official" is necessary but not sufficient —
+ * it must also be the destination's own authority.
  *
  * icao.int, iata.org and skybrary.aero are intentionally absent: none of
  * them is a national regulator, so none of them can ever be "the applicable
- * authority" for a specific country's landing-permit rules. ead.eurocontrol.int
- * and easa.europa.eu (pan-European sources covering many states at once) are
- * also intentionally absent — this codebase has no reliable, narrow way to
- * confirm a given country is an EU/EASA/Eurocontrol member without a much
- * larger country database, and guessing would reintroduce exactly the kind
- * of unjustified applicability assumption this fix removes. The safe
- * consequence is that EU-destination results verify less often via the
- * bypass path and, when the only follow-up evidence is EAD/EASA, it is
- * correctly rejected rather than trusted — see the "remaining limitations"
- * note this ships with.
+ * authority" for a specific country's landing-permit rules.
  */
 const COUNTRY_JURISDICTION_DOMAINS: Record<string, readonly string[]> = {
   'united kingdom': ['caa.co.uk'],
@@ -96,14 +88,113 @@ const COUNTRY_JURISDICTION_DOMAINS: Record<string, readonly string[]> = {
   'india': ['dgca.gov.in'],
 };
 
+/**
+ * The EASA system's member states: the 27 EU member states plus the 4 EFTA
+ * states that fully participate in EASA (Iceland, Liechtenstein, Norway,
+ * Switzerland) — 31 in total. Source: EASA's own published member-state
+ * list (easa.europa.eu/en/light/topics/easa-member-states) and its
+ * "EASA By Country" relationship page, cross-checked against an aviation
+ * regulator's advisory note confirming the UK became a Third Country (i.e.
+ * NOT an EASA member) upon leaving the EU on 31/01/2020.
+ *
+ * NOT currently used by jurisdictionDomainsForCountry. Initially added on
+ * the assumption that EASA membership would make easa.europa.eu applicable
+ * permit evidence for a member state — that assumption was wrong and was
+ * corrected after review: EASA standardizes the STRUCTURE of each member
+ * state's AIP, not the permit CRITERIA within it. Do not re-add
+ * easa.europa.eu (or any other pan-European domain) as permit evidence
+ * without new evidence overturning the below.
+ *
+ * Verified via:
+ *  - EASA's AIP content specification, which mandates that GEN 1.2 in every
+ *    member state's AIP cover "regulations and requirements for advance
+ *    notification and applications for permission concerning international
+ *    aircraft entry, transit and departure" — a structural requirement
+ *    (which section, what topics), not a substantive one (what the answer
+ *    is).
+ *  - EASA's own confirmation that individual member states remain
+ *    responsible for operating permits and traffic rights.
+ *  - Two real member states' AIP GEN 1.2 content, which differ in exactly
+ *    the way that confirmation predicts: Portugal treats a filed flight
+ *    plan as sufficient prior notification for qualifying nonscheduled
+ *    overflights/non-traffic stops by ICAO-contracting-state operators,
+ *    while Estonia instead describes its own distinct national
+ *    operating-permit process under its air-service agreements. Same GEN
+ *    1.2 section, same EASA structural mandate, materially different
+ *    permit treatment.
+ * Conclusion: easa.europa.eu itself never contains any given country's
+ * actual permit rules — the applicable evidence is always that country's
+ * OWN AIP GEN 1.2 (published by its own national authority/AIS, not by
+ * EASA). EASA membership was therefore never a valid applicability signal,
+ * independent of the separate EUROCONTROL/route-vs-permit distinction
+ * documented below.
+ *
+ * Kept here, unused, as vetted reference data in case a future feature
+ * needs "is this an EASA member" (e.g. citing the common AIP structure) —
+ * exported for that purpose, but do not wire it into jurisdiction matching.
+ */
+export const EASA_MEMBER_STATES = new Set<string>([
+  // EU-27
+  'austria', 'belgium', 'bulgaria', 'croatia', 'cyprus', 'czech republic', 'czechia',
+  'denmark', 'estonia', 'finland', 'france', 'germany', 'greece', 'hungary', 'ireland',
+  'italy', 'latvia', 'lithuania', 'luxembourg', 'malta', 'netherlands', 'poland',
+  'portugal', 'romania', 'slovakia', 'slovenia', 'spain', 'sweden',
+  // EFTA states inside the EASA system
+  'iceland', 'liechtenstein', 'norway', 'switzerland',
+]);
+
+/**
+ * EUROCONTROL's full Member States (41), per EUROCONTROL's own published
+ * list (eurocontrol.int/our-member-and-comprehensive-agreement-states),
+ * retrieved 2026.
+ *
+ * NOT currently used by jurisdictionDomainsForCountry: EUROCONTROL/EAD is a
+ * pan-European air-traffic-management and route/airspace body (route
+ * charges, airway/slot allocation, A-CDM, network operations) — it does not
+ * issue or publish country-specific LANDING PERMIT requirements, which
+ * remain a purely national matter set by each destination's own CAA/AIP.
+ * Treating an EAD citation as applicable evidence for a landing-permit
+ * claim would be the same category error this whole fix exists to remove,
+ * just with a different domain.
+ *
+ * A future feature in this codebase (route/airway-slot or A-CDM compliance
+ * checks) may need EUROCONTROL membership — kept here as vetted reference
+ * data and exported for that purpose, but deliberately NOT wired into
+ * jurisdictionDomainsForCountry or any permit-jurisdiction matching.
+ */
+export const EUROCONTROL_MEMBER_STATES = new Set<string>([
+  'albania', 'armenia', 'austria', 'belgium', 'bosnia and herzegovina', 'bulgaria',
+  'croatia', 'cyprus', 'czech republic', 'czechia', 'denmark', 'estonia', 'finland',
+  'france', 'georgia', 'germany', 'greece', 'hungary', 'iceland', 'ireland', 'italy',
+  'latvia', 'lithuania', 'luxembourg', 'malta', 'moldova', 'republic of moldova',
+  'monaco', 'montenegro', 'netherlands', 'north macedonia', 'macedonia', 'norway',
+  'poland', 'portugal', 'romania', 'serbia', 'slovakia', 'slovenia', 'spain', 'sweden',
+  'switzerland', 'turkey', 'türkiye', 'ukraine',
+  'united kingdom', 'uk', 'great britain', 'britain',
+]);
+
 /** Normalizes a free-form country string the same way on both sides of a lookup. */
 function normalizeCountry(country: string | undefined): string {
   return (country ?? '').trim().toLowerCase();
 }
 
-/** The domain(s) — a subset of OFFICIAL_EVIDENCE_DOMAINS — that are the given destination country's OWN authority. Returns [] when the country is unmapped: a deliberate "fail safe, do not assume" default, not a gap to silently paper over. */
+/**
+ * The domain(s) — a subset of OFFICIAL_EVIDENCE_DOMAINS — that are actually
+ * applicable to the given destination country: its own national authority,
+ * if and only if we have one mapped above. NEITHER pan-European body
+ * (EASA, EUROCONTROL) is ever included, regardless of membership — see
+ * EASA_MEMBER_STATES's and EUROCONTROL_MEMBER_STATES's doc comments: one
+ * standardizes AIP structure without standardizing permit content, the
+ * other is a route/airspace/ATM body, and NEITHER publishes or determines
+ * any country's actual permit rules. Permits are always a purely national
+ * matter — a country with no national-authority entry above returns []:
+ * the deliberate "fail safe, do not assume" default, not a gap to paper
+ * over with a plausible-looking pan-European domain.
+ */
 export function jurisdictionDomainsForCountry(country: string | undefined): readonly string[] {
-  return COUNTRY_JURISDICTION_DOMAINS[normalizeCountry(country)] ?? [];
+  const normalized = normalizeCountry(country);
+  if (!normalized) return [];
+  return [...(COUNTRY_JURISDICTION_DOMAINS[normalized] ?? [])];
 }
 
 /**
