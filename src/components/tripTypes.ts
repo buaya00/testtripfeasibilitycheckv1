@@ -21,6 +21,24 @@ export interface CbpResult {
   error?: string;
 }
 
+export interface AwmDeclaredDistances {
+  toraFt?: number;
+  todaFt?: number;
+  asdaFt?: number;
+  ldaFt?: number;
+}
+
+export interface AwmRunwaySupplement {
+  ident: string;
+  pcn?: string;
+  pcr?: string;
+  declaredDistances?: Record<string, AwmDeclaredDistances>;
+  notes?: string[];
+  dataQualityFlag?: string;
+  sourceRevision: string;
+  assessedAt: string;
+}
+
 export interface RunwayInfo {
   id: string;
   lengthFt: number;
@@ -28,6 +46,8 @@ export interface RunwayInfo {
   surface: string;
   lighted: boolean;
   ident: string;
+  /** Curated, dated Jeppesen AWM supplement — present only for a small hand-verified set of airports. See supabase/functions/_shared/awm-runway-supplement.ts. */
+  awm?: AwmRunwaySupplement;
 }
 
 export interface RunwayResult {
@@ -41,6 +61,8 @@ export interface RunwayResult {
   runways: RunwayInfo[];
   longestRunwayFt: number | null;
   message: string;
+  /** Airport-level AWM notes (slot coordination, blanket PPR) — only for the same curated airport set. */
+  awmAirportNotes?: { sourceRevision: string; assessedAt: string; notes: string[] } | null;
   error?: string;
 }
 

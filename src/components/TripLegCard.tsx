@@ -3,7 +3,7 @@ import { format } from "date-fns";
 import {
   CalendarIcon, CheckCircle2, XCircle, AlertTriangle, Search, Loader2,
   ExternalLink, PlaneLanding, Shield, DollarSign, Clock, ChevronDown, ChevronUp,
-  FileText, Plus, Trash2, Tag, ShieldCheck, ClipboardList, Building2, Timer, RefreshCw, Plane,
+  FileText, Plus, Trash2, Tag, ShieldCheck, ClipboardList, Building2, Timer, RefreshCw, Plane, Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,6 +18,12 @@ import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
+// Pure decision-logic module (zero Deno-specific imports — see its own header
+// comment) shared with the permit-lookup Edge Function and its test suite.
+// Reused here ONLY for its sourced EASA-membership list, to gate a purely
+// informational regulatory note — never for permit jurisdiction/evidence
+// logic, which stays inside verification-logic.ts's own exported functions.
+import { EASA_MEMBER_STATES } from "../../supabase/functions/permit-lookup/verification-logic";
 import type {
   LegData, CbpResult, RunwayResult, PermitResult, CiqResult,
   ChargesResult, PprResult, FeasibilityResult, OperatingHours,
@@ -168,10 +174,33 @@ const UK_EU_PREFIXES = [
   'LX',                          // Gibraltar (UK)
 ];
 
+// Formats a single AWM declared-distances entry (one runway end) into a
+// compact "TORA 13287' · TODA 13484' · ASDA 13700' · LDA 11811'" string,
+// omitting any field the source didn't publish for that end.
+function formatDeclaredDistancesForEnd(end: string, dd: { toraFt?: number; todaFt?: number; asdaFt?: number; ldaFt?: number }): string | null {
+  const parts: string[] = [];
+  if (dd.toraFt != null) parts.push(`TORA ${dd.toraFt.toLocaleString()}'`);
+  if (dd.todaFt != null) parts.push(`TODA ${dd.todaFt.toLocaleString()}'`);
+  if (dd.asdaFt != null) parts.push(`ASDA ${dd.asdaFt.toLocaleString()}'`);
+  if (dd.ldaFt != null) parts.push(`LDA ${dd.ldaFt.toLocaleString()}'`);
+  if (parts.length === 0) return null;
+  return `${end}: ${parts.join(' · ')}`;
+}
+
 function isUkOrEuAirport(icao: string): boolean {
   if (!icao || icao.length < 2) return false;
   const upper = icao.toUpperCase();
   return UK_EU_PREFIXES.some(prefix => upper.startsWith(prefix));
+}
+
+// True when the resolved destination country (as returned by permit-lookup,
+// e.g. leg.permitResult.country) is a genuine EASA member state per the
+// same sourced list used by permit-lookup's verification logic. Deliberately
+// NOT the same check as isUkOrEuAirport above (UK/EU-by-ICAO-prefix, used
+// for TCO gating) — the UK is not an EASA member post-Brexit, and the
+// ORO.GEN.315 ground-handling note this gates is EASA/EU-specific.
+function isEasaMemberCountry(country: string | null | undefined): boolean {
+  return !!country && EASA_MEMBER_STATES.has(country.trim().toLowerCase());
 }
 
 // Validates a string is a well-formed http(s) URL before it is ever rendered
@@ -1496,10 +1525,41 @@ export default function TripLegCard({
                 </div>
                 <p className="text-muted-foreground text-xs">{leg.runwayResult.message}</p>
                 {leg.runwayResult.runways.length > 0 && (
-                  <div className="rounded bg-muted/40 px-2 py-1.5 text-xs space-y-0.5">
+                  <div className="rounded bg-muted/40 px-2 py-1.5 text-xs space-y-1.5">
                     {leg.runwayResult.runways.map((rwy, i) => (
-                      <p key={i}><span className="font-mono font-medium">{rwy.ident}</span> — {rwy.lengthFt.toLocaleString()} ft × {rwy.widthFt} ft · {rwy.surface}{rwy.lighted && " · Lighted"}</p>
+                      <div key={i} className="space-y-0.5">
+                        <p><span className="font-mono font-medium">{rwy.ident}</span> — {rwy.lengthFt.toLocaleString()} ft × {rwy.widthFt} ft · {rwy.surface}{rwy.lighted && " · Lighted"}</p>
+                        {rwy.awm && (
+                          <div className="ml-3 pl-2 border-l-2 border-dashed border-border text-[10px] text-muted-foreground space-y-0.5">
+                            {(rwy.awm.pcn || rwy.awm.pcr) && (
+                              <p>{rwy.awm.pcn && <>PCN {rwy.awm.pcn}</>}{rwy.awm.pcn && rwy.awm.pcr && ' · '}{rwy.awm.pcr && <>PCR {rwy.awm.pcr}</>}</p>
+                            )}
+                            {rwy.awm.declaredDistances && Object.entries(rwy.awm.declaredDistances).map(([end, dd]) => {
+                              const line = formatDeclaredDistancesForEnd(end, dd);
+                              return line ? <p key={end}>{line}</p> : null;
+                            })}
+                            {rwy.awm.notes?.map((note, ni) => <p key={ni} className="italic">{note}</p>)}
+                            {rwy.awm.dataQualityFlag && (
+                              <p className="text-warning font-medium not-italic">⚠️ {rwy.awm.dataQualityFlag}</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     ))}
+                    {leg.runwayResult.runways.some(r => r.awm) && (
+                      <p className="text-[10px] text-muted-foreground italic pt-0.5">
+                        Declared distances/PCN: Jeppesen AWM snapshot ({leg.runwayResult.runways.find(r => r.awm)?.awm?.sourceRevision}, assessed {leg.runwayResult.runways.find(r => r.awm)?.awm?.assessedAt}) — not current; verify before relying on it.
+                      </p>
+                    )}
+                  </div>
+                )}
+                {leg.runwayResult.awmAirportNotes && (
+                  <div className="rounded bg-muted/40 px-2 py-1.5 text-xs space-y-0.5">
+                    <p className="font-medium text-[10px] uppercase tracking-wide text-muted-foreground">Airport-level notes (AWM)</p>
+                    {leg.runwayResult.awmAirportNotes.notes.map((note, ni) => <p key={ni} className="text-muted-foreground">{note}</p>)}
+                    <p className="text-[10px] text-muted-foreground italic pt-0.5">
+                      Jeppesen AWM snapshot ({leg.runwayResult.awmAirportNotes.sourceRevision}, assessed {leg.runwayResult.awmAirportNotes.assessedAt}) — not current; verify before relying on it.
+                    </p>
                   </div>
                 )}
               </div>
@@ -1560,6 +1620,33 @@ export default function TripLegCard({
               </div>
               );
             })}
+
+            {/* Regulatory reference note (background only — not tariff data, not a compliance
+                determination). Gated on genuine EASA membership of the resolved destination
+                country, using the same sourced list permit-lookup uses — not shown for the UK
+                or any non-EASA destination, where this EU-specific rule does not apply. */}
+            {isEasaMemberCountry(leg.permitResult?.country) && (
+              <div className="rounded-md border border-dashed border-border p-3 text-xs space-y-1 text-muted-foreground">
+                <div className="flex items-center gap-1.5 font-medium text-foreground">
+                  <Info className="h-3.5 w-3.5" />
+                  Ground handling — EASA regulatory reference
+                </div>
+                <p>
+                  Under EASA Regulation (EU) 2025/24 (ORO.GEN.315), when an operator contracts ground
+                  handling to a third-party organisation, that organisation must provide services per the
+                  operator's own instructions and procedures, or — where the operator cannot supply
+                  these — per the contracted organisation's own procedures under specified conditions (Delegated
+                  Regulation (EU) 2025/20). This provision is not yet in force operationally: it applies
+                  from 27 March 2028 (entry into force 27 March 2025).
+                </p>
+                <p>
+                  This is general regulatory background for an EASA member destination, not a
+                  compliance determination for this quote or flight — applicability depends on the
+                  operator's own regulatory framework, not solely the destination. Verify current
+                  requirements with your operations team before relying on it.
+                </p>
+              </div>
+            )}
 
             {/* Airport Hours */}
             {hoursLoading && <div className="rounded-md border p-3 text-sm flex items-center gap-2 text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Checking airport hours & NOTAMs…</div>}
