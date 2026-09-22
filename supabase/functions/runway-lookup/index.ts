@@ -1,3 +1,5 @@
+import { findAwmRunwaySupplement, findAwmAirportNotes, AWM_RUNWAY_SUPPLEMENT, type AwmRunwaySupplement } from '../_shared/awm-runway-supplement.ts';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
@@ -11,6 +13,12 @@ interface RunwayInfo {
   lighted: boolean;
   closed: boolean;
   ident: string;
+  // Optional supplemental fields from a curated, dated Jeppesen AWM snapshot
+  // (see supabase/functions/_shared/awm-runway-supplement.ts). Present ONLY
+  // for the small, hand-picked set of airports verified in that file — never
+  // inferred or assumed for any other ICAO. lengthFt/widthFt/surface above
+  // remain sourced from the live OurAirports feed regardless.
+  awm?: AwmRunwaySupplement & { sourceRevision: string; assessedAt: string };
 }
 
 function parseCSVLine(line: string): string[] {
@@ -109,6 +117,10 @@ Deno.serve(async (req) => {
       const lengthFt = parseInt(fields[iLength] || '0', 10);
       if (closed || lengthFt <= 0) continue;
 
+      const ident = `${fields[iLeIdent] || ''}/${fields[iHeIdent] || ''}`;
+      const awmMatch = findAwmRunwaySupplement(icao, ident);
+      const awmAirport = AWM_RUNWAY_SUPPLEMENT[icao];
+
       runways.push({
         id: fields[iId] || '',
         lengthFt,
@@ -116,13 +128,20 @@ Deno.serve(async (req) => {
         surface: fields[iSurface] || 'Unknown',
         lighted: fields[iLighted] === '1',
         closed: false,
-        ident: `${fields[iLeIdent] || ''}/${fields[iHeIdent] || ''}`,
+        ident,
+        ...(awmMatch && awmAirport
+          ? { awm: { ...awmMatch, sourceRevision: awmAirport.sourceRevision, assessedAt: awmAirport.assessedAt } }
+          : {}),
       });
     }
 
     const longestRunwayFt = runways.length > 0
       ? Math.max(...runways.map(r => r.lengthFt))
       : null;
+
+    // Airport-level AWM notes (slot coordination, blanket PPR, etc.) — only
+    // present for the small curated set of airports in awm-runway-supplement.ts.
+    const awmAirportNotes = findAwmAirportNotes(icao);
 
     // Also fetch airport name, city, and coordinates from airports.csv
     let airportName: string | null = null;
@@ -171,6 +190,7 @@ Deno.serve(async (req) => {
         longitude,
         runways,
         longestRunwayFt,
+        awmAirportNotes: awmAirportNotes ?? null,
         message: runways.length > 0
           ? `Found ${runways.length} active runway(s) at ${airportName || icao}. Longest: ${longestRunwayFt?.toLocaleString()} ft`
           : `No active runways found for ${icao}`,
