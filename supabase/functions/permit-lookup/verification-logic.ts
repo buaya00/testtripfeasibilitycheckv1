@@ -45,37 +45,90 @@ export const OFFICIAL_EVIDENCE_DOMAINS = [
   'icao.int',
   'easa.europa.eu',
   'caa.co.uk',
+  'nats-uk.ead-it.com',
   'faa.gov',
   'iata.org',
   'skybrary.aero',
   'gcaa.gov.ae',
   'caac.gov.cn',
   'dgca.gov.in',
+  'iaa.ie',
+  'sia.aviation-civile.gouv.fr',
+  'aip.dfs.de',
+  'enav.it',
+  'aip.enaire.es',
+  'nav.pt',
+  'lvnl.nl',
+  'ops.skeyes.be',
+  'skybriefing.com',
+  'eaip.austrocontrol.at',
+  'aim.rlp.cz',
+  'ais.pansa.pl',
+  'avinor.no',
+  'aro.lfv.se',
+  'aim.naviair.dk',
+  'ais.fi',
+  'dhmi.gov.tr',
+  'gaca.gov.sa',
+  'caa.gov.qa',
+  'paca.gov.om',
+  'cad.gov.hk',
+  'caas.gov.sg',
+  'caat.or.th',
+  'aisjapan.mlit.go.jp',
+  'caam.gov.my',
+  'navcanada.ca',
+  'aisweb.decea.mil.br',
+  'caa.co.za',
+  'airservicesaustralia.com',
+  'aip.net.nz',
 ] as const;
 
 /**
  * Maps a destination country (normalized, case-insensitive) to the subset of
  * OFFICIAL_EVIDENCE_DOMAINS that is actually THAT country's own national
- * civil aviation authority. Deliberately small and explicit: it covers only
- * the countries our fixed evidence-domain list can actually speak for as a
- * NATIONAL regulator. A country with no entry here simply has no known
- * national-authority domain among our current evidence sources — it may
- * still have applicable evidence via the pan-European bodies below (see
- * jurisdictionDomainsForCountry, which combines both). That is the fix for
- * the observed bug (a UAE GCAA page being accepted as evidence for a UK
- * landing-permit claim merely because gcaa.gov.ae is *an* official
- * aviation-authority domain): "official" is necessary but not sufficient —
- * it must also be the destination's own authority.
+ * civil aviation authority. Deliberately explicit rather than derived: it
+ * covers only the countries our fixed evidence-domain list can actually
+ * speak for as a NATIONAL regulator. A country with no entry here simply has
+ * no known national-authority domain among our current evidence sources —
+ * see jurisdictionDomainsForCountry, which returns [] in that case rather
+ * than falling back to the full global list (pan-European bodies are
+ * documented, sourced dead-ends — see EASA_MEMBER_STATES and
+ * EUROCONTROL_MEMBER_STATES below — never a fallback for an unmapped
+ * country). That is the fix for the observed bug (a UAE GCAA page being
+ * accepted as evidence for a UK landing-permit claim merely because
+ * gcaa.gov.ae is *an* official aviation-authority domain): "official" is
+ * necessary but not sufficient — it must also be the destination's own
+ * authority.
  *
  * icao.int, iata.org and skybrary.aero are intentionally absent: none of
  * them is a national regulator, so none of them can ever be "the applicable
  * authority" for a specific country's landing-permit rules.
+ *
+ * Source for every domain below: the EAIP_SOURCES map already curated in
+ * this codebase (../_shared/firecrawl-scrape.ts), which the primary
+ * permit-lookup pass has used to scrape these exact national CAA/AIP
+ * publications successfully for months — reused here rather than
+ * re-researched, since it's the same "this domain is this country's actual
+ * authority" fact this map needs, already vetted for a different purpose.
+ * Only entries with a real, non-empty URL in that map are included; ICAO
+ * prefixes with no known URL there (e.g. Hungary, Romania, Greece, Mexico,
+ * South Korea, Indonesia, the Philippines, Nigeria, Kenya) are deliberately
+ * left unmapped here too, for the same reason — no guessing a domain neither
+ * map has actually verified.
+ *
+ * The UK entry now also includes nats-uk.ead-it.com (NATS' own UK-specific
+ * eAIP hosting subdomain, distinct from the shared ead-it.com hosting
+ * platform itself) — EAIP_SOURCES already listed it as a UK source, but it
+ * had been missed when this map was first built, meaning a genuine UK
+ * citation from that domain would have been wrongly rejected as
+ * inapplicable evidence.
  */
 const COUNTRY_JURISDICTION_DOMAINS: Record<string, readonly string[]> = {
-  'united kingdom': ['caa.co.uk'],
-  'uk': ['caa.co.uk'],
-  'great britain': ['caa.co.uk'],
-  'britain': ['caa.co.uk'],
+  'united kingdom': ['caa.co.uk', 'nats-uk.ead-it.com'],
+  'uk': ['caa.co.uk', 'nats-uk.ead-it.com'],
+  'great britain': ['caa.co.uk', 'nats-uk.ead-it.com'],
+  'britain': ['caa.co.uk', 'nats-uk.ead-it.com'],
   'united states': ['faa.gov'],
   'united states of america': ['faa.gov'],
   'usa': ['faa.gov'],
@@ -86,6 +139,41 @@ const COUNTRY_JURISDICTION_DOMAINS: Record<string, readonly string[]> = {
   "people's republic of china": ['caac.gov.cn'],
   'prc': ['caac.gov.cn'],
   'india': ['dgca.gov.in'],
+  'ireland': ['iaa.ie'],
+  'france': ['sia.aviation-civile.gouv.fr'],
+  'french republic': ['sia.aviation-civile.gouv.fr'],
+  'germany': ['aip.dfs.de'],
+  'italy': ['enav.it'],
+  'spain': ['aip.enaire.es'],
+  'portugal': ['nav.pt'],
+  'netherlands': ['lvnl.nl'],
+  'the netherlands': ['lvnl.nl'],
+  'holland': ['lvnl.nl'],
+  'belgium': ['ops.skeyes.be'],
+  'switzerland': ['skybriefing.com'],
+  'austria': ['eaip.austrocontrol.at'],
+  'czech republic': ['aim.rlp.cz'],
+  'czechia': ['aim.rlp.cz'],
+  'poland': ['ais.pansa.pl'],
+  'norway': ['avinor.no'],
+  'sweden': ['aro.lfv.se'],
+  'denmark': ['aim.naviair.dk'],
+  'finland': ['ais.fi'],
+  'turkey': ['dhmi.gov.tr'],
+  'türkiye': ['dhmi.gov.tr'],
+  'saudi arabia': ['gaca.gov.sa'],
+  'qatar': ['caa.gov.qa'],
+  'oman': ['paca.gov.om'],
+  'hong kong': ['cad.gov.hk'],
+  'singapore': ['caas.gov.sg'],
+  'thailand': ['caat.or.th'],
+  'japan': ['aisjapan.mlit.go.jp'],
+  'malaysia': ['caam.gov.my'],
+  'canada': ['navcanada.ca'],
+  'brazil': ['aisweb.decea.mil.br'],
+  'south africa': ['caa.co.za'],
+  'australia': ['airservicesaustralia.com'],
+  'new zealand': ['aip.net.nz'],
 };
 
 /**

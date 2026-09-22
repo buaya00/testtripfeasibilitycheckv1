@@ -39,18 +39,18 @@ function baseInput(overrides: Partial<Parameters<typeof assessNeedsVerification>
 }
 
 describe("jurisdictionDomainsForCountry — the destination-applicability map", () => {
-  it("maps the UK to its own national authority only — neither EUROCONTROL nor EASA membership is used for permits (route/ATM body and AIP-structure-only body respectively; neither publishes any country's actual permit criteria)", () => {
-    expect(jurisdictionDomainsForCountry('United Kingdom')).toEqual(['caa.co.uk']);
+  it("maps the UK to its own national authority AND its own eAIP hosting subdomain — neither EUROCONTROL nor EASA membership is used for permits (route/ATM body and AIP-structure-only body respectively; neither publishes any country's actual permit criteria)", () => {
+    expect(jurisdictionDomainsForCountry('United Kingdom')).toEqual(['caa.co.uk', 'nats-uk.ead-it.com']);
   });
 
-  it("resolves common aliases for the same country to the same domain", () => {
-    expect(jurisdictionDomainsForCountry('UK')).toEqual(['caa.co.uk']);
-    expect(jurisdictionDomainsForCountry('Great Britain')).toEqual(['caa.co.uk']);
-    expect(jurisdictionDomainsForCountry('britain')).toEqual(['caa.co.uk']);
+  it("resolves common aliases for the same country to the same domains", () => {
+    expect(jurisdictionDomainsForCountry('UK')).toEqual(['caa.co.uk', 'nats-uk.ead-it.com']);
+    expect(jurisdictionDomainsForCountry('Great Britain')).toEqual(['caa.co.uk', 'nats-uk.ead-it.com']);
+    expect(jurisdictionDomainsForCountry('britain')).toEqual(['caa.co.uk', 'nats-uk.ead-it.com']);
   });
 
   it("is case- and whitespace-insensitive", () => {
-    expect(jurisdictionDomainsForCountry('  UNITED KINGDOM  ')).toEqual(['caa.co.uk']);
+    expect(jurisdictionDomainsForCountry('  UNITED KINGDOM  ')).toEqual(['caa.co.uk', 'nats-uk.ead-it.com']);
   });
 
   it("maps the other countries our fixed evidence-domain list can actually speak for", () => {
@@ -62,17 +62,24 @@ describe("jurisdictionDomainsForCountry — the destination-applicability map", 
     expect(jurisdictionDomainsForCountry('India')).toEqual(['dgca.gov.in']);
   });
 
-  it("an EASA member state with no separately-modeled national CAA domain (France, Germany) gets NO pan-European domain — EASA standardizes AIP structure (which section covers permits), not the permit criteria themselves, so easa.europa.eu never contains a country's actual rules regardless of membership", () => {
-    expect(jurisdictionDomainsForCountry('France')).toEqual([]);
-    expect(jurisdictionDomainsForCountry('Germany')).toEqual([]);
+  it("maps France, Germany, and other newly-added countries to their OWN national authority domain — sourced from EAIP_SOURCES, not from EASA membership", () => {
+    expect(jurisdictionDomainsForCountry('France')).toEqual(['sia.aviation-civile.gouv.fr']);
+    expect(jurisdictionDomainsForCountry('Germany')).toEqual(['aip.dfs.de']);
+    expect(jurisdictionDomainsForCountry('Japan')).toEqual(['aisjapan.mlit.go.jp']);
+    expect(jurisdictionDomainsForCountry('Canada')).toEqual(['navcanada.ca']);
   });
 
-  it("an EFTA state inside the EASA system still gets no pan-European domain (Norway) — same reasoning as any other EASA member", () => {
-    expect(jurisdictionDomainsForCountry('Norway')).toEqual([]);
+  it("an EASA member state EAIP_SOURCES has no real URL for still gets NO domain — proves the mapping is sourced per-country, not granted by EASA membership itself (Hungary, Romania: EASA members, but EAIP_SOURCES lists no URL for either)", () => {
+    expect(jurisdictionDomainsForCountry('Hungary')).toEqual([]);
+    expect(jurisdictionDomainsForCountry('Romania')).toEqual([]);
   });
 
-  it("a EUROCONTROL member that is not an EU/EASA member also gets nothing — confirms neither pan-European list is wired in, independent of which membership a country holds", () => {
-    expect(jurisdictionDomainsForCountry('Turkey')).toEqual([]);
+  it("an EFTA state inside the EASA system that DOES have a sourced domain gets it (Norway) — the domain comes from EAIP_SOURCES, not EASA/EFTA membership", () => {
+    expect(jurisdictionDomainsForCountry('Norway')).toEqual(['avinor.no']);
+  });
+
+  it("a EUROCONTROL member with a sourced domain gets it (Turkey), independent of EASA/EU membership; one still genuinely unmapped (Ukraine, Serbia: EAIP_SOURCES has no URL for either)", () => {
+    expect(jurisdictionDomainsForCountry('Turkey')).toEqual(['dhmi.gov.tr']);
     expect(jurisdictionDomainsForCountry('Ukraine')).toEqual([]);
     expect(jurisdictionDomainsForCountry('Serbia')).toEqual([]);
   });
@@ -105,6 +112,17 @@ describe("citationMatchesJurisdiction — this is THE fix for the reported bug",
 
   it("matches subdomains of the applicable authority", () => {
     expect(citationMatchesJurisdiction('https://aip.caa.co.uk/x', UK)).toBe(true);
+  });
+
+  it("the UK's own eAIP hosting subdomain (nats-uk.ead-it.com) matches UK jurisdiction — this is the fix for a UK source that would otherwise have been wrongly rejected", () => {
+    expect(citationMatchesJurisdiction('https://nats-uk.ead-it.com/cms-nats/opencms/en/Publications/AIP/', UK)).toBe(true);
+  });
+
+  it("newly-added national authority domains match their own country and no other", () => {
+    expect(citationMatchesJurisdiction('https://www.sia.aviation-civile.gouv.fr/some/page', 'France')).toBe(true);
+    expect(citationMatchesJurisdiction('https://www.sia.aviation-civile.gouv.fr/some/page', 'Germany')).toBe(false);
+    expect(citationMatchesJurisdiction('https://aip.dfs.de/BasicIFR/', 'Germany')).toBe(true);
+    expect(citationMatchesJurisdiction('https://aip.dfs.de/BasicIFR/', 'France')).toBe(false);
   });
 
   it("rejects near-miss lookalike domains", () => {
