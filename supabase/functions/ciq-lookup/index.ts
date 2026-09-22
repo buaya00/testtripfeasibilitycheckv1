@@ -161,9 +161,12 @@ Deno.serve(async (req) => {
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    // TEMPORARY DIAGNOSTIC — remove once the "no results across all
+    // airports" issue is root-caused. Not a permanent field.
+    const firecrawlKeyPresentAtStart = !!Deno.env.get('FIRECRAWL_API_KEY');
 
     // ── Primary pass ──────────────────────────────────────────────────
-    const { combinedContent: primaryContext } = await scrapeOfficialSources(icao, 'ciq');
+    const { combinedContent: primaryContext, results: primaryResults } = await scrapeOfficialSources(icao, 'ciq');
     if (primaryContext) {
       console.log(`Firecrawl CIQ context (primary): ${primaryContext.length} chars`);
     }
@@ -184,13 +187,15 @@ Deno.serve(async (req) => {
     // see verification-logic.ts for why. ──────────────────────────────
     let secondPass: CiqPassResult | null = null;
     let secondExtraction: CiqExtraction | null = null;
+    let secondResults: unknown[] = [];
     if (shouldAttemptSecondPass(primaryPass)) {
       console.log(`CIQ primary pass ungrounded for ${icao} — attempting second pass with a broader query`);
-      const { combinedContent: secondContext } = await scrapeOfficialSources(
+      const { combinedContent: secondContext, results: secondResultsRaw } = await scrapeOfficialSources(
         icao,
         'ciq',
         { searchQuery: secondPassSearchQuery(icao), maxPages: 3 }
       );
+      secondResults = secondResultsRaw;
       if (secondContext) {
         console.log(`Firecrawl CIQ context (second pass): ${secondContext.length} chars`);
       }
@@ -223,10 +228,14 @@ Deno.serve(async (req) => {
     // matter how well it ranks. ──────────────────────────────────────────
     let industryPass: CiqPassResult | null = null;
     let industryExtraction: CiqExtraction | null = null;
+    let industryResultForDebug: { content: string; sourceUrl: string } | null = null;
+    let industryKeyPresent = false;
     if (shouldAttemptIndustryPass(primaryPass, secondPass)) {
       console.log(`CIQ government/generic passes both ungrounded for ${icao} — attempting curated-industry-source pass`);
       const firecrawlApiKey = Deno.env.get('FIRECRAWL_API_KEY');
+      industryKeyPresent = !!firecrawlApiKey;
       const industryResult = await searchIndustryEvidence(industryPassSearchQuery(icao), firecrawlApiKey);
+      industryResultForDebug = industryResult;
       const industryContext = industryResult?.content ?? '';
       if (industryContext) {
         console.log(`Industry evidence context for ${icao}: ${industryContext.length} chars from ${industryResult?.sourceUrl}`);
@@ -281,6 +290,22 @@ Deno.serve(async (req) => {
         secondPassAttempted: finalResolved.secondPassAttempted,
         industryPassAttempted: finalResolved.industryPassAttempted,
         sourceType: finalResolved.sourceType,
+        // TEMPORARY DIAGNOSTIC BLOCK — remove once root-caused. Never a
+        // permanent field; exists only to see what each search attempt
+        // actually returned via the browser Network tab, since the
+        // Supabase dashboard Logs page has been unreliable.
+        _debug: {
+          firecrawlKeyPresentAtStart,
+          primaryResultsCount: primaryResults.length,
+          primaryContextLength: primaryContext.length,
+          secondPassRan: shouldAttemptSecondPass(primaryPass),
+          secondResultsCount: secondResults.length,
+          industryPassRan: shouldAttemptIndustryPass(primaryPass, secondPass),
+          industryKeyPresent,
+          industryResultFound: industryResultForDebug !== null,
+          industrySourceUrl: industryResultForDebug?.sourceUrl ?? null,
+          industryContentLength: industryResultForDebug?.content?.length ?? 0,
+        },
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
