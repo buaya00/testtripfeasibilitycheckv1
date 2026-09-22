@@ -165,6 +165,41 @@ Deno.serve(async (req) => {
     // airports" issue is root-caused. Not a permanent field.
     const firecrawlKeyPresentAtStart = !!Deno.env.get('FIRECRAWL_API_KEY');
 
+    // TEMPORARY DIAGNOSTIC — a raw, standalone Firecrawl search call,
+    // completely separate from scrapeOfficialSources, purely to capture
+    // the actual HTTP status code. scrapeOfficialSources only logs this
+    // via console.warn internally and never returns it to the caller, and
+    // the Supabase dashboard Logs page has been unable to show us that
+    // console output today — this surfaces the same fact directly in the
+    // JSON response instead, via the Network tab.
+    let rawFirecrawlSearchStatus: number | null = null;
+    let rawFirecrawlSearchError: string | null = null;
+    let rawFirecrawlResultCount: number | null = null;
+    try {
+      const rawFcKey = Deno.env.get('FIRECRAWL_API_KEY');
+      if (rawFcKey) {
+        const rawRes = await fetch('https://api.firecrawl.dev/v1/search', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${rawFcKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: `${icao} customs immigration CIQ international port of entry`,
+            limit: 2,
+            scrapeOptions: { formats: ['markdown'], onlyMainContent: true },
+          }),
+        });
+        rawFirecrawlSearchStatus = rawRes.status;
+        if (rawRes.ok) {
+          const rawData = await rawRes.json();
+          const rawResults = rawData.data || rawData.results || [];
+          rawFirecrawlResultCount = Array.isArray(rawResults) ? rawResults.length : null;
+        } else {
+          rawFirecrawlSearchError = await rawRes.text();
+        }
+      }
+    } catch (e) {
+      rawFirecrawlSearchError = e instanceof Error ? e.message : String(e);
+    }
+
     // ── Primary pass ──────────────────────────────────────────────────
     const { combinedContent: primaryContext, results: primaryResults } = await scrapeOfficialSources(icao, 'ciq');
     if (primaryContext) {
@@ -296,6 +331,9 @@ Deno.serve(async (req) => {
         // Supabase dashboard Logs page has been unreliable.
         _debug: {
           firecrawlKeyPresentAtStart,
+          rawFirecrawlSearchStatus,
+          rawFirecrawlSearchError,
+          rawFirecrawlResultCount,
           primaryResultsCount: primaryResults.length,
           primaryContextLength: primaryContext.length,
           secondPassRan: shouldAttemptSecondPass(primaryPass),
