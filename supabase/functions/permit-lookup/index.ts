@@ -379,6 +379,11 @@ Be specific and accurate. For the specific flight type "${flightTypeLabel}", be 
 
     if (trigger.trigger) {
       const firecrawlApiKey = Deno.env.get('FIRECRAWL_API_KEY');
+      // Optional ZenRows fallback for full-page evidence retrieval only —
+      // never used to broaden which sources count as applicable, and never
+      // consulted at all if this secret isn't configured (see
+      // retrieveFullPageEvidence in verification-runtime.ts).
+      const zenrowsApiKey = Deno.env.get('ZENROWS_API_KEY');
       // Prefer a citation that is actually the destination's own authority
       // over blindly taking the first citation the primary search returned —
       // citation ordering alone must never decide which source gets treated
@@ -396,6 +401,7 @@ Be specific and accurate. For the specific flight type "${flightTypeLabel}", be 
         perplexityApiKey,
         lovableApiKey,
         firecrawlApiKey,
+        zenrowsApiKey,
         topCitation: jurisdictionApplicableCitation,
       });
       verification = {

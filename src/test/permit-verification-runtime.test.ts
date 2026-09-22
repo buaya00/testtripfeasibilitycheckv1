@@ -2,6 +2,8 @@ import { describe, it, expect, vi } from "vitest";
 import {
   runFocusedVerification,
   fetchEvidenceViaFirecrawl,
+  fetchEvidenceViaZenRows,
+  retrieveFullPageEvidence,
 } from "../../supabase/functions/permit-lookup/verification-runtime";
 
 // jsdom (vitest's default test environment) does not implement
@@ -74,7 +76,7 @@ describe("fetchEvidenceViaFirecrawl — never fetches an untrusted URL directly"
   it("refuses an unsafe (private/metadata) URL without ever calling fetchImpl — the SSRF gate runs before any network call", async () => {
     const fetchImpl = vi.fn(() => { throw new Error('should never be called for an unsafe URL'); });
     const result = await fetchEvidenceViaFirecrawl('http://169.254.169.254/latest/meta-data/', 'key', fetchImpl as unknown as typeof fetch);
-    expect(result).toEqual({ text: '', quality: 'none' });
+    expect(result).toEqual({ text: '', quality: 'none', statusCategory: 'unsafe_url' });
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
@@ -88,7 +90,7 @@ describe("fetchEvidenceViaFirecrawl — never fetches an untrusted URL directly"
   it("never even attempts retrieval when no Firecrawl key is configured", async () => {
     const fetchImpl = vi.fn();
     const result = await fetchEvidenceViaFirecrawl('https://www.faa.gov/x', undefined, fetchImpl as unknown as typeof fetch);
-    expect(result).toEqual({ text: '', quality: 'none' });
+    expect(result).toEqual({ text: '', quality: 'none', statusCategory: 'not_configured' });
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
@@ -99,31 +101,239 @@ describe("fetchEvidenceViaFirecrawl — never fetches an untrusted URL directly"
     });
     const result = await fetchEvidenceViaFirecrawl(UK_URL, 'key', fetchImpl as unknown as typeof fetch);
     expect(result.quality).toBe('full_page');
+    expect(result.statusCategory).toBe('success');
     expect(result.text).toContain('UK landing permits');
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
-  it("degrades to unavailable (not an error) when Firecrawl itself returns a failure", async () => {
+  it("degrades to unavailable (not an error) when Firecrawl itself returns a failure, and categorizes a 402 as payment_required", async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse({}, false, 402));
+    const result = await fetchEvidenceViaFirecrawl(UK_URL, 'key', fetchImpl as unknown as typeof fetch);
+    expect(result).toEqual({ text: '', quality: 'none', statusCategory: 'payment_required', httpStatus: 402 });
+  });
+
+  it("categorizes a generic server failure as http_error", async () => {
     const fetchImpl = vi.fn(async () => jsonResponse({}, false, 500));
     const result = await fetchEvidenceViaFirecrawl(UK_URL, 'key', fetchImpl as unknown as typeof fetch);
-    expect(result).toEqual({ text: '', quality: 'none' });
+    expect(result).toEqual({ text: '', quality: 'none', statusCategory: 'http_error', httpStatus: 500 });
   });
 
   it("degrades gracefully when Firecrawl's response has no usable markdown", async () => {
     const fetchImpl = vi.fn(async () => jsonResponse({ data: {} }));
     const result = await fetchEvidenceViaFirecrawl(UK_URL, 'key', fetchImpl as unknown as typeof fetch);
     expect(result.quality).toBe('none');
+    expect(result.statusCategory).toBe('unusable_content');
   });
 
-  it("degrades gracefully on a network-level throw (e.g. timeout)", async () => {
-    const fetchImpl = vi.fn(async () => { throw new Error('timeout'); });
+  it("degrades gracefully on a network-level throw (e.g. timeout), categorized as 'timeout'", async () => {
+    const fetchImpl = vi.fn(async () => { throw new DOMException('The operation was aborted', 'AbortError'); });
     const result = await fetchEvidenceViaFirecrawl(UK_URL, 'key', fetchImpl as unknown as typeof fetch);
-    expect(result).toEqual({ text: '', quality: 'none' });
+    expect(result).toEqual({ text: '', quality: 'none', statusCategory: 'timeout' });
+  });
+
+  it("degrades gracefully on a generic network-level throw, categorized as 'network_error'", async () => {
+    const fetchImpl = vi.fn(async () => { throw new Error('ECONNRESET'); });
+    const result = await fetchEvidenceViaFirecrawl(UK_URL, 'key', fetchImpl as unknown as typeof fetch);
+    expect(result).toEqual({ text: '', quality: 'none', statusCategory: 'network_error' });
+  });
+});
+
+describe("fetchEvidenceViaZenRows — never fetches an untrusted URL directly, ZenRows-specific request/response shape", () => {
+  it("refuses an unsafe (private/metadata) URL without ever calling fetchImpl", async () => {
+    const fetchImpl = vi.fn(() => { throw new Error('should never be called for an unsafe URL'); });
+    const result = await fetchEvidenceViaZenRows('http://169.254.169.254/latest/meta-data/', 'zr-key', fetchImpl as unknown as typeof fetch);
+    expect(result).toEqual({ text: '', quality: 'none', statusCategory: 'unsafe_url' });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("never even attempts retrieval when no ZenRows key is configured", async () => {
+    const fetchImpl = vi.fn();
+    const result = await fetchEvidenceViaZenRows(UK_URL, undefined, fetchImpl as unknown as typeof fetch);
+    expect(result).toEqual({ text: '', quality: 'none', statusCategory: 'not_configured' });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("calls ZenRows' unified GET endpoint with apikey/url/response_type as QUERY PARAMETERS (not a Bearer header, not a POST body) — ZenRows is not assumed to be Firecrawl-compatible", async () => {
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      const parsed = new URL(url);
+      expect(parsed.origin + parsed.pathname).toBe('https://api.zenrows.com/v1/');
+      expect(parsed.searchParams.get('apikey')).toBe('zr-key');
+      expect(parsed.searchParams.get('url')).toBe(UK_URL);
+      expect(parsed.searchParams.get('response_type')).toBe('markdown');
+      // js_render / premium_proxy must never be set by default — they multiply credit cost.
+      expect(parsed.searchParams.has('js_render')).toBe(false);
+      expect(parsed.searchParams.has('premium_proxy')).toBe(false);
+      expect(init?.method).toBe('GET');
+      return { ok: true, status: 200, text: async () => '# UK CAA notice\n\nNo permit required for private flights.' } as Response;
+    });
+    const result = await fetchEvidenceViaZenRows(UK_URL, 'zr-key', fetchImpl as unknown as typeof fetch);
+    expect(result.quality).toBe('full_page');
+    expect(result.statusCategory).toBe('success');
+    expect(result.text).toContain('No permit required');
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("treats the raw response body as the markdown text directly (res.text()) — ZenRows does not wrap it in a {data: {markdown}} envelope like Firecrawl", async () => {
+    const fetchImpl = vi.fn(async () => ({ ok: true, status: 200, text: async () => 'Plain markdown body, not JSON.' } as Response));
+    const result = await fetchEvidenceViaZenRows(UK_URL, 'zr-key', fetchImpl as unknown as typeof fetch);
+    expect(result.text).toBe('Plain markdown body, not JSON.');
+  });
+
+  it("categorizes a 402 (ZenRows AUTH004 — credits exhausted) as payment_required", async () => {
+    const fetchImpl = vi.fn(async () => ({ ok: false, status: 402, text: async () => '' } as Response));
+    const result = await fetchEvidenceViaZenRows(UK_URL, 'zr-key', fetchImpl as unknown as typeof fetch);
+    expect(result).toEqual({ text: '', quality: 'none', statusCategory: 'payment_required', httpStatus: 402 });
+  });
+
+  it("categorizes a 504 (ZenRows CTX0002 — operation timeout) as timeout", async () => {
+    const fetchImpl = vi.fn(async () => ({ ok: false, status: 504, text: async () => '' } as Response));
+    const result = await fetchEvidenceViaZenRows(UK_URL, 'zr-key', fetchImpl as unknown as typeof fetch);
+    expect(result).toEqual({ text: '', quality: 'none', statusCategory: 'timeout', httpStatus: 504 });
+  });
+
+  it("degrades gracefully on malformed/incomplete (empty) content without throwing", async () => {
+    const fetchImpl = vi.fn(async () => ({ ok: true, status: 200, text: async () => '   ' } as Response));
+    const result = await fetchEvidenceViaZenRows(UK_URL, 'zr-key', fetchImpl as unknown as typeof fetch);
+    expect(result).toEqual({ text: '', quality: 'none', statusCategory: 'unusable_content', httpStatus: 200 });
+  });
+
+  it("degrades gracefully on a client-side abort/timeout", async () => {
+    const fetchImpl = vi.fn(async () => { throw new DOMException('The operation was aborted', 'AbortError'); });
+    const result = await fetchEvidenceViaZenRows(UK_URL, 'zr-key', fetchImpl as unknown as typeof fetch);
+    expect(result).toEqual({ text: '', quality: 'none', statusCategory: 'timeout' });
+  });
+
+  it("never logs or embeds the API key anywhere except the ZenRows request URL itself (sanity check on our own test double, not production log output)", async () => {
+    // This is a documentation-level reminder, not a new assertion: production
+    // logging (see retrieveFullPageEvidence/logRetrievalAttempt) never logs
+    // the constructed request URL, only the original citation `url`, precisely
+    // because the ZenRows request URL embeds the API key as a query parameter.
+    const fetchImpl = vi.fn(async (_url: string) => ({ ok: true, status: 200, text: async () => 'ok content here' } as Response));
+    await fetchEvidenceViaZenRows(UK_URL, 'super-secret-zr-key', fetchImpl as unknown as typeof fetch);
+    const calledUrl = fetchImpl.mock.calls[0][0];
+    expect(calledUrl).toContain('super-secret-zr-key'); // confirms the key IS in the request URL (as ZenRows requires)
+  });
+});
+
+describe("retrieveFullPageEvidence — Firecrawl-primary, ZenRows-fallback orchestration", () => {
+  const KEYS = { firecrawlApiKey: 'fc-key', zenrowsApiKey: 'zr-key' };
+
+  it("1. Firecrawl succeeds -> ZenRows is never called", async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url === 'https://api.firecrawl.dev/v1/scrape') return jsonResponse(firecrawlBody('Firecrawl content about UK permits.'));
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    const result = await retrieveFullPageEvidence(UK_URL, KEYS, fetchImpl as unknown as typeof fetch);
+    expect(result).toEqual({ text: 'Firecrawl content about UK permits.', quality: 'full_page', provider: 'firecrawl', fallbackOccurred: false });
+    const calledUrls = fetchImpl.mock.calls.map((c) => c[0] as string);
+    expect(calledUrls.some((u) => u.startsWith('https://api.zenrows.com/'))).toBe(false);
+  });
+
+  it("2. Firecrawl returns 402 (credits exhausted) -> ZenRows is attempted for the SAME url and succeeds", async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url === 'https://api.firecrawl.dev/v1/scrape') return jsonResponse({}, false, 402);
+      if (url.startsWith('https://api.zenrows.com/')) {
+        expect(new URL(url).searchParams.get('url')).toBe(UK_URL); // same URL, never broadened
+        return { ok: true, status: 200, text: async () => 'ZenRows content about UK permits.' } as Response;
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    const result = await retrieveFullPageEvidence(UK_URL, KEYS, fetchImpl as unknown as typeof fetch);
+    expect(result).toEqual({ text: 'ZenRows content about UK permits.', quality: 'full_page', provider: 'zenrows', fallbackOccurred: true });
+  });
+
+  it("3. Firecrawl times out -> ZenRows is attempted and succeeds", async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url === 'https://api.firecrawl.dev/v1/scrape') throw new DOMException('The operation was aborted', 'AbortError');
+      if (url.startsWith('https://api.zenrows.com/')) return { ok: true, status: 200, text: async () => 'ZenRows content, Firecrawl had timed out.' } as Response;
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    const result = await retrieveFullPageEvidence(UK_URL, KEYS, fetchImpl as unknown as typeof fetch);
+    expect(result.provider).toBe('zenrows');
+    expect(result.fallbackOccurred).toBe(true);
+    expect(result.text).toBe('ZenRows content, Firecrawl had timed out.');
+  });
+
+  it("4. Firecrawl returns empty content -> ZenRows is attempted", async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url === 'https://api.firecrawl.dev/v1/scrape') return jsonResponse(firecrawlBody(''));
+      if (url.startsWith('https://api.zenrows.com/')) return { ok: true, status: 200, text: async () => 'ZenRows filled in where Firecrawl was empty.' } as Response;
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    const result = await retrieveFullPageEvidence(UK_URL, KEYS, fetchImpl as unknown as typeof fetch);
+    expect(result.provider).toBe('zenrows');
+    expect(result.text).toBe('ZenRows filled in where Firecrawl was empty.');
+  });
+
+  it("5. Both providers fail -> no text/provider is returned; the caller can never mistake this for verified evidence", async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url === 'https://api.firecrawl.dev/v1/scrape') return jsonResponse({}, false, 500);
+      if (url.startsWith('https://api.zenrows.com/')) return { ok: false, status: 500, text: async () => '' } as Response;
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    const result = await retrieveFullPageEvidence(UK_URL, KEYS, fetchImpl as unknown as typeof fetch);
+    expect(result).toEqual({ text: '', quality: 'none', provider: null, fallbackOccurred: true });
+  });
+
+  it("6. ZenRows returns malformed/incomplete (whitespace-only) content after Firecrawl also fails -> both fail, no text returned", async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url === 'https://api.firecrawl.dev/v1/scrape') return jsonResponse({}, false, 402);
+      if (url.startsWith('https://api.zenrows.com/')) return { ok: true, status: 200, text: async () => '\n   \n' } as Response;
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    const result = await retrieveFullPageEvidence(UK_URL, KEYS, fetchImpl as unknown as typeof fetch);
+    expect(result).toEqual({ text: '', quality: 'none', provider: null, fallbackOccurred: true });
+  });
+
+  it("7. Unsafe URL -> neither provider is called", async () => {
+    const fetchImpl = vi.fn(() => { throw new Error('should never be called'); });
+    const result = await retrieveFullPageEvidence('http://169.254.169.254/latest/meta-data/', KEYS, fetchImpl as unknown as typeof fetch);
+    expect(result).toEqual({ text: '', quality: 'none', provider: null, fallbackOccurred: false });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("11. Existing behavior is unchanged when ZenRows is not configured: Firecrawl failure yields no evidence, and ZenRows is never invoked even as a no-op", async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url === 'https://api.firecrawl.dev/v1/scrape') return jsonResponse({}, false, 402);
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    const result = await retrieveFullPageEvidence(UK_URL, { firecrawlApiKey: 'fc-key', zenrowsApiKey: undefined }, fetchImpl as unknown as typeof fetch);
+    expect(result).toEqual({ text: '', quality: 'none', provider: null, fallbackOccurred: false });
+    const calledUrls = fetchImpl.mock.calls.map((c) => c[0] as string);
+    expect(calledUrls).toEqual(['https://api.firecrawl.dev/v1/scrape']); // exactly one call, ever
+  });
+
+  it("12. No duplicate retrievals or uncontrolled retries: Firecrawl is called exactly once and ZenRows at most once, even across a failing scenario", async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url === 'https://api.firecrawl.dev/v1/scrape') return jsonResponse({}, false, 500);
+      if (url.startsWith('https://api.zenrows.com/')) return { ok: false, status: 500, text: async () => '' } as Response;
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    await retrieveFullPageEvidence(UK_URL, KEYS, fetchImpl as unknown as typeof fetch);
+    const firecrawlCalls = fetchImpl.mock.calls.filter((c) => (c[0] as string) === 'https://api.firecrawl.dev/v1/scrape');
+    const zenrowsCalls = fetchImpl.mock.calls.filter((c) => (c[0] as string).startsWith('https://api.zenrows.com/'));
+    expect(firecrawlCalls).toHaveLength(1);
+    expect(zenrowsCalls).toHaveLength(1);
+  });
+
+  it("never lets a fallback attempt broaden retrieval to a different URL than the one approved by the caller", async () => {
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === 'https://api.firecrawl.dev/v1/scrape') {
+        expect(JSON.parse(init!.body as string).url).toBe(UK_URL);
+        return jsonResponse({}, false, 402);
+      }
+      if (url.startsWith('https://api.zenrows.com/')) {
+        expect(new URL(url).searchParams.get('url')).toBe(UK_URL);
+        return { ok: true, status: 200, text: async () => 'content' } as Response;
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    await retrieveFullPageEvidence(UK_URL, KEYS, fetchImpl as unknown as typeof fetch);
   });
 });
 
 describe("runFocusedVerification — jurisdiction applicability (regression coverage for the EGLL/UAE defect)", () => {
-  it("REGRESSION: EGLL/UK claim, only a UAE GCAA source available -> rejected as irrelevant. No Firecrawl call and no classify call are made — the wrong-jurisdiction source never reaches evidence retrieval or classification at all", async () => {
+  it("REGRESSION: EGLL/UK claim, only a UAE GCAA source available -> rejected as irrelevant. No Firecrawl call, no ZenRows call, and no classify call are made — the wrong-jurisdiction source never reaches evidence retrieval or classification at all, even when ZenRows IS configured", async () => {
     const fetchImpl = vi.fn(async (url: string) => {
       if (url === 'https://api.perplexity.ai/chat/completions') {
         // Perplexity's own follow-up search also only turns up the UAE page.
@@ -132,10 +342,14 @@ describe("runFocusedVerification — jurisdiction applicability (regression cove
       throw new Error(`unexpected fetch: ${url}`);
     });
 
-    const result = await runFocusedVerification({ ...BASE_PARAMS, topCitation: UAE_URL }, fetchImpl as unknown as typeof fetch);
+    const result = await runFocusedVerification(
+      { ...BASE_PARAMS, topCitation: UAE_URL, zenrowsApiKey: 'zr-key' },
+      fetchImpl as unknown as typeof fetch,
+    );
     expect(result).toEqual({ classification: 'insufficient', evidenceQuality: 'none', sources: [], hadError: false });
-    const calledUrls = fetchImpl.mock.calls.map((c) => c[0]);
+    const calledUrls = fetchImpl.mock.calls.map((c) => c[0] as string);
     expect(calledUrls).not.toContain('https://api.firecrawl.dev/v1/scrape');
+    expect(calledUrls.some((u) => u.startsWith('https://api.zenrows.com/'))).toBe(false);
     expect(calledUrls).not.toContain('https://ai.gateway.lovable.dev/v1/chat/completions');
   });
 
@@ -208,13 +422,17 @@ describe("runFocusedVerification — jurisdiction applicability (regression cove
     expect(result.hadError).toBe(false);
   });
 
-  it("Firecrawl fails for the applicable UK source -> falls back to the verify-call's OWN snippet (properly associated with that citation) -> classification proceeds with evidenceQuality 'search_snippet', never 'full_page'", async () => {
+  it("9. End-to-end ZenRows fallback: Firecrawl fails for the applicable UK source, ZenRows succeeds with full-page content, classifier says supports -> evidenceQuality 'full_page' (eligible for 'confirmed' only because a supporting classification was ALSO reached, not merely because a source was retrieved)", async () => {
     const fetchImpl = vi.fn(async (url: string) => {
       if (url === 'https://api.perplexity.ai/chat/completions') {
-        return jsonResponse(perplexityBody('UK CAA snippet: no permit required for private flights.', [UK_URL]));
+        return jsonResponse(perplexityBody('See UK CAA notice', [UK_URL]));
       }
       if (url === 'https://api.firecrawl.dev/v1/scrape') {
-        return jsonResponse({}, false, 500);
+        return jsonResponse({}, false, 402); // Firecrawl credits exhausted
+      }
+      if (url.startsWith('https://api.zenrows.com/')) {
+        expect(new URL(url).searchParams.get('url')).toBe(UK_URL);
+        return { ok: true, status: 200, text: async () => 'No landing permit is required for private non-commercial flights arriving in the UK.' } as Response;
       }
       if (url === 'https://ai.gateway.lovable.dev/v1/chat/completions') {
         return jsonResponse(classifyBody('supports'));
@@ -222,7 +440,53 @@ describe("runFocusedVerification — jurisdiction applicability (regression cove
       throw new Error(`unexpected fetch: ${url}`);
     });
 
-    const result = await runFocusedVerification(BASE_PARAMS, fetchImpl as unknown as typeof fetch);
+    const result = await runFocusedVerification({ ...BASE_PARAMS, zenrowsApiKey: 'zr-key' }, fetchImpl as unknown as typeof fetch);
+    expect(result.classification).toBe('supports');
+    expect(result.evidenceQuality).toBe('full_page');
+    expect(result.sources[0].url).toBe(UK_URL); // the regulatory source URL, never a provider URL
+    expect(result.hadError).toBe(false);
+  });
+
+  it("ZenRows fallback with a genuinely contradicting result also reaches the classifier normally (fallback retrieval does not bias the outcome toward 'supports')", async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url === 'https://api.perplexity.ai/chat/completions') {
+        return jsonResponse(perplexityBody('See UK CAA notice', [UK_URL]));
+      }
+      if (url === 'https://api.firecrawl.dev/v1/scrape') {
+        return jsonResponse({}, false, 402);
+      }
+      if (url.startsWith('https://api.zenrows.com/')) {
+        return { ok: true, status: 200, text: async () => 'A landing permit IS required for all non-EU-registered private aircraft arriving in the UK.' } as Response;
+      }
+      if (url === 'https://ai.gateway.lovable.dev/v1/chat/completions') {
+        return jsonResponse(classifyBody('contradicts'));
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const result = await runFocusedVerification({ ...BASE_PARAMS, zenrowsApiKey: 'zr-key' }, fetchImpl as unknown as typeof fetch);
+    expect(result.classification).toBe('contradicts');
+    expect(result.evidenceQuality).toBe('full_page');
+  });
+
+  it("10. Firecrawl fails, ZenRows ALSO fails (or is not configured) for the applicable UK source -> falls back to the verify-call's OWN snippet (properly associated with that citation) -> classification proceeds with evidenceQuality 'search_snippet', never 'full_page', and therefore never eligible for 'confirmed'", async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url === 'https://api.perplexity.ai/chat/completions') {
+        return jsonResponse(perplexityBody('UK CAA snippet: no permit required for private flights.', [UK_URL]));
+      }
+      if (url === 'https://api.firecrawl.dev/v1/scrape') {
+        return jsonResponse({}, false, 500);
+      }
+      if (url.startsWith('https://api.zenrows.com/')) {
+        return { ok: false, status: 500, text: async () => '' } as Response;
+      }
+      if (url === 'https://ai.gateway.lovable.dev/v1/chat/completions') {
+        return jsonResponse(classifyBody('supports'));
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const result = await runFocusedVerification({ ...BASE_PARAMS, zenrowsApiKey: 'zr-key' }, fetchImpl as unknown as typeof fetch);
     expect(result.classification).toBe('supports');
     expect(result.evidenceQuality).toBe('search_snippet'); // caller must map this to 'provisional', never 'confirmed'
     expect(result.sources[0].evidenceQuality).toBe('search_snippet');

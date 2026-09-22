@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
+import { GripHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface DraggableFabProps {
@@ -9,7 +10,9 @@ interface DraggableFabProps {
   className?: string;
 }
 
-const STORAGE_KEY = "fab-position-v3";
+// Bumped to v4 so anyone with a stale saved position (e.g. stuck blocking
+// content) resets to the bottom-right default on next load.
+const STORAGE_KEY = "fab-position-v4";
 const FAB_SIZE = 48;
 const MARGIN = 8;
 
@@ -42,7 +45,11 @@ export function DraggableFab({ children, fabIcon, open, onOpenChange, className 
       }
     } catch {}
     // Clear any legacy keys
-    try { localStorage.removeItem("fab-position"); localStorage.removeItem("fab-position-v2"); } catch {}
+    try {
+      localStorage.removeItem("fab-position");
+      localStorage.removeItem("fab-position-v2");
+      localStorage.removeItem("fab-position-v3");
+    } catch {}
     return getDefaultPosition();
   });
 
@@ -141,10 +148,21 @@ export function DraggableFab({ children, fabIcon, open, onOpenChange, className 
 
       {/* Expanded toolbar */}
       <div className={cn(
-        "flex flex-col gap-1 bg-background/95 backdrop-blur-sm border rounded-xl shadow-xl p-2 min-w-[160px] transition-all duration-200 origin-bottom-right",
+        "flex flex-col gap-1 bg-background/95 backdrop-blur-sm border rounded-xl shadow-xl min-w-[160px] transition-all duration-200 origin-bottom-right",
         open ? "scale-100 opacity-100" : "sm:scale-100 sm:opacity-100 scale-0 opacity-0 pointer-events-none sm:pointer-events-auto"
       )}>
-        {children}
+        {/* Drag handle — grab and move the toolbar anywhere, any number of times */}
+        <div
+          onMouseDown={onPointerDown}
+          onTouchStart={onPointerDown}
+          className="flex items-center justify-center py-1 cursor-move touch-none select-none text-muted-foreground/60 hover:text-muted-foreground"
+          title="Drag to move"
+        >
+          <GripHorizontal className="h-3.5 w-3.5" />
+        </div>
+        <div className="flex flex-col gap-1 p-2 pt-0">
+          {children}
+        </div>
       </div>
     </div>
   );
