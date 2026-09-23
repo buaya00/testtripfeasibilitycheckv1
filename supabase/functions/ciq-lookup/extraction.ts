@@ -21,17 +21,29 @@ export interface CiqExtraction {
   /**
    * Internal-only signal, never exposed in the API response: whether the
    * scraped source content provided to THIS call (if any) actually
-   * discusses this specific airport/ICAO code or its country's CIQ/customs
-   * procedures. False whenever no source content was provided, or the
-   * provided content is genuinely about a different airport or country
-   * (e.g. US CBP procedures returned for a France query — the observed
-   * defect this field exists to catch). The model is required to state
-   * this explicitly rather than have grounding inferred from the model's
-   * own confidence or narrative text, which was the bug: earlier extractions
+   * discusses CIQ/customs/immigration/port-of-entry procedures for this
+   * specific airport/ICAO code — not merely whether the source is about
+   * the right airport or country in some general sense. False whenever no
+   * source content was provided, the provided content is genuinely about a
+   * different airport or country (e.g. US CBP procedures returned for a
+   * France query), OR the content is genuinely about the correct airport
+   * but says nothing about customs/CIQ specifically (e.g. a source
+   * describing an airport as "business-aviation-friendly" or listing its
+   * runway data, from which CIQ availability would have to be inferred
+   * rather than read directly). The model is required to state this
+   * explicitly rather than have grounding inferred from the model's own
+   * confidence or narrative text, which was the bug: earlier extractions
    * could correctly note in prose that a source was "not relevant to
    * LFPB" while the code still treated the pass as grounded, high-
    * confidence, government-sourced truth, purely because non-empty text
-   * had been scraped from somewhere.
+   * had been scraped from somewhere. A narrower version of the same bug
+   * persisted even after requiring the source to be about the right
+   * airport: a source genuinely about LFPB that never mentions customs at
+   * all could still be marked relevant, and the model would then
+   * extrapolate ("suggests comprehensive CIQ services are available")
+   * rather than report an actual absence of evidence — this field's
+   * description now requires topical relevance to CIQ specifically, not
+   * just airport/country relevance.
    */
   sourceRelevant: boolean;
 }
@@ -72,7 +84,7 @@ Consider:
 - Any fees or special arrangements needed
 - Alternative nearby airports with CIQ if this one doesn't have it
 
-CRITICAL: if scraped source data was provided above, you MUST independently verify it actually discusses THIS specific airport (${icao}) or its country's CIQ/customs/immigration procedures before treating it as evidence. Scraped search results can sometimes be about a completely different country or agency (for example, US Customs and Border Protection content returned for a French airport query). If the provided content is not genuinely about this airport or its country, set sourceRelevant to false and answer from general aviation knowledge instead — never treat off-topic content as if it were an authoritative source for this airport. If no source data was provided above at all, sourceRelevant must be false.
+CRITICAL: if scraped source data was provided above, you MUST independently verify it actually specifically discusses CUSTOMS, IMMIGRATION, or CIQ/port-of-entry PROCEDURES for THIS airport (${icao}) before treating it as evidence — not merely that the source is about the right airport or country in some general sense. Two distinct failure modes to watch for: (1) the source can be about a completely different country or agency (for example, US Customs and Border Protection content returned for a French airport query) — in this case sourceRelevant must be false; (2) the source can be genuinely about the correct airport but never actually mention customs/immigration/CIQ at all (for example, a page about the airport's runways, general business-aviation friendliness, or FBO services) — this is ALSO not relevant evidence, even though it is about the right airport, and sourceRelevant must be false here too. Do not infer or extrapolate CIQ availability from an airport's general characteristics (e.g. "it's a major international gateway, so it must have full CIQ services") when the source itself does not state this — that is exactly the kind of confident-but-unsupported claim this check exists to prevent. If no source data was provided above at all, sourceRelevant must be false. Only set sourceRelevant to true when the source explicitly discusses customs, immigration, CIQ, or port-of-entry status/procedures for this specific airport.
 
 Provide your best assessment based on known aviation information about this airport.`;
 
@@ -110,7 +122,7 @@ Provide your best assessment based on known aviation information about this airp
                 alternateAirports: { type: 'string', description: 'Nearby airports with CIQ if this airport has limited or no CIQ' },
                 notes: { type: 'string', description: 'Additional important notes about CIQ at this airport' },
                 confidence: { type: 'string', enum: ['high', 'medium', 'low'], description: 'Confidence level in the information provided' },
-                sourceRelevant: { type: 'boolean', description: 'True only if scraped source data was provided above AND it actually discusses this specific airport/ICAO code or its country\'s CIQ procedures. False if no source data was provided, or the provided data is about a different airport or country.' },
+                sourceRelevant: { type: 'boolean', description: 'True only if scraped source data was provided above AND it specifically discusses customs, immigration, CIQ, or port-of-entry status/procedures for THIS exact airport/ICAO code. False if no source data was provided, the data is about a different airport/country, OR the data is genuinely about this airport but never actually mentions customs/immigration/CIQ (e.g. only discusses runways, general business-aviation friendliness, or FBO services) -- do not set this true based on an inference or extrapolation from general airport characteristics.' },
               },
               required: ['country', 'ciqAvailable', 'confidence', 'sourceRelevant'],
               additionalProperties: false,

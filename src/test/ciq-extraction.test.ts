@@ -57,6 +57,21 @@ describe("runCiqExtraction — grounding requires BOTH non-empty content AND exp
     }
   });
 
+  it("REGRESSION 2: content genuinely about the correct airport, but never actually addresses CIQ/customs at all -> model correctly flags sourceRelevant: false -> grounded is false, even though the airport identity matches", async () => {
+    const fetchImpl = vi.fn(async () => toolCallResponse({
+      ...BASE_EXTRACTION,
+      notes: 'The source describes LFPB as business-aviation-friendly with excellent runway infrastructure, but does not mention customs, immigration, or CIQ procedures at all.',
+      sourceRelevant: false,
+    }));
+
+    const result = await runCiqExtraction('LFPB', 'LFPB is fully dedicated to general aviation and is one of the most business aviation-friendly airports in Europe in terms of operating flexibility and runway capacity.', 'api-key', fetchImpl as unknown as typeof fetch);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.grounded).toBe(false);
+      expect(result.extraction.sourceRelevant).toBe(false);
+    }
+  });
+
   it("non-empty, genuinely relevant content, model confirms sourceRelevant: true -> grounded is true", async () => {
     const fetchImpl = vi.fn(async () => toolCallResponse({
       ...BASE_EXTRACTION,
@@ -120,6 +135,7 @@ describe("runCiqExtraction — grounding requires BOTH non-empty content AND exp
     const userMessage = parsed.messages.find((m: { role: string }) => m.role === 'user').content as string;
     expect(userMessage).toContain('CRITICAL');
     expect(userMessage.toLowerCase()).toContain('sourcerelevant');
+    expect(userMessage.toLowerCase()).toContain('runways'); // the topical-relevance failure mode must be named explicitly, not just the wrong-country one
   });
 
   it("the tool schema requires sourceRelevant as a mandatory field, not optional", async () => {
