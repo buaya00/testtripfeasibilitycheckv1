@@ -44,6 +44,7 @@ describe("industryEvidenceSourceName", () => {
     expect(industryEvidenceSourceName('https://ops.group/blog/x')).toBe('OPSGROUP');
     expect(industryEvidenceSourceName('https://nbaa.org/x')).toBe('National Business Aviation Association (NBAA)');
     expect(industryEvidenceSourceName('https://www.world-kinect.com/x')).toBe('World Fuel / World Kinect');
+    expect(industryEvidenceSourceName('https://acukwik.com/Airport-Info/EGGW')).toBe('AC-U-KWIK');
   });
 
   it("returns null for an unrecognized domain — never guesses a name", () => {
@@ -56,10 +57,10 @@ describe("industryEvidenceSourceName", () => {
 });
 
 describe("INDUSTRY_EVIDENCE_SOURCES — dataset shape sanity", () => {
-  it("covers exactly the 4 verified companies/organizations (5 domains — Universal has two) — a change here should be a deliberate, reviewed addition", () => {
+  it("covers exactly the 5 verified companies/organizations (6 domains — Universal has two) — a change here should be a deliberate, reviewed addition", () => {
     const names = new Set(INDUSTRY_EVIDENCE_SOURCES.map((s) => s.name));
-    expect(names.size).toBe(4);
-    expect(INDUSTRY_EVIDENCE_DOMAINS.length).toBe(5);
+    expect(names.size).toBe(5);
+    expect(INDUSTRY_EVIDENCE_DOMAINS.length).toBe(6);
   });
 
   it("every entry has a non-empty domain and name", () => {

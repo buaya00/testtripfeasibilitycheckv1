@@ -63,6 +63,15 @@ export interface IndustryEvidenceSource {
  * - World Fuel / World Kinect: major, currently-active global trip-support
  *   provider with a dedicated aviation regulatory-services team managing
  *   permits, entry authorizations, and compliance documentation worldwide.
+ * - AC-U-KWIK: decades-old, industry-standard global airport/FBO/handler
+ *   directory published by Aviation Week Network, explicitly covering
+ *   customs information alongside airport and FBO data; described by its
+ *   own publisher and independent app-store reviews as "the first choice
+ *   of schedulers and dispatchers for pre-flight planning" — added after a
+ *   live-testing gap: a real Google/Gemini search surfaced a specific,
+ *   correct AC-U-KWIK page for an airport our own search had missed
+ *   entirely, confirming this is exactly the kind of source this list
+ *   exists to include.
  *
  * Explicitly considered and EXCLUDED after checking:
  * - Air Routing International (airrouting.com): defunct since 2010,
@@ -71,13 +80,23 @@ export interface IndustryEvidenceSource {
  * - baseops.net: verified via direct check to have pivoted to a military
  *   aviation community site — no longer a business-aviation permits/
  *   customs resource despite the name suggesting otherwise.
+ * - LFS / Location Flight Services (lfs.aero): a real, currently-operating
+ *   Bahrain-based trip-support company, but its per-airport pages read as
+ *   templated marketing copy (near-identical paragraph structure repeated
+ *   across many, including very small, airports) rather than independently
+ *   curated factual data — not yet verified to the same bar as the sources
+ *   above.
+ * - aip.aero: a third-party index/directory that links to official
+ *   national AIPs rather than hosting authoritative content itself; the
+ *   pages it points to are already covered via each country's own domain
+ *   in permit-lookup's COUNTRY_JURISDICTION_DOMAINS.
  * - Various smaller permit-coordination sites surfaced in research (e.g.
  *   permit2fly.com) were not included: real businesses, but without the
  *   same weight of independent verification (company history, named
  *   staff, physical presence, long operating track record) applied to the
- *   four above. Omission here is "not yet verified to this bar", not "known
- *   to be unreliable" — a candidate for later addition if independently
- *   verified, never a reason to add it speculatively now.
+ *   sources above. Omission here is "not yet verified to this bar", not
+ *   "known to be unreliable" — a candidate for later addition if
+ *   independently verified, never a reason to add it speculatively now.
  */
 export const INDUSTRY_EVIDENCE_SOURCES: readonly IndustryEvidenceSource[] = [
   { domain: 'universalweather.com', name: 'Universal Weather & Aviation' },
@@ -85,6 +104,7 @@ export const INDUSTRY_EVIDENCE_SOURCES: readonly IndustryEvidenceSource[] = [
   { domain: 'ops.group', name: 'OPSGROUP' },
   { domain: 'nbaa.org', name: 'National Business Aviation Association (NBAA)' },
   { domain: 'world-kinect.com', name: 'World Fuel / World Kinect' },
+  { domain: 'acukwik.com', name: 'AC-U-KWIK' },
 ];
 
 /** Flat domain list for callers that just need the domains (e.g. a search-engine domain filter parameter). */
