@@ -1,6 +1,6 @@
 import { scrapeOfficialSources } from '../_shared/firecrawl-scrape.ts';
 import { searchIndustryEvidence } from '../_shared/industry-evidence-search.ts';
-import { runCiqExtraction, type CiqExtraction } from './extraction.ts';
+import { runCiqExtraction, resolveIndustryCandidates, type CiqExtraction } from './extraction.ts';
 import {
   shouldAttemptSecondPass,
   shouldAttemptIndustryPass,
@@ -96,31 +96,43 @@ Deno.serve(async (req) => {
     // function's Strategy 2 static-URL fallback is government-specific and
     // not applicable here) filtered strictly to the curated industry
     // domain list; a result from any other domain is never accepted, no
-    // matter how well it ranks. ──────────────────────────────────────────
+    // matter how well it ranks.
+    //
+    // Tries EVERY curated-domain candidate in the search's own ranked
+    // order, not just the first — live testing found the top-ranked result
+    // for a specific airport is often a broader country/region-level guide
+    // that's genuinely about customs in general but never names the
+    // specific airport, while a more specific, airport-level page (e.g. an
+    // AC-U-KWIK-style profile explicitly confirming "Customs Available:
+    // Yes" for that exact ICAO code) exists further down the results and
+    // was never attempted when only the first result was tried. Stops at
+    // the first candidate the SAME sourceRelevant check every other tier
+    // already uses confirms is genuinely specific to this airport — a
+    // broader guide's inferred answer is never accepted just because nothing
+    // more specific was tried first. ────────────────────────────────────
     let industryPass: CiqPassResult | null = null;
     let industryExtraction: CiqExtraction | null = null;
     if (shouldAttemptIndustryPass(primaryPass, secondPass)) {
       console.log(`CIQ government/generic passes both ungrounded for ${icao} — attempting curated-industry-source pass`);
       const firecrawlApiKey = Deno.env.get('FIRECRAWL_API_KEY');
-      const industryResult = await searchIndustryEvidence(industryPassSearchQuery(icao), firecrawlApiKey);
-      const industryContext = industryResult?.content ?? '';
-      if (industryContext) {
-        console.log(`Industry evidence context for ${icao}: ${industryContext.length} chars from ${industryResult?.sourceUrl}`);
-      }
-      const industryOutcome = await runCiqExtraction(icao, industryContext, apiKey, fetch, corsHeaders);
-      if (industryOutcome.ok) {
-        industryExtraction = industryOutcome.extraction;
+      const industryCandidates = await searchIndustryEvidence(industryPassSearchQuery(icao), firecrawlApiKey);
+      console.log(`Industry evidence search for ${icao} returned ${industryCandidates.length} curated-domain candidate(s)`);
+      const resolution = await resolveIndustryCandidates(icao, industryCandidates, apiKey, fetch, corsHeaders);
+      if (resolution.grounded) {
+        console.log(`Industry tier grounded for ${icao} via ${resolution.grounded.sourceUrl}`);
+        industryExtraction = resolution.grounded.extraction;
         industryPass = {
-          ciqAvailable: industryOutcome.extraction.ciqAvailable,
-          confidence: industryOutcome.extraction.confidence,
-          grounded: industryOutcome.grounded,
+          ciqAvailable: resolution.grounded.extraction.ciqAvailable,
+          confidence: resolution.grounded.extraction.confidence,
+          grounded: true,
         };
-      } else {
-        // Same reasoning as the second-pass failure handling above:
-        // swallowed here, not propagated as the overall response — we
-        // still have the generic passes' results, and resolveCiqAvailability
-        // treats industryPass: null as "could not attempt".
-        console.warn(`CIQ industry pass call failed for ${icao}; treating as ungrounded`);
+      } else if (resolution.lastUngrounded) {
+        industryExtraction = resolution.lastUngrounded;
+        industryPass = {
+          ciqAvailable: resolution.lastUngrounded.ciqAvailable,
+          confidence: resolution.lastUngrounded.confidence,
+          grounded: false,
+        };
       }
     }
 

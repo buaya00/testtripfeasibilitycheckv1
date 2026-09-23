@@ -37,20 +37,31 @@ export interface IndustrySearchResult {
 /**
  * Searches ONLY the curated industry domains via Firecrawl's v2 search API,
  * using includeDomains for a genuine server-side domain restriction — not a
- * broad search filtered afterward. Returns the first result with usable
- * content, still independently re-checked against the curated list before
- * being trusted (defense in depth: never rely on includeDomains alone in
- * case of any edge case on Firecrawl's side). Returns null (never throws)
- * when Firecrawl is not configured, the request fails, or no result has
- * enough content to be useful.
+ * broad search filtered afterward. Returns EVERY curated-domain result with
+ * usable content, in the search API's own ranked order — NOT just the
+ * first one.
+ *
+ * Why a list, not a single result: live testing found that the top-ranked
+ * result for a specific airport is often a broader country- or region-level
+ * guide (e.g. "United Kingdom: Business Aviation Destination Guide")
+ * that's genuinely about customs procedures in general, but never actually
+ * names the specific airport — while a more specific, airport-level page
+ * (e.g. an AC-U-KWIK-style per-airport profile explicitly showing "Customs
+ * Available: Yes" for that exact ICAO code) exists further down the
+ * results and is never even attempted if the caller only takes result #1.
+ * The caller (see ciq-lookup/index.ts) is expected to try each candidate
+ * in turn — via the same sourceRelevant check every other tier already
+ * uses — until one is confirmed genuinely specific to the airport, rather
+ * than accepting a broader guide's inferred answer as if it were direct
+ * evidence.
  */
 export async function searchIndustryEvidence(
   query: string,
   firecrawlApiKey: string | undefined,
   fetchImpl: typeof fetch = fetch,
   maxResults = 5,
-): Promise<IndustrySearchResult | null> {
-  if (!firecrawlApiKey) return null;
+): Promise<IndustrySearchResult[]> {
+  if (!firecrawlApiKey) return [];
 
   try {
     const res = await fetchImpl('https://api.firecrawl.dev/v2/search', {
@@ -69,7 +80,7 @@ export async function searchIndustryEvidence(
 
     if (!res.ok) {
       console.warn('Industry evidence search failed:', res.status);
-      return null;
+      return [];
     }
 
     const data = await res.json();
@@ -84,16 +95,17 @@ export async function searchIndustryEvidence(
         : Array.isArray(data?.results)
           ? data.results
           : [];
+    const usable: IndustrySearchResult[] = [];
     for (const r of results) {
       const url = (r as { url?: unknown })?.url;
       const markdown = (r as { markdown?: unknown })?.markdown;
       if (typeof url === 'string' && isIndustryEvidenceDomain(url) && typeof markdown === 'string' && markdown.length > 50) {
-        return { content: markdown.substring(0, 3000), sourceUrl: url };
+        usable.push({ content: markdown.substring(0, 3000), sourceUrl: url });
       }
     }
-    return null;
+    return usable;
   } catch (e) {
     console.warn('Industry evidence search error (non-fatal):', e);
-    return null;
+    return [];
   }
 }

@@ -172,3 +172,51 @@ Provide your best assessment based on known aviation information about this airp
   const grounded = firecrawlContext.trim().length > 0 && extraction.sourceRelevant === true;
   return { ok: true, extraction, grounded };
 }
+
+export interface IndustryCandidate {
+  content: string;
+  sourceUrl: string;
+}
+
+export interface IndustryCandidateResolution {
+  /** The grounded outcome, if any candidate was confirmed genuinely relevant. */
+  grounded: { extraction: CiqExtraction; sourceUrl: string } | null;
+  /** The last successfully-extracted (but not grounded) result, kept only as a descriptive fallback — never treated as evidence. Undefined if every candidate's extraction call itself failed. */
+  lastUngrounded: CiqExtraction | undefined;
+}
+
+/**
+ * Tries each industry-source candidate IN THE GIVEN ORDER, calling
+ * runCiqExtraction for each, and stops at the first one the model confirms
+ * (via the same sourceRelevant field every tier uses) is genuinely specific
+ * to this airport. This exists because live testing found the top-ranked
+ * search result for a specific airport is often a broader country/region
+ * guide that never names the airport, while a more specific, airport-level
+ * page exists further down the results and was never even tried when only
+ * the first candidate was attempted — exactly the mechanism that produced a
+ * real false "unable to determine" for an airport a lower-ranked candidate
+ * (an AC-U-KWIK-style page explicitly showing "Customs Available: Yes")
+ * could have confirmed directly.
+ */
+export async function resolveIndustryCandidates(
+  icao: string,
+  candidates: IndustryCandidate[],
+  apiKey: string,
+  fetchImpl: typeof fetch = fetch,
+  corsHeaders: Record<string, string> = {},
+): Promise<IndustryCandidateResolution> {
+  let lastUngrounded: CiqExtraction | undefined;
+  for (const candidate of candidates) {
+    const outcome = await runCiqExtraction(icao, candidate.content, apiKey, fetchImpl, corsHeaders);
+    if (!outcome.ok) {
+      // Try the next candidate rather than aborting the whole industry tier
+      // over one candidate's extraction call failing.
+      continue;
+    }
+    if (outcome.grounded) {
+      return { grounded: { extraction: outcome.extraction, sourceUrl: candidate.sourceUrl }, lastUngrounded };
+    }
+    lastUngrounded = outcome.extraction;
+  }
+  return { grounded: null, lastUngrounded };
+}

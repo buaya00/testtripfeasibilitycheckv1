@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { runCiqExtraction } from "../../supabase/functions/ciq-lookup/extraction";
+import { runCiqExtraction, resolveIndustryCandidates } from "../../supabase/functions/ciq-lookup/extraction";
 
 // Regression coverage for the defect found via live testing: a CIQ pass
 // was marked "grounded" (and surfaced as "confirmed, high confidence,
@@ -183,5 +183,88 @@ describe("runCiqExtraction — error paths (unchanged behavior)", () => {
     expect(result.ok).toBe(false);
     assertIsError(result);
     expect(result.errorResponse.status).toBe(500);
+  });
+});
+
+describe("resolveIndustryCandidates — tries every candidate in order, not just the first", () => {
+  const GENERIC_UK_GUIDE = { content: 'Generic UK-wide customs and GAR filing procedures, never names a specific airport by ICAO code.', sourceUrl: 'https://www.universalweather.com/blog/united-kingdom-business-aviation-destination-guide/' };
+  const SPECIFIC_EGGW_PAGE = { content: 'Customs Immigration Agriculture: Customs Available: Yes. This is the specific EGGW airport profile page.', sourceUrl: 'https://www.universalweather.com/airports/EGGW-LTN-LUTON-AIRPORT-LONDON-LUTON-ENGLAND-UNITED-KINGDOM/' };
+
+  it("REGRESSION: a generic, non-airport-specific result ranked first is correctly rejected as ungrounded, and a more specific result ranked later IS tried and grounds the answer — this is the exact real bug (a real Universal Weather UK-wide guide ranked above the specific EGGW page, and only the first was ever tried before this fix)", async () => {
+    const fetchImpl = vi.fn(async (_url: string, options?: RequestInit) => {
+      const body = JSON.parse(options!.body as string);
+      const userContent = body.messages.find((m: { role: string }) => m.role === 'user').content as string;
+      const isGenericGuide = userContent.includes('Generic UK-wide');
+      return {
+        ok: true, status: 200,
+        json: async () => ({
+          choices: [{
+            message: {
+              tool_calls: [{
+                function: {
+                  arguments: JSON.stringify(
+                    isGenericGuide
+                      ? { country: 'United Kingdom', ciqAvailable: 'yes', confidence: 'medium', sourceRelevant: false, notes: 'Generic guide never names EGGW specifically.' }
+                      : { country: 'United Kingdom', ciqAvailable: 'yes', confidence: 'high', sourceRelevant: true, notes: 'Customs Available: Yes, per the airport profile.' }
+                  ),
+                },
+              }],
+            },
+          }],
+        }),
+      } as Response;
+    });
+
+    const resolution = await resolveIndustryCandidates('EGGW', [GENERIC_UK_GUIDE, SPECIFIC_EGGW_PAGE], 'api-key', fetchImpl as unknown as typeof fetch);
+    expect(resolution.grounded).not.toBeNull();
+    expect(resolution.grounded?.sourceUrl).toBe(SPECIFIC_EGGW_PAGE.sourceUrl);
+    expect(resolution.grounded?.extraction.ciqAvailable).toBe('yes');
+    // Both candidates were actually tried, in order -- not just the first.
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops at the FIRST grounded candidate and never tries later ones", async () => {
+    const fetchImpl = vi.fn(async () => ({
+      ok: true, status: 200,
+      json: async () => ({ choices: [{ message: { tool_calls: [{ function: { arguments: JSON.stringify({ country: 'UK', ciqAvailable: 'yes', confidence: 'high', sourceRelevant: true }) } }] } }] }),
+    } as Response));
+
+    await resolveIndustryCandidates('EGGW', [GENERIC_UK_GUIDE, SPECIFIC_EGGW_PAGE], 'api-key', fetchImpl as unknown as typeof fetch);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("when NO candidate is ever grounded, returns grounded: null and keeps the LAST attempted extraction as a descriptive-only fallback", async () => {
+    const fetchImpl = vi.fn(async () => ({
+      ok: true, status: 200,
+      json: async () => ({ choices: [{ message: { tool_calls: [{ function: { arguments: JSON.stringify({ country: 'UK', ciqAvailable: 'no', confidence: 'low', sourceRelevant: false }) } }] } }] }),
+    } as Response));
+
+    const resolution = await resolveIndustryCandidates('EGGW', [GENERIC_UK_GUIDE, SPECIFIC_EGGW_PAGE], 'api-key', fetchImpl as unknown as typeof fetch);
+    expect(resolution.grounded).toBeNull();
+    expect(resolution.lastUngrounded).toBeDefined();
+    expect(resolution.lastUngrounded?.ciqAvailable).toBe('no');
+  });
+
+  it("with an empty candidate list, returns grounded: null and lastUngrounded: undefined without calling fetch at all", async () => {
+    const fetchImpl = vi.fn();
+    const resolution = await resolveIndustryCandidates('EGGW', [], 'api-key', fetchImpl as unknown as typeof fetch);
+    expect(resolution).toEqual({ grounded: null, lastUngrounded: undefined });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("when one candidate's extraction call fails outright, moves on to try the next candidate rather than aborting", async () => {
+    let callCount = 0;
+    const fetchImpl = vi.fn(async () => {
+      callCount++;
+      if (callCount === 1) return { ok: false, status: 500, json: async () => ({}) } as Response;
+      return {
+        ok: true, status: 200,
+        json: async () => ({ choices: [{ message: { tool_calls: [{ function: { arguments: JSON.stringify({ country: 'UK', ciqAvailable: 'yes', confidence: 'high', sourceRelevant: true }) } }] } }] }),
+      } as Response;
+    });
+
+    const resolution = await resolveIndustryCandidates('EGGW', [GENERIC_UK_GUIDE, SPECIFIC_EGGW_PAGE], 'api-key', fetchImpl as unknown as typeof fetch);
+    expect(resolution.grounded).not.toBeNull();
+    expect(resolution.grounded?.sourceUrl).toBe(SPECIFIC_EGGW_PAGE.sourceUrl);
   });
 });
