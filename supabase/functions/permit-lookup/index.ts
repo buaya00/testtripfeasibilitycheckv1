@@ -229,12 +229,14 @@ Based on the above${perplexityContext ? ' real-time research' : ' knowledge'}, p
    - Issuing authority (full name of CAA or ministry)
    - Lead time in business days
    - Conditions under which permit is/isn't needed
+   - CRITICAL — DO NOT CONFLATE A PREREQUISITE CERTIFICATE WITH A SEPARATE REQUIRED PERMIT: authorities such as TCO (Third Country Operator) are frequently a PREREQUISITE you must already hold before you can even apply for a separate, still-required permit — never a substitute for it. Verified example: the UK CAA states outright that "no permit will be issued unless an applicant holds a valid UK Third Country Operator Certificate (TCO)" for its Foreign Carrier Permit (form CPG3200) — meaning holding a TCO does NOT mean no further permit is needed; it means the operator may now apply for the permit that is still separately required. Never write a "conditions" narrative implying "a permit is generally not required... provided the operator has [a prerequisite authorization]" unless the source explicitly confirms that authorization is the ONLY requirement with nothing further to obtain. If a source only confirms the prerequisite, but is silent on whether a separate permit is also required, that is insufficient evidence to conclude no permit is needed — reflect that gap in confidence/notes rather than asserting a permit-free outcome.
 
 2. THIRD COUNTRY OPERATOR (TCO) AUTHORIZATION — CRITICAL FOR EU & UK
    - ${isPrivateFlight ? 'TCO is a commercial operator authorization. For this private Part 91 flight, TCO is NOT applicable — return "not_applicable".' : 'For flights INTO EU/EASA states: Non-EU registered operators require a TCO Authorization issued by EASA.'}
    - ${isPrivateFlight ? '' : 'For flights INTO UK: Post-Brexit, non-UK registered operators need a UK TCO Authorization from the UK CAA.'}
    - Is TCO authorization required for this specific flight type and aircraft registration?
    - Lead time (typically 3–6 months for initial approval)
+   - ${isPrivateFlight ? '' : 'REMEMBER: TCO is a prerequisite CERTIFICATE, not a permit itself. Holding TCO does not eliminate the need for a separate landing/charter permit if one is otherwise required — check section 1 and section 4 independently rather than assuming TCO alone resolves them.'}
 
 3. BILATERAL AIR SERVICE AGREEMENT (ASA / BASA)
    - Relevant bilateral or multilateral air service agreements
@@ -274,7 +276,7 @@ Be specific and accurate. For the specific flight type "${flightTypeLabel}", be 
                 permitType: { type: 'string', description: 'Type of permit needed' },
                 leadTimeDays: { type: 'number', description: 'Typical lead time in business days' },
                 issuingAuthority: { type: 'string', description: 'Full name of authority that issues the landing permit' },
-                conditions: { type: 'string', description: 'Conditions under which a permit is or is not required' },
+                conditions: { type: 'string', description: 'Conditions under which a permit is or is not required. Never state or imply that holding a prerequisite authorization (e.g. TCO) alone means no separate permit is required unless the source explicitly confirms nothing further is needed — a prerequisite and a still-required permit are different things.' },
                 overflightPermit: { type: 'string', enum: ['yes', 'no', 'conditional'], description: 'Whether an overflight permit is also needed' },
                 tcoRequired: { type: 'string', enum: ['yes', 'no', 'conditional', 'not_applicable'], description: 'Whether Third Country Operator (TCO) authorization is required' },
                 tcoAuthority: { type: 'string', description: 'Authority issuing TCO authorization' },
